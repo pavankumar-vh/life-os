@@ -1,9 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ──────────────────────────────────────────────────── */
+/*  BASE                                                */
+/* ──────────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border;
@@ -11,143 +14,466 @@
 
   body {
     @apply bg-bg text-text-primary font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 
   ::selection {
-    @apply bg-brutal-yellow/30 text-text-primary;
+    background: rgba(232, 213, 183, 0.2);
   }
 
+  /* Smooth glass scrollbar */
   ::-webkit-scrollbar {
-    @apply w-1.5;
+    width: 6px;
   }
-
   ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background: transparent;
   }
-
   ::-webkit-scrollbar-thumb {
-    @apply bg-border-strong rounded-full;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    transition: background 0.2s;
   }
-
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-text-muted;
+    background: rgba(255, 255, 255, 0.16);
   }
 }
 
+/* ──────────────────────────────────────────────────── */
+/*  COMPONENTS                                          */
+/* ──────────────────────────────────────────────────── */
 @layer components {
-  .brutal-card {
-    @apply bg-bg-surface border-3 border-text-primary rounded-none p-4
-           shadow-brutal-white transition-all duration-150;
+
+  /* ─── Glass Card ─────────────────────────────────── */
+  .card {
+    @apply relative rounded-2xl p-5 overflow-hidden;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.025) 50%,
+      rgba(255, 255, 255, 0.045) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    box-shadow:
+      0 4px 24px -4px rgba(0, 0, 0, 0.35),
+      0 0 0 0.5px rgba(255, 255, 255, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    will-change: transform;
+    transform: translateZ(0);
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.15) 20%,
+      rgba(255, 255, 255, 0.2) 50%,
+      rgba(255, 255, 255, 0.15) 80%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+  .card::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(
+      circle at 30% 20%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 50%
+    );
+    pointer-events: none;
+    opacity: 0.6;
+    transition: opacity 0.5s ease;
+    will-change: opacity;
+    z-index: 1;
+  }
+  .card:hover::after {
+    opacity: 1;
+  }
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 8px 36px -8px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+    transform: translateY(-1px);
   }
 
-  .brutal-card:hover {
-    @apply translate-x-[-2px] translate-y-[-2px] shadow-brutal-lg;
+  /* ─── Glow Card — animated border glow ─────────── */
+  .glow-card {
+    @apply relative rounded-2xl overflow-hidden;
+  }
+  .glow-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(232, 213, 183, 0.2),
+      rgba(96, 165, 250, 0.1),
+      rgba(167, 139, 250, 0.15),
+      rgba(232, 213, 183, 0.05)
+    );
+    background-size: 300% 300%;
+    animation: glow-rotate 8s ease-in-out infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .glow-card:hover::before {
+    opacity: 1;
   }
 
-  .brutal-card-yellow {
-    @apply bg-bg-surface border-3 border-brutal-yellow rounded-none p-4
-           shadow-brutal transition-all duration-150;
+  /* ─── Stat Card — special dashboard cards ─────── */
+  .stat-card {
+    @apply relative rounded-2xl p-5 overflow-hidden cursor-pointer;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 40%,
+      rgba(255, 255, 255, 0.05) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+    transform: translateZ(0);
+    box-shadow:
+      0 2px 16px -4px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  }
+  .stat-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    transform: translateY(-3px) scale(1.01);
+    box-shadow:
+      0 20px 56px -12px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    left: -30%;
+    width: 160%;
+    height: 160%;
+    background: radial-gradient(
+      ellipse at 25% 15%,
+      rgba(255, 255, 255, 0.05) 0%,
+      transparent 55%
+    );
+    pointer-events: none;
+    opacity: 0.5;
+    transition: opacity 0.5s ease;
+    will-change: opacity;
+    z-index: 1;
+  }
+  .stat-card:hover::before {
+    opacity: 1;
+  }
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.25),
+      rgba(255, 255, 255, 0.18),
+      transparent
+    );
+    z-index: 1;
   }
 
-  .brutal-btn {
-    @apply bg-brutal-yellow text-black font-bold px-4 py-2 border-3 border-black
-           shadow-[3px_3px_0px_0px_#000] rounded-none
-           hover:translate-x-[-2px] hover:translate-y-[-2px]
-           hover:shadow-[5px_5px_0px_0px_#000]
-           active:translate-x-[1px] active:translate-y-[1px]
-           active:shadow-[1px_1px_0px_0px_#000]
-           transition-all duration-100 cursor-pointer
-           font-mono text-sm uppercase tracking-wide;
+  /* ─── Buttons ────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+           font-medium text-sm cursor-pointer
+           relative overflow-hidden;
+    background: linear-gradient(135deg, rgba(232, 213, 183, 0.95), rgba(201, 168, 124, 0.9));
+    color: #0a0a0a;
+    box-shadow: 0 2px 8px -2px rgba(232, 213, 183, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    will-change: transform;
+  }
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.2) 50%, transparent 60%);
+    background-size: 200% 100%;
+    background-position: 200% 0;
+    transition: background-position 0.6s ease;
+    pointer-events: none;
+  }
+  .btn:hover::before {
+    background-position: -200% 0;
+  }
+  .btn:hover {
+    background: linear-gradient(135deg, rgba(232, 213, 183, 1), rgba(201, 168, 124, 1));
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 24px -4px rgba(232, 213, 183, 0.35),
+      0 0 24px -8px rgba(232, 213, 183, 0.25);
+  }
+  .btn:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 2px 8px -2px rgba(232, 213, 183, 0.15);
   }
 
-  .brutal-btn-ghost {
-    @apply bg-transparent text-text-primary font-bold px-4 py-2 border-3 border-border-strong
-           rounded-none hover:border-brutal-yellow hover:text-brutal-yellow
-           transition-all duration-100 cursor-pointer
-           font-mono text-sm uppercase tracking-wide;
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl
+           text-text-secondary text-sm cursor-pointer;
+    background: transparent;
+    position: relative;
+    transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
+  }
+  .btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+    @apply text-text-primary;
+    transform: translateY(-0.5px);
   }
 
-  .brutal-btn-danger {
-    @apply bg-brutal-red text-white font-bold px-4 py-2 border-3 border-black
-           shadow-[3px_3px_0px_0px_#000] rounded-none
-           hover:translate-x-[-2px] hover:translate-y-[-2px]
-           hover:shadow-[5px_5px_0px_0px_#000]
-           transition-all duration-100 cursor-pointer
-           font-mono text-sm uppercase tracking-wide;
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl
+           text-sm font-medium cursor-pointer;
+    background: rgba(251, 113, 133, 0.08);
+    color: #fb7185;
+    border: 1px solid rgba(251, 113, 133, 0.1);
+    transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .btn-danger:hover {
+    background: rgba(251, 113, 133, 0.15);
+    border-color: rgba(251, 113, 133, 0.2);
+    box-shadow: 0 0 20px -4px rgba(251, 113, 133, 0.15);
+    transform: translateY(-0.5px);
   }
 
-  .brutal-input {
-    @apply bg-bg-elevated border-3 border-border-strong rounded-none px-3 py-2
-           text-text-primary font-mono text-sm
-           focus:border-brutal-yellow focus:outline-none focus:shadow-brutal-sm
-           placeholder:text-text-muted transition-all duration-100;
+  /* ─── Inputs ─────────────────────────────────────── */
+  .input {
+    @apply w-full rounded-xl px-4 py-3 text-sm
+           text-text-primary placeholder:text-text-muted
+           outline-none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .input:focus {
+    border-color: rgba(232, 213, 183, 0.35);
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow:
+      0 0 0 3px rgba(232, 213, 183, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
-  .brutal-badge {
-    @apply inline-flex items-center px-2 py-0.5 border-2 border-current
-           font-mono text-xs font-bold uppercase tracking-wider;
+  /* ─── Badge ──────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full
+           text-xs font-medium;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
-  .streak-ring {
-    @apply relative inline-flex items-center justify-center;
-  }
-
-  .stat-number {
-    @apply font-display text-4xl font-bold tracking-tight;
-  }
-
-  .section-title {
-    @apply font-display text-lg font-bold uppercase tracking-wider text-text-secondary;
-  }
-
+  /* ─── Kbd ────────────────────────────────────────── */
   .kbd {
-    @apply inline-flex items-center px-1.5 py-0.5 bg-bg-elevated border border-border-strong
-           rounded text-[10px] font-mono text-text-muted;
+    @apply inline-flex items-center px-1.5 py-0.5 rounded-lg
+           text-[10px] text-text-muted font-medium;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  /* ─── Section Label ──────────────────────────────── */
+  .section-label {
+    @apply text-xs font-semibold text-text-muted tracking-widest uppercase;
+  }
+
+  /* ─── Gradient Text ──────────────────────────────── */
+  .gradient-text {
+    background: linear-gradient(135deg, #e8d5b7 0%, #c9a87c 50%, #f0dfc4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-vivid {
+    background: linear-gradient(135deg, #e8d5b7 0%, #60a5fa 40%, #a78bfa 70%, #e8d5b7 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradient-shift 6s ease-in-out infinite;
+  }
+
+  /* ─── Glass Divider ──────────────────────────────── */
+  .glass-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  }
+
+  /* ─── Glow Ring — SVG progress ─────────────────── */
+  .glow-ring {
+    filter: drop-shadow(0 0 6px rgba(232, 213, 183, 0.3));
+  }
+
+  /* ─── Shimmer Skeleton ─────────────────────────── */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.06) 50%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  /* ─── Pulse Dot ────────────────────────────────── */
+  .pulse-dot {
+    @apply relative;
+  }
+
+  /* ─── Floating Label ───────────────────────────── */
+  .float-label {
+    @apply relative;
   }
 }
 
-/* Tiptap editor styles */
+/* ──────────────────────────────────────────────────── */
+/*  AMBIENT GRADIENT MESH — STATIC (no animation)      */
+/* ──────────────────────────────────────────────────── */
+.mesh-gradient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 15%, rgba(232, 213, 183, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 70% at 85% 80%, rgba(96, 165, 250, 0.03) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 50% 45%, rgba(167, 139, 250, 0.025) 0%, transparent 60%);
+}
+
+/* ──────────────────────────────────────────────────── */
+/*  KEYFRAME ANIMATIONS                                 */
+/* ──────────────────────────────────────────────────── */
+@keyframes glow-rotate {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* btn-shimmer removed — shimmer now triggers on hover via transition */
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes text-reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes number-scroll {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ──────────────────────────────────────────────────── */
+/*  TIPTAP EDITOR                                       */
+/* ──────────────────────────────────────────────────── */
 .tiptap-editor .ProseMirror {
-  @apply min-h-[200px] outline-none text-text-primary;
+  @apply min-h-[200px] outline-none text-text-primary leading-relaxed;
 }
-
 .tiptap-editor .ProseMirror p {
-  @apply mb-2;
+  @apply mb-3;
 }
-
 .tiptap-editor .ProseMirror h1 {
-  @apply text-2xl font-bold font-display mb-3 text-brutal-yellow;
+  @apply text-2xl font-semibold mb-3 text-text-primary;
 }
-
 .tiptap-editor .ProseMirror h2 {
-  @apply text-xl font-bold font-display mb-2;
+  @apply text-xl font-semibold mb-2;
 }
-
 .tiptap-editor .ProseMirror h3 {
-  @apply text-lg font-semibold mb-2;
+  @apply text-lg font-medium mb-2;
 }
-
 .tiptap-editor .ProseMirror ul {
-  @apply list-disc pl-6 mb-2;
+  @apply list-disc pl-6 mb-3;
 }
-
 .tiptap-editor .ProseMirror ol {
-  @apply list-decimal pl-6 mb-2;
+  @apply list-decimal pl-6 mb-3;
 }
-
 .tiptap-editor .ProseMirror blockquote {
-  @apply border-l-3 border-brutal-yellow pl-4 italic text-text-secondary;
+  @apply border-l-2 border-accent-muted pl-4 italic text-text-secondary;
 }
-
 .tiptap-editor .ProseMirror code {
-  @apply bg-bg-elevated px-1.5 py-0.5 font-mono text-sm text-brutal-green border border-border;
+  @apply px-1.5 py-0.5 rounded text-sm text-accent-warm;
+  background: rgba(255, 255, 255, 0.06);
 }
-
 .tiptap-editor .ProseMirror pre {
-  @apply bg-bg-elevated p-4 font-mono text-sm border-3 border-border-strong mb-2;
+  @apply p-4 rounded-xl text-sm mb-3;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
-
 .tiptap-editor .ProseMirror .is-editor-empty:first-child::before {
   @apply text-text-muted float-left h-0 pointer-events-none;
   content: attr(data-placeholder);
+}
+
+/* ──────────────────────────────────────────────────── */
+/*  UTILITY OVERRIDES                                   */
+/* ──────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Smooth spring-like transitions */
+.spring-transition {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover glow for any element */
+.hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+.hover-glow:hover {
+  box-shadow: 0 0 30px -5px rgba(232, 213, 183, 0.15);
 }

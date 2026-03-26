@@ -37,14 +37,6 @@ export function getDayProgress(): number {
   return Math.round(((hours * 60 + minutes) / 1440) * 100)
 }
 
-export function getStreakEmoji(streak: number): string {
-  if (streak >= 30) return '🔥'
-  if (streak >= 14) return '⚡'
-  if (streak >= 7) return '💪'
-  if (streak >= 3) return '✨'
-  return '🌱'
-}
-
 export function toISODate(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
 }

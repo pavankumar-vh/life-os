@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { isDemoUser, DEMO_HABITS } from '@/lib/demo-data'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
   const payload = getUserFromRequest(req)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -52,4 +53,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   await habit.save()
   return NextResponse.json(habit)
+  } catch (e) {
+    console.error('PATCH /api/habits/[id]/toggle error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

@@ -5,27 +5,39 @@ import { getUserFromRequest } from '@/lib/auth'
 import { isDemoUser, DEMO_JOURNAL } from '@/lib/demo-data'
 
 export async function GET(req: NextRequest) {
-  const payload = getUserFromRequest(req)
-  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (isDemoUser(payload.userId)) return NextResponse.json(DEMO_JOURNAL)
+  try {
+    const payload = getUserFromRequest(req)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (isDemoUser(payload.userId)) return NextResponse.json(DEMO_JOURNAL)
 
-  await connectDB()
-  const entries = await Journal.find({ userId: payload.userId }).sort({ date: -1 }).limit(100)
-  return NextResponse.json(entries)
+    await connectDB()
+    const entries = await Journal.find({ userId: payload.userId }).sort({ date: -1 }).limit(100)
+    return NextResponse.json(entries)
+  } catch (e) {
+    console.error('GET /api/journal error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const payload = getUserFromRequest(req)
-  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const payload = getUserFromRequest(req)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  await connectDB()
-  const body = await req.json()
+    const body = await req.json()
+    if (isDemoUser(payload.userId)) {
+      return NextResponse.json({ _id: body._id || `demo-${Date.now()}`, ...body, userId: payload.userId })
+    }
 
-  // Upsert by date
-  const entry = await Journal.findOneAndUpdate(
-    { userId: payload.userId, date: body.date },
-    { ...body, userId: payload.userId },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  )
-  return NextResponse.json(entry)
+    await connectDB()
+    const entry = await Journal.findOneAndUpdate(
+      { userId: payload.userId, date: body.date },
+      { ...body, userId: payload.userId },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+    return NextResponse.json(entry)
+  } catch (e) {
+    console.error('POST /api/journal error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

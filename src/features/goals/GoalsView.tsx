@@ -1,244 +1,226 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useGoalsStore, type GoalData } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Target, Plus, Trash2, X, Pause, Play, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, X, Target, TrendingUp, Pause, Play, CheckCircle2, Edit3 } from 'lucide-react'
 
-const CATEGORIES = ['health', 'fitness', 'career', 'finance', 'learning', 'personal', 'general']
+const CATEGORIES = ['Health', 'Fitness', 'Career', 'Finance', 'Learning', 'Personal', 'Other']
 
 export function GoalsView() {
   const { goals, isLoading, fetchGoals, addGoal, updateGoal, deleteGoal } = useGoalsStore()
   const [showAdd, setShowAdd] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('active')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [incrementValue, setIncrementValue] = useState<Record<string, number>>({})
+
+  // Form
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('general')
+  const [category, setCategory] = useState('Personal')
   const [target, setTarget] = useState(100)
-  const [unit, setUnit] = useState('%')
+  const [unit, setUnit] = useState('')
   const [deadline, setDeadline] = useState('')
 
   useEffect(() => { fetchGoals().catch(() => {}) }, [fetchGoals])
 
+  const stats = useMemo(() => ({
+    active: goals.filter(g => g.status === 'active').length,
+    completed: goals.filter(g => g.status === 'completed').length,
+    paused: goals.filter(g => g.status === 'paused').length,
+    avgProgress: goals.filter(g => g.status === 'active').length > 0
+      ? Math.round(goals.filter(g => g.status === 'active').reduce((s, g) => s + (g.progress / g.target) * 100, 0) / goals.filter(g => g.status === 'active').length)
+      : 0,
+    categories: [...new Set(goals.map(g => g.category))],
+  }), [goals])
+
+  const filtered = useMemo(() => {
+    return goals
+      .filter(g => statusFilter === 'all' || g.status === statusFilter)
+      .filter(g => categoryFilter === 'all' || g.category === categoryFilter)
+      .sort((a, b) => {
+        if (a.status === 'active' && b.status !== 'active') return -1
+        if (b.status === 'active' && a.status !== 'active') return 1
+        return (b.progress / b.target) - (a.progress / a.target)
+      })
+  }, [goals, statusFilter, categoryFilter])
+
   const handleAdd = async () => {
     if (!title.trim()) return
-    await addGoal({ title, description, category, target, unit, deadline: deadline || null })
-    setTitle(''); setDescription(''); setCategory('general'); setTarget(100); setUnit('%'); setDeadline('')
+    await addGoal({ title, description, category, progress: 0, target, unit, deadline: deadline || null, status: 'active' })
+    setTitle(''); setDescription(''); setCategory('Personal'); setTarget(100); setUnit(''); setDeadline('')
     setShowAdd(false)
   }
 
-  const handleProgress = async (goal: GoalData, delta: number) => {
-    const newProgress = Math.max(0, Math.min(goal.target, goal.progress + delta))
-    const status = newProgress >= goal.target ? 'completed' : goal.status
-    await updateGoal(goal._id, { progress: newProgress, status })
+  const handleIncrement = async (goal: GoalData) => {
+    const inc = incrementValue[goal._id] || 1
+    const newProgress = Math.min(goal.target, goal.progress + inc)
+    const updates: Partial<GoalData> = { progress: newProgress }
+    if (newProgress >= goal.target) updates.status = 'completed'
+    await updateGoal(goal._id, updates)
+    setIncrementValue(prev => ({ ...prev, [goal._id]: 1 }))
   }
 
   const togglePause = async (goal: GoalData) => {
-    await updateGoal(goal._id, {
-      status: goal.status === 'paused' ? 'active' : 'paused'
-    })
+    await updateGoal(goal._id, { status: goal.status === 'paused' ? 'active' : 'paused' })
   }
 
-  const activeGoals = goals.filter((g) => g.status === 'active')
-  const completedGoals = goals.filter((g) => g.status === 'completed')
-  const pausedGoals = goals.filter((g) => g.status === 'paused')
+  const daysUntilDeadline = (deadline: string) => {
+    const diff = Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    if (diff < 0) return `${Math.abs(diff)}d overdue`
+    if (diff === 0) return 'Due today'
+    return `${diff}d left`
+  }
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-2xl font-black tracking-tight flex items-center gap-2">
-            <Target className="w-6 h-6 text-brutal-yellow" />
-            Goals
+          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+            <Target className="w-6 h-6 text-accent" /> Goals
           </h1>
-          <p className="text-text-muted font-mono text-sm mt-1">
-            {activeGoals.length} active · {completedGoals.length} completed
-          </p>
+          <p className="text-text-muted text-xs mt-0.5">{stats.active} active · {stats.avgProgress}% avg progress</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="brutal-btn flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Goal
-        </button>
+        <button onClick={() => setShowAdd(true)} className="btn flex items-center gap-2"><Plus className="w-4 h-4" /> New Goal</button>
       </div>
 
-      {/* Add Goal */}
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Active', value: stats.active, color: 'text-accent' },
+          { label: 'Completed', value: stats.completed, color: 'text-green-soft' },
+          { label: 'Paused', value: stats.paused, color: 'text-text-muted' },
+          { label: 'Avg Progress', value: `${stats.avgProgress}%`, color: 'text-accent' },
+        ].map(s => (
+          <div key={s.label} className="card text-center">
+            <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-text-muted">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-5">
+        <div className="flex gap-1 bg-bg-elevated rounded-lg p-1">
+          {['all', 'active', 'completed', 'paused'].map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 text-xs rounded-md transition-all capitalize ${
+                statusFilter === s ? 'bg-bg-surface text-accent font-medium shadow-sm' : 'text-text-muted hover:text-text-primary'
+              }`}>{s}</button>
+          ))}
+        </div>
+        {stats.categories.length > 1 && (
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input text-xs">
+            <option value="all">All Categories</option>
+            {stats.categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Add Form */}
       <AnimatePresence>
         {showAdd && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden mb-6"
-          >
-            <div className="border-3 border-brutal-yellow bg-bg-surface p-4 shadow-brutal">
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
+            <div className="card border-accent/30">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-mono text-sm font-bold uppercase tracking-wider">New Goal</h3>
-                <button onClick={() => setShowAdd(false)}>
-                  <X className="w-4 h-4 text-text-muted hover:text-text-primary" />
-                </button>
+                <h3 className="text-sm font-medium">New Goal</h3>
+                <button onClick={() => setShowAdd(false)} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
               </div>
-
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Goal title..."
-                className="brutal-input w-full mb-3"
-                autoFocus
-              />
-
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description..."
-                className="brutal-input w-full h-16 resize-none mb-3"
-              />
-
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Goal title (e.g. Read 24 books)" className="input w-full mb-3" autoFocus />
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Why is this important? (optional)" className="input w-full mb-3 min-h-[60px] text-xs" />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div>
-                  <label className="font-mono text-[10px] text-text-muted uppercase block mb-1">Category</label>
-                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="brutal-input w-full text-xs">
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  <label className="text-[10px] text-text-muted uppercase block mb-1">Category</label>
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="input text-xs w-full">
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="font-mono text-[10px] text-text-muted uppercase block mb-1">Target</label>
-                  <input type="number" value={target} onChange={(e) => setTarget(Number(e.target.value))} className="brutal-input w-full text-xs" />
+                  <label className="text-[10px] text-text-muted uppercase block mb-1">Target</label>
+                  <input type="number" value={target || ''} onChange={(e) => setTarget(Number(e.target.value))} className="input text-xs w-full" />
                 </div>
                 <div>
-                  <label className="font-mono text-[10px] text-text-muted uppercase block mb-1">Unit</label>
-                  <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} className="brutal-input w-full text-xs" placeholder="%, kg, books..." />
+                  <label className="text-[10px] text-text-muted uppercase block mb-1">Unit</label>
+                  <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="books, km, etc." className="input text-xs w-full" />
                 </div>
                 <div>
-                  <label className="font-mono text-[10px] text-text-muted uppercase block mb-1">Deadline</label>
-                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="brutal-input w-full text-xs" />
+                  <label className="text-[10px] text-text-muted uppercase block mb-1">Deadline</label>
+                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="input text-xs w-full" />
                 </div>
               </div>
-
-              <button onClick={handleAdd} className="brutal-btn w-full">Create Goal</button>
+              <button onClick={handleAdd} className="btn w-full">Create Goal</button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Goals */}
+      {/* Goals List */}
       {isLoading ? (
-        <div className="text-center py-12">
-          <p className="font-mono text-sm text-text-muted animate-pulse">Loading goals...</p>
-        </div>
-      ) : goals.length === 0 && !showAdd ? (
-        <div className="text-center py-16 border-3 border-dashed border-border">
-          <Target className="w-8 h-8 text-text-muted mx-auto mb-2" />
-          <p className="font-mono text-sm text-text-muted">No goals yet</p>
-          <p className="font-mono text-xs text-text-muted mt-1">Set your first goal</p>
-        </div>
+        <div className="text-center py-12"><p className="text-sm text-text-muted animate-pulse">Loading goals...</p></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 card"><p className="text-sm text-text-muted">No goals yet. Set your first goal!</p></div>
       ) : (
-        <div className="space-y-6">
-          {/* Active Goals */}
-          {activeGoals.length > 0 && (
-            <div>
-              <h3 className="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Active</h3>
-              <div className="space-y-3">
-                {activeGoals.map((goal) => {
-                  const pct = Math.round((goal.progress / goal.target) * 100)
-                  return (
-                    <motion.div
-                      key={goal._id}
-                      layout
-                      className="border-3 border-border bg-bg-surface p-4 hover:border-border-strong transition-all group"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="font-mono text-sm font-bold">{goal.title}</h3>
-                          {goal.description && (
-                            <p className="font-mono text-[10px] text-text-muted mt-0.5">{goal.description}</p>
-                          )}
-                          <div className="flex gap-2 mt-1">
-                            <span className="brutal-badge text-[8px] text-brutal-cyan">{goal.category}</span>
-                            {goal.deadline && (
-                              <span className="font-mono text-[10px] text-text-muted">Due: {goal.deadline}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => togglePause(goal)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-brutal-yellow transition-all p-1">
-                            <Pause className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => deleteGoal(goal._id)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-brutal-red transition-all p-1">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-4 bg-bg-elevated border-2 border-border-strong">
-                          <motion.div
-                            className="h-full bg-brutal-yellow"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(100, pct)}%` }}
-                            transition={{ duration: 0.5 }}
-                          />
-                        </div>
-                        <span className="font-mono text-xs font-bold w-16 text-right">
-                          {goal.progress}/{goal.target} {goal.unit}
-                        </span>
-                        <span className="font-mono text-xs text-brutal-yellow font-bold">{pct}%</span>
-                      </div>
-
-                      {/* Quick Progress Buttons */}
-                      <div className="flex gap-2 mt-3">
-                        {[1, 5, 10].map((delta) => (
-                          <button
-                            key={delta}
-                            onClick={() => handleProgress(goal, delta)}
-                            className="brutal-btn-ghost text-[10px] px-2 py-1"
-                          >
-                            +{delta}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Paused Goals */}
-          {pausedGoals.length > 0 && (
-            <div>
-              <h3 className="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Paused</h3>
-              <div className="space-y-2">
-                {pausedGoals.map((goal) => (
-                  <div key={goal._id} className="border-3 border-border bg-bg-surface p-3 opacity-50 flex items-center gap-3 group">
-                    <button onClick={() => togglePause(goal)} className="text-text-muted hover:text-brutal-green">
-                      <Play className="w-4 h-4" />
-                    </button>
-                    <span className="font-mono text-sm flex-1">{goal.title}</span>
-                    <button onClick={() => deleteGoal(goal._id)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-brutal-red">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+        <div className="space-y-3">
+          {filtered.map(goal => {
+            const pct = goal.target > 0 ? Math.round((goal.progress / goal.target) * 100) : 0
+            const isComplete = goal.status === 'completed'
+            const isPaused = goal.status === 'paused'
+            return (
+              <motion.div key={goal._id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className={`card group ${isPaused ? 'opacity-60' : ''}`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {isComplete ? <CheckCircle2 className="w-4 h-4 text-green-soft shrink-0" /> :
+                        isPaused ? <Pause className="w-4 h-4 text-text-muted shrink-0" /> :
+                        <TrendingUp className="w-4 h-4 text-accent shrink-0" />}
+                      <h3 className={`text-sm font-medium ${isComplete ? 'line-through text-text-muted' : 'text-text-primary'}`}>{goal.title}</h3>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-bg-elevated text-text-muted">{goal.category}</span>
+                    </div>
+                    {goal.description && <p className="text-[11px] text-text-muted mt-1 ml-6 line-clamp-1">{goal.description}</p>}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Completed Goals */}
-          {completedGoals.length > 0 && (
-            <div>
-              <h3 className="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Completed 🎯</h3>
-              <div className="space-y-2">
-                {completedGoals.map((goal) => (
-                  <div key={goal._id} className="border-3 border-brutal-green/30 bg-bg-surface p-3 flex items-center gap-3">
-                    <CheckCircle2 className="w-4 h-4 text-brutal-green" />
-                    <span className="font-mono text-sm text-text-muted line-through flex-1">{goal.title}</span>
-                    <span className="brutal-badge text-[8px] text-brutal-green">Done</span>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-2">
+                    {!isComplete && (
+                      <button onClick={() => togglePause(goal)} className="text-text-muted hover:text-accent" title={isPaused ? 'Resume' : 'Pause'}>
+                        {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
+                    <button onClick={() => deleteGoal(goal._id)} className="text-text-muted hover:text-red-soft"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+
+                {/* Progress Bar */}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex-1 h-2 bg-bg-elevated rounded-full overflow-hidden">
+                    <motion.div className={`h-full rounded-full ${isComplete ? 'bg-green-soft' : 'bg-accent'}`}
+                      initial={{ width: 0 }} animate={{ width: `${Math.min(100, pct)}%` }} transition={{ duration: 0.5 }} />
+                  </div>
+                  <span className={`text-xs font-medium shrink-0 ${isComplete ? 'text-green-soft' : 'text-accent'}`}>{pct}%</span>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    <span>{goal.progress} / {goal.target} {goal.unit}</span>
+                    {goal.deadline && (
+                      <span className={new Date(goal.deadline) < new Date() && !isComplete ? 'text-red-soft font-medium' : ''}>
+                        {daysUntilDeadline(goal.deadline)}
+                      </span>
+                    )}
+                  </div>
+                  {!isComplete && !isPaused && (
+                    <div className="flex items-center gap-1.5">
+                      <input type="number" value={incrementValue[goal._id] || 1} min={1}
+                        onChange={(e) => setIncrementValue(prev => ({ ...prev, [goal._id]: Math.max(1, Number(e.target.value)) }))}
+                        className="input w-12 text-xs text-center py-0.5" />
+                      <button onClick={() => handleIncrement(goal)} className="btn text-xs py-1 px-3">+ Add</button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
       )}
     </div>

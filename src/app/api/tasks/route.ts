@@ -5,21 +5,35 @@ import { getUserFromRequest } from '@/lib/auth'
 import { isDemoUser, DEMO_TASKS } from '@/lib/demo-data'
 
 export async function GET(req: NextRequest) {
-  const payload = getUserFromRequest(req)
-  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (isDemoUser(payload.userId)) return NextResponse.json(DEMO_TASKS)
+  try {
+    const payload = getUserFromRequest(req)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (isDemoUser(payload.userId)) return NextResponse.json(DEMO_TASKS)
 
-  await connectDB()
-  const tasks = await Task.find({ userId: payload.userId }).sort({ createdAt: -1 })
-  return NextResponse.json(tasks)
+    await connectDB()
+    const tasks = await Task.find({ userId: payload.userId }).sort({ createdAt: -1 })
+    return NextResponse.json(tasks)
+  } catch (e) {
+    console.error('GET /api/tasks error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const payload = getUserFromRequest(req)
-  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const payload = getUserFromRequest(req)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  await connectDB()
-  const body = await req.json()
-  const task = await Task.create({ ...body, userId: payload.userId })
-  return NextResponse.json(task, { status: 201 })
+    const body = await req.json()
+    if (isDemoUser(payload.userId)) {
+      return NextResponse.json({ _id: `demo-${Date.now()}`, ...body, userId: payload.userId, status: 'todo' }, { status: 201 })
+    }
+
+    await connectDB()
+    const task = await Task.create({ ...body, userId: payload.userId })
+    return NextResponse.json(task, { status: 201 })
+  } catch (e) {
+    console.error('POST /api/tasks error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

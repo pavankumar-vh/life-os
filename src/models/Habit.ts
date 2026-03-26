@@ -15,7 +15,7 @@ export interface IHabit extends Document {
 const HabitSchema = new Schema<IHabit>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   name: { type: String, required: true },
-  icon: { type: String, default: '⚡' },
+  icon: { type: String, default: 'zap' },
   color: { type: String, default: '#FACC15' },
   frequency: { type: String, enum: ['daily', 'weekly'], default: 'daily' },
   completedDates: [{ type: String }],
