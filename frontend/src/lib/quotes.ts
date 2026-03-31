@@ -1,0 +1,17 @@
+export const MOTIVATIONAL_QUOTES = [
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { text: "Discipline is choosing between what you want now and what you want most.", author: "Abraham Lincoln" },
+  { text: "We are what we repeatedly do. Excellence is not an act, but a habit.", author: "Aristotle" },
+  { text: "The pain you feel today will be the strength you feel tomorrow.", author: "Arnold Schwarzenegger" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "Your body can stand almost anything. It's your mind that you have to convince.", author: "David Goggins" },
+  { text: "Don't count the days, make the days count.", author: "Muhammad Ali" },
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
+  { text: "It's not about having time, it's about making time.", author: "Unknown" },
+  { text: "Small daily improvements over time lead to stunning results.", author: "Robin Sharma" },
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "Hard choices, easy life. Easy choices, hard life.", author: "Jerzy Gregorek" },
+  { text: "You don't have to be extreme, just consistent.", author: "Unknown" },
+  { text: "The man who moves a mountain begins by carrying away small stones.", author: "Confucius" },
+  { text: "Progress, not perfection.", author: "Unknown" },
+]
