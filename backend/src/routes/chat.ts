@@ -14,6 +14,7 @@ import { SleepLog } from '../models/SleepLog'
 import { WaterLog } from '../models/WaterLog'
 import { Gratitude } from '../models/Gratitude'
 import { Book } from '../models/Book'
+import { User } from '../models/User'
 
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -148,7 +149,7 @@ router.get('/', async (req: AuthRequest, res) => {
 router.post('/', chatLimiter, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
-    const { message, apiKey, provider = 'openai', model } = req.body
+    const { message, provider = 'openai', model } = req.body
 
     if (!message || typeof message !== 'string' || message.length > 4000) {
       return res.status(400).json({ error: 'Invalid message' })
@@ -163,13 +164,15 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid model name' })
     }
 
-    const key = apiKey || process.env.OPENAI_API_KEY
-    if (!key) {
-      return res.status(400).json({ error: 'No API key configured. Add your API key in the chat settings.' })
-    }
-
     if (isDemoUser(userId)) {
       return res.status(400).json({ error: 'Chat is not available in demo mode' })
+    }
+
+    // Read API key from user settings in DB (never from client)
+    const user = await User.findById(userId).select('settings.aiKeys').lean()
+    const key = (user?.settings as any)?.aiKeys?.[provider] || process.env.OPENAI_API_KEY
+    if (!key) {
+      return res.status(400).json({ error: 'No API key configured. Add your API key in settings.' })
     }
 
     const history = await ChatMessage.find({ userId }).sort({ createdAt: -1 }).limit(20).lean()

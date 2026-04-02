@@ -104,12 +104,19 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
       return res.json(DEMO_USER)
     }
 
-    const user = await User.findById(userId).select('-password')
+    const user = await User.findById(userId).select('-password -googleTokens -settings.aiKeys')
     if (!user) {
       return res.status(404).json({ error: 'User not found' })
     }
 
-    return res.json(user)
+    return res.json({
+      _id: user._id,
+      email: user.email,
+      name: user.name,
+      xp: user.xp,
+      level: user.level,
+      createdAt: user.createdAt,
+    })
   } catch (error) {
     console.error('Auth me error:', error)
     return res.status(500).json({ error: 'Server error' })

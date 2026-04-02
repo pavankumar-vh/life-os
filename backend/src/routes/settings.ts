@@ -20,7 +20,15 @@ router.get('/', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     if (isDemoUser(userId)) return res.json(DEFAULT_SETTINGS)
     const user = await User.findById(userId).select('settings').lean()
-    return res.json(user?.settings || DEFAULT_SETTINGS)
+    const settings = user?.settings || DEFAULT_SETTINGS
+    // Mask AI keys — only return last 4 chars for display
+    const maskedKeys: Record<string, string> = {}
+    if (settings.aiKeys) {
+      for (const [k, v] of Object.entries(settings.aiKeys as Record<string, string>)) {
+        maskedKeys[k] = v ? `...${v.slice(-4)}` : ''
+      }
+    }
+    return res.json({ ...settings, aiKeys: maskedKeys })
   } catch (e) {
     console.error('GET /api/settings error:', e)
     return res.status(500).json({ error: 'Server error' })

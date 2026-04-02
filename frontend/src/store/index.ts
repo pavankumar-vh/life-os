@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { toISODate } from '@/lib/utils'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
 
 // ─── TYPES ─────────────────────────────────────────
 
@@ -1160,7 +1160,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ messages: [...get().messages, userMsg], isStreaming: true })
 
     try {
-      const { provider, model, apiKey } = useSettingsStore.getState().getAiConfig()
+      const { provider, model } = useSettingsStore.getState().getAiConfig()
       const token = localStorage.getItem('lifeos-token')
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
@@ -1168,7 +1168,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: content, apiKey, provider, model }),
+        body: JSON.stringify({ message: content, provider, model }),
       })
 
       if (!res.ok) {
