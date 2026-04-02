@@ -38,4 +38,17 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 })
 
+router.delete('/:id', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const { id } = req.params
+    if (isDemoUser(userId)) return res.json({ success: true })
+    await BodyLog.findOneAndDelete({ _id: id, userId })
+    return res.json({ success: true })
+  } catch (e) {
+    console.error('DELETE /api/body error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
 export default router

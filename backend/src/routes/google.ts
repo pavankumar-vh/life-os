@@ -22,8 +22,9 @@ router.get('/auth-url', (req: AuthRequest, res: Response) => {
 // POST /api/google/callback — exchanges code for tokens and stores them
 router.post('/callback', async (req: AuthRequest, res: Response) => {
   try {
-    const { code } = req.body
+    const { code, state } = req.body
     if (!code) return res.status(400).json({ error: 'Authorization code required' })
+    if (state && state !== req.user!.userId) return res.status(400).json({ error: 'Invalid OAuth state' })
 
     const client = getOAuth2Client()
     const { tokens } = await client.getToken(code)

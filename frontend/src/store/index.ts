@@ -180,7 +180,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedDate: toISODate(),
   sidebarCollapsed: false,
   focusMode: false,
-  accentColor: typeof window !== 'undefined' ? localStorage.getItem('lifeos-accent') || '#e8d5b7' : '#e8d5b7',
+  accentColor: '#e8d5b7',
   chatOpen: false,
   setActiveView: (view) => set({ activeView: view }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -188,9 +188,9 @@ export const useAppStore = create<AppState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
   setAccentColor: (color) => {
-    localStorage.setItem('lifeos-accent', color)
     document.documentElement.style.setProperty('--accent-dynamic', color)
     set({ accentColor: color })
+    useSettingsStore.getState().updateSettings({ accentColor: color })
   },
   toggleChat: () => set((s) => ({ chatOpen: !s.chatOpen })),
   setChatOpen: (open) => set({ chatOpen: open }),
@@ -217,6 +217,64 @@ async function api(path: string, options: RequestInit = {}) {
   if (!res.ok) throw new Error(data.error || 'Request failed')
   return data
 }
+
+// ─── SETTINGS STORE (DB-backed) ─────────────────────
+
+export const DEFAULT_GOALS = { calories: 2200, protein: 150, carbs: 250, fat: 70, water: 8, sleep: 8, steps: 10000, workoutsPerWeek: 4 }
+
+interface SettingsData {
+  accentColor: string
+  goals: typeof DEFAULT_GOALS
+  aiProvider: string
+  aiModels: Record<string, string>
+  aiKeys: Record<string, string>
+  lastBackup: string | null
+}
+
+interface SettingsState extends SettingsData {
+  loaded: boolean
+  fetchSettings: () => Promise<void>
+  updateSettings: (patch: Partial<SettingsData>) => Promise<void>
+  getAiConfig: () => { provider: string; model: string; apiKey: string }
+}
+
+const SETTINGS_DEFAULTS: SettingsData = {
+  accentColor: '#e8d5b7',
+  goals: DEFAULT_GOALS,
+  aiProvider: 'openai',
+  aiModels: {},
+  aiKeys: {},
+  lastBackup: null,
+}
+
+export const useSettingsStore = create<SettingsState>((set, get) => ({
+  ...SETTINGS_DEFAULTS,
+  loaded: false,
+  fetchSettings: async () => {
+    try {
+      const data = await api('/settings')
+      set({ ...SETTINGS_DEFAULTS, ...data, loaded: true })
+    } catch {
+      set({ loaded: true })
+    }
+  },
+  updateSettings: async (patch) => {
+    set(patch as any)
+    try {
+      await api('/settings', { method: 'PUT', body: JSON.stringify(patch) })
+    } catch {
+      // revert on failure — refetch
+      get().fetchSettings()
+    }
+  },
+  getAiConfig: () => {
+    const s = get()
+    const provider = s.aiProvider || 'openai'
+    const model = s.aiModels[provider] || ''
+    const apiKey = s.aiKeys[provider] || ''
+    return { provider, model, apiKey }
+  },
+}))
 
 // ─── HABITS STORE ───────────────────────────────────
 
@@ -481,7 +539,7 @@ interface BackupState {
 export const useBackupStore = create<BackupState>((set) => ({
   isExporting: false,
   isImporting: false,
-  lastBackup: typeof window !== 'undefined' ? localStorage.getItem('lifeos-last-backup') : null,
+  lastBackup: null,
   exportData: async () => {
     set({ isExporting: true })
     try {
@@ -496,7 +554,7 @@ export const useBackupStore = create<BackupState>((set) => ({
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
       const now = new Date().toISOString()
-      localStorage.setItem('lifeos-last-backup', now)
+      useSettingsStore.getState().updateSettings({ lastBackup: now })
       set({ lastBackup: now })
     } finally {
       set({ isExporting: false })
@@ -1102,9 +1160,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ messages: [...get().messages, userMsg], isStreaming: true })
 
     try {
-      const provider = localStorage.getItem('lifeos-ai-provider') || 'openai'
-      const model = localStorage.getItem(`lifeos-ai-model-${provider}`) || ''
-      const apiKey = localStorage.getItem(`lifeos-ai-key-${provider}`) || ''
+      const { provider, model, apiKey } = useSettingsStore.getState().getAiConfig()
       const token = localStorage.getItem('lifeos-token')
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',

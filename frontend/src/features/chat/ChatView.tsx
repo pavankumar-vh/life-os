@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useChatStore } from '@/store'
+import { useChatStore, useSettingsStore } from '@/store'
 import { ListSkeleton } from '@/components/Skeletons'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Trash2, Bot, User, Sparkles, MessageSquare, Key, ArrowDown } from 'lucide-react'
@@ -23,7 +23,10 @@ export function ChatView() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const hasApiKey = typeof window !== 'undefined' && !!localStorage.getItem('lifeos-openai-key')
+  const hasApiKey = useSettingsStore(s => {
+    const provider = s.aiProvider || 'openai'
+    return !!s.aiKeys[provider]
+  })
 
   useEffect(() => { fetchMessages().catch(() => {}) }, [fetchMessages])
 
@@ -62,17 +65,34 @@ export function ChatView() {
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
   }
 
+  const escapeHtml = (str: string) =>
+    str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
   const renderMarkdown = (text: string) => {
-    return text
+    const codeBlocks: string[] = []
+    let processed = text.replace(/```[\s\S]*?```/g, (match) => {
+      const code = match.replace(/```\w*\n?/, '').replace(/```$/, '')
+      codeBlocks.push(`<pre class="bg-bg-elevated rounded-lg p-3 my-2 overflow-x-auto"><code class="text-sm font-mono">${escapeHtml(code)}</code></pre>`)
+      return `__CODE_BLOCK_${codeBlocks.length - 1}__`
+    })
+    const inlineCode: string[] = []
+    processed = processed.replace(/`(.*?)`/g, (_, code) => {
+      inlineCode.push(`<code class="bg-bg-elevated px-1 py-0.5 rounded text-accent text-sm">${escapeHtml(code)}</code>`)
+      return `__INLINE_CODE_${inlineCode.length - 1}__`
+    })
+    processed = escapeHtml(processed)
+    processed = processed
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-bg-elevated px-1 py-0.5 rounded text-accent text-sm">$1</code>')
       .replace(/^### (.*$)/gm, '<h3 class="text-base font-semibold text-text-primary mt-3 mb-1">$1</h3>')
       .replace(/^## (.*$)/gm, '<h2 class="text-lg font-semibold text-text-primary mt-3 mb-1">$1</h2>')
       .replace(/^# (.*$)/gm, '<h1 class="text-xl font-bold text-text-primary mt-3 mb-1">$1</h1>')
       .replace(/^- (.*$)/gm, '<li class="ml-4 list-disc text-text-secondary">$1</li>')
       .replace(/^(\d+)\. (.*$)/gm, '<li class="ml-4 list-decimal text-text-secondary">$2</li>')
       .replace(/\n/g, '<br/>')
+    codeBlocks.forEach((block, i) => { processed = processed.replace(`__CODE_BLOCK_${i}__`, block) })
+    inlineCode.forEach((code, i) => { processed = processed.replace(`__INLINE_CODE_${i}__`, code) })
+    return processed
   }
 
   return (
@@ -92,10 +112,11 @@ export function ChatView() {
           {!hasApiKey && (
             <button
               onClick={() => {
-                const key = prompt('Enter your OpenAI API key:')
+                const key = prompt('Enter your API key:')
                 if (key?.trim()) {
-                  localStorage.setItem('lifeos-openai-key', key.trim())
-                  window.location.reload()
+                  const s = useSettingsStore.getState()
+                  const provider = s.aiProvider || 'openai'
+                  s.updateSettings({ aiKeys: { ...s.aiKeys, [provider]: key.trim() } })
                 }
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"

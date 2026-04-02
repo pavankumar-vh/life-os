@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAuthStore, useAppStore } from '@/store'
+import { useAuthStore, useAppStore, useSettingsStore } from '@/store'
 import { Sidebar } from './Sidebar'
 import { MobileNav } from './MobileNav'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -75,11 +75,20 @@ export function AppShell() {
   useEffect(() => {
     const stored = localStorage.getItem('lifeos-token')
     if (stored) setToken(stored)
-    // Hydrate accent color
-    const accent = localStorage.getItem('lifeos-accent')
-    if (accent) document.documentElement.style.setProperty('--accent-dynamic', accent)
     setHydrated(true)
   }, [setToken])
+
+  // Load settings from DB once authenticated
+  useEffect(() => {
+    if (!token) return
+    useSettingsStore.getState().fetchSettings().then(() => {
+      const { accentColor } = useSettingsStore.getState()
+      if (accentColor) {
+        document.documentElement.style.setProperty('--accent-dynamic', accentColor)
+        useAppStore.getState().setAccentColor(accentColor)
+      }
+    })
+  }, [token])
 
   // Keyboard shortcuts
   useHotkeys('mod+k', (e) => { e.preventDefault(); setCommandPaletteOpen(true) })

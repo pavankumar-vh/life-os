@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useAuthStore, useHabitsStore, useTasksStore, useGoalsStore, useWorkoutsStore, useMealsStore, useJournalStore } from '@/store'
+import { useAuthStore, useHabitsStore, useTasksStore, useGoalsStore, useWorkoutsStore, useMealsStore, useJournalStore, useSettingsStore } from '@/store'
 import { getGreeting, getDayProgress, toISODate } from '@/lib/utils'
-import { getStoredGoals } from '@/lib/goals'
 import { useAppStore } from '@/store'
 import { motion, useMotionValue, useTransform, animate, useInView } from 'framer-motion'
 import {
@@ -70,7 +69,7 @@ export function Dashboard() {
   const { entries, fetchEntries } = useJournalStore()
   const { setActiveView } = useAppStore()
   const [mounted, setMounted] = useState(false)
-  const userGoals = getStoredGoals()
+  const userGoals = useSettingsStore(s => s.goals)
 
   const today = toISODate()
   const dayProgress = getDayProgress()

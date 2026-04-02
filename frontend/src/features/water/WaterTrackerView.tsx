@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useWaterStore } from '@/store'
+import { useWaterStore, useSettingsStore } from '@/store'
 import { toISODate } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Droplets, Plus, Minus, TrendingUp, Award } from 'lucide-react'
-import { getStoredGoals } from '@/lib/goals'
 import { DateNavigator } from '@/components/DateNavigator'
 import { toast } from '@/components/Toast'
 
@@ -16,7 +15,7 @@ export function WaterTrackerView() {
 
   const [selectedDate, setSelectedDate] = useState(toISODate())
   const today = toISODate()
-  const userGoals = getStoredGoals()
+  const userGoals = useSettingsStore(s => s.goals)
   const todayLog = logs.find(l => l.date === selectedDate) || { _id: '', date: selectedDate, glasses: 0, goal: userGoals.water }
   const percentage = Math.min((todayLog.glasses / todayLog.goal) * 100, 100)
   const isComplete = todayLog.glasses >= todayLog.goal

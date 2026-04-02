@@ -21,4 +21,6 @@ const SleepLogSchema = new Schema<ISleepLog>({
   notes: { type: String, default: '' },
 }, { timestamps: true })
 
+SleepLogSchema.index({ userId: 1, date: 1 }, { unique: true })
+
 export const SleepLog = mongoose.model<ISleepLog>('SleepLog', SleepLogSchema)

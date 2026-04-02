@@ -92,11 +92,11 @@ export function JournalView() {
 
   useEffect(() => { fetchEntries().catch(() => toast.error('Failed to load journal entries')) }, [fetchEntries])
 
-  // Auto-save draft to localStorage
+  // Auto-save draft in memory (non-persistent)
+  const draftRef = useRef<Record<string, unknown> | null>(null)
   const saveDraft = useCallback(() => {
     if (!showNew) return
-    const draft = { editTitle, editContent, editMood, editEnergy, editHighlights, editGratitude, editImprovements, editTags }
-    localStorage.setItem('journal-draft', JSON.stringify(draft))
+    draftRef.current = { editTitle, editContent, editMood, editEnergy, editHighlights, editGratitude, editImprovements, editTags }
   }, [showNew, editTitle, editContent, editMood, editEnergy, editHighlights, editGratitude, editImprovements, editTags])
 
   useEffect(() => {
@@ -106,19 +106,18 @@ export function JournalView() {
   }, [saveDraft, showNew])
 
   const startNew = (template = 'free') => {
-    // Try to restore draft
-    const draft = localStorage.getItem('journal-draft')
+    // Try to restore draft from memory
+    const draft = draftRef.current
     if (draft && !activeEntry) {
       try {
-        const d = JSON.parse(draft)
-        setEditTitle(d.editTitle || '')
-        setEditContent(d.editContent || '')
-        setEditMood(d.editMood || 0)
-        setEditEnergy(d.editEnergy || 0)
-        setEditHighlights(d.editHighlights || '')
-        setEditGratitude(d.editGratitude || '')
-        setEditImprovements(d.editImprovements || '')
-        setEditTags(d.editTags || '')
+        setEditTitle((draft as any).editTitle || '')
+        setEditContent((draft as any).editContent || '')
+        setEditMood((draft as any).editMood || 0)
+        setEditEnergy((draft as any).editEnergy || 0)
+        setEditHighlights((draft as any).editHighlights || '')
+        setEditGratitude((draft as any).editGratitude || '')
+        setEditImprovements((draft as any).editImprovements || '')
+        setEditTags((draft as any).editTags || '')
       } catch { /* ignore */ }
     } else {
       setEditTitle('')
@@ -175,7 +174,7 @@ export function JournalView() {
     }
     if (activeEntry) data._id = activeEntry
     await saveEntry(data).catch(() => toast.error('Failed to save journal entry'))
-    localStorage.removeItem('journal-draft')
+    draftRef.current = null
     setShowNew(false)
     setActiveEntry(null)
   }

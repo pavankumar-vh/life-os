@@ -31,6 +31,7 @@ import timelineRoutes from './routes/timeline'
 import backupRoutes from './routes/backup'
 import chatRoutes from './routes/chat'
 import googleRoutes from './routes/google'
+import settingsRoutes from './routes/settings'
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -69,6 +70,7 @@ app.use('/api/timeline', timelineRoutes)
 app.use('/api/backup', backupRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/google', googleRoutes)
+app.use('/api/settings', settingsRoutes)
 
 // Health check
 app.get('/api/health', (_req, res) => {

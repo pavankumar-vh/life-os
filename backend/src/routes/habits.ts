@@ -64,4 +64,51 @@ router.delete('/:id', async (req: AuthRequest, res) => {
   }
 })
 
+// PATCH /api/habits/:id/toggle — toggle a habit completion for a date
+router.patch('/:id/toggle', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const { id } = req.params
+    const { date } = req.body
+    if (!date || typeof date !== 'string') {
+      return res.status(400).json({ error: 'Date required' })
+    }
+    if (isDemoUser(userId)) {
+      return res.json({ _id: id, toggled: true })
+    }
+    const habit = await Habit.findOne({ _id: id, userId })
+    if (!habit) return res.status(404).json({ error: 'Not found' })
+
+    const idx = habit.completedDates.indexOf(date)
+    if (idx >= 0) {
+      habit.completedDates.splice(idx, 1)
+    } else {
+      habit.completedDates.push(date)
+    }
+
+    // Recalculate streak
+    const today = new Date()
+    const sorted = [...habit.completedDates].sort().reverse()
+    let streak = 0
+    for (let i = 0; i < sorted.length; i++) {
+      const expected = new Date(today)
+      expected.setDate(expected.getDate() - i)
+      const expectedStr = expected.toISOString().split('T')[0]
+      if (sorted[i] === expectedStr) {
+        streak++
+      } else {
+        break
+      }
+    }
+    habit.streak = streak
+    if (streak > habit.bestStreak) habit.bestStreak = streak
+
+    await habit.save()
+    return res.json(habit)
+  } catch (e) {
+    console.error('PATCH /api/habits/:id/toggle error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
 export default router

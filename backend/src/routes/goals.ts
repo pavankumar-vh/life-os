@@ -41,11 +41,15 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     const updates = sanitizeBody(req.body)
     if (isDemoUser(userId)) return res.json({ _id: id, ...updates, userId })
-    const prevGoal = await Goal.findOne({ _id: id, userId })
     const goal = await Goal.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!goal) return res.status(404).json({ error: 'Not found' })
-    if (prevGoal && prevGoal.status !== 'completed' && goal.status === 'completed') {
-      await User.findByIdAndUpdate(userId, { $inc: { xp: 50 } })
+    // Award XP atomically: only if we're the one transitioning to completed
+    if ((updates as any).status === 'completed') {
+      const xpResult = await Goal.findOneAndUpdate(
+        { _id: id, userId, _xpAwarded: { $ne: true } },
+        { $set: { _xpAwarded: true } }
+      )
+      if (xpResult) await User.findByIdAndUpdate(userId, { $inc: { xp: 50 } })
     }
     return res.json(goal)
   } catch (e) {

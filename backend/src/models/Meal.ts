@@ -23,4 +23,6 @@ const MealSchema = new Schema<IMeal>({
   fat: { type: Number, default: 0 },
 }, { timestamps: true })
 
+MealSchema.index({ userId: 1, date: 1 })
+
 export const Meal = mongoose.model<IMeal>('Meal', MealSchema)

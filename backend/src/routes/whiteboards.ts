@@ -39,8 +39,8 @@ router.post('/', async (req: AuthRequest, res) => {
         { ...data, userId },
         { new: true }
       )
-    }
-    if (!board) {
+      if (!board) return res.status(404).json({ error: 'Board not found' })
+    } else {
       board = await Whiteboard.create({ ...data, userId })
     }
     return res.json(board)

@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore } from '@/store'
+import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSettingsStore, DEFAULT_GOALS } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Download, Upload, Shield, Database, CheckCircle2, AlertTriangle, HardDrive, RefreshCw, Cloud, Package, ArrowRightLeft, Unlock,
   Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints
 } from 'lucide-react'
-import { getStoredGoals, DEFAULT_GOALS } from '@/lib/goals'
 import { toast } from '@/components/Toast'
 
 const ACCENT_PRESETS = [
@@ -22,10 +21,6 @@ const ACCENT_PRESETS = [
 ]
 
 type GoalKeys = keyof typeof DEFAULT_GOALS
-
-function getSettingsGoals(): typeof DEFAULT_GOALS {
-  return getStoredGoals()
-}
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -49,22 +44,24 @@ export function SettingsView() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-  const googleToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
+  const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
 
   // Check Google connection status
   useState(() => {
-    if (!googleToken) return
-    fetch(`${apiBase}/api/google/status`, { headers: { Authorization: `Bearer ${googleToken}` } })
+    if (!authToken) return
+    fetch(`${apiBase}/api/google/status`, { headers: { Authorization: `Bearer ${authToken}` } })
       .then(r => r.json()).then(d => setGoogleConnected(d.connected)).catch(() => {})
   })
 
-  // Goals
-  const [goals, setGoals] = useState(getSettingsGoals)
+  // Goals from settings store
+  const settingsGoals = useSettingsStore(s => s.goals)
+  const settingsAiKeys = useSettingsStore(s => s.aiKeys)
+  const [goals, setGoals] = useState(settingsGoals || DEFAULT_GOALS)
   const updateGoal = (key: GoalKeys, val: string) => {
     const num = parseInt(val) || 0
     const next = { ...goals, [key]: num }
     setGoals(next)
-    localStorage.setItem('lifeos-goals', JSON.stringify(next))
+    useSettingsStore.getState().updateSettings({ goals: next })
   }
 
   const habits = useHabitsStore(s => s.habits)
@@ -190,13 +187,13 @@ export function SettingsView() {
             <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
               <Bot className="w-4 h-4 text-accent" /> AI Assistant
             </h3>
-            <p className="text-xs text-text-muted mb-4">API keys are stored locally. Switch providers in the chat panel.</p>
+            <p className="text-xs text-text-muted mb-4">API keys are stored securely in your account. Switch providers in the chat panel.</p>
             {[
               { id: 'openai', label: 'OpenAI', link: 'https://platform.openai.com/api-keys', linkLabel: 'platform.openai.com' },
               { id: 'gemini', label: 'Google Gemini', link: 'https://aistudio.google.com/apikey', linkLabel: 'aistudio.google.com' },
               { id: 'anthropic', label: 'Anthropic Claude', link: 'https://console.anthropic.com/settings/keys', linkLabel: 'console.anthropic.com' },
             ].map(prov => {
-              const storedKey = typeof window !== 'undefined' ? localStorage.getItem(`lifeos-ai-key-${prov.id}`) : null
+              const storedKey = settingsAiKeys[prov.id] || ''
               return (
                 <div key={prov.id} className="flex items-center gap-3 p-3 bg-bg-elevated/50 rounded-lg mb-2">
                   <div className="flex-1 min-w-0">
@@ -210,10 +207,10 @@ export function SettingsView() {
                     )}
                   </div>
                   {storedKey ? (
-                    <button onClick={() => { localStorage.removeItem(`lifeos-ai-key-${prov.id}`); window.location.reload() }}
+                    <button onClick={() => { const s = useSettingsStore.getState(); const keys = { ...s.aiKeys }; delete keys[prov.id]; s.updateSettings({ aiKeys: keys }) }}
                       className="text-text-muted hover:text-red-soft p-1.5 rounded-lg hover:bg-red-soft/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                   ) : (
-                    <button onClick={() => { const k = prompt(`Enter your ${prov.label} API key:`); if (k?.trim()) { localStorage.setItem(`lifeos-ai-key-${prov.id}`, k.trim()); window.location.reload() } }}
+                    <button onClick={() => { const k = prompt(`Enter your ${prov.label} API key:`); if (k?.trim()) { const s = useSettingsStore.getState(); s.updateSettings({ aiKeys: { ...s.aiKeys, [prov.id]: k.trim() } }) } }}
                       className="px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors flex items-center gap-1 shrink-0">
                       <Key className="w-3 h-3" /> Add Key
                     </button>
@@ -359,7 +356,7 @@ export function SettingsView() {
                     try {
                       await fetch(`${apiBase}/api/google/disconnect`, {
                         method: 'POST',
-                        headers: { Authorization: `Bearer ${googleToken}` },
+                        headers: { Authorization: `Bearer ${authToken}` },
                       })
                       setGoogleConnected(false)
                       toast.success('Google account disconnected')
@@ -378,7 +375,7 @@ export function SettingsView() {
                   setGoogleLoading(true)
                   try {
                     const res = await fetch(`${apiBase}/api/google/auth-url`, {
-                      headers: { Authorization: `Bearer ${googleToken}` },
+                      headers: { Authorization: `Bearer ${authToken}` },
                     })
                     const { url, error } = await res.json()
                     if (error) { toast.error(error); return }
@@ -425,7 +422,7 @@ export function SettingsView() {
                   try {
                     const res = await fetch(`${apiBase}/api/google/drive/backup`, {
                       method: 'POST',
-                      headers: { Authorization: `Bearer ${googleToken}` },
+                      headers: { Authorization: `Bearer ${authToken}` },
                     })
                     const data = await res.json()
                     if (data.error) { toast.error(data.error); return }

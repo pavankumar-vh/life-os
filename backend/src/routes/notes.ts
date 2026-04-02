@@ -40,8 +40,8 @@ router.post('/', async (req: AuthRequest, res) => {
         { ...data, userId },
         { new: true }
       )
-    }
-    if (!note) {
+      if (!note) return res.status(404).json({ error: 'Note not found' })
+    } else {
       note = await Note.create({ ...data, userId })
     }
     return res.json(note)

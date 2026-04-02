@@ -43,12 +43,15 @@ router.put('/:id', async (req: AuthRequest, res) => {
     if (isDemoUser(userId)) {
       return res.json({ _id: id, ...updates, userId })
     }
-    const prevTask = await Task.findOne({ _id: id, userId })
     const task = await Task.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!task) return res.status(404).json({ error: 'Not found' })
-    // Award XP when task marked as done
-    if (prevTask && prevTask.status !== 'done' && task.status === 'done') {
-      await User.findByIdAndUpdate(userId, { $inc: { xp: 15 } })
+    // Award XP atomically: only if we're the one transitioning to done
+    if ((updates as any).status === 'done') {
+      const xpResult = await Task.findOneAndUpdate(
+        { _id: id, userId, _xpAwarded: { $ne: true } },
+        { $set: { _xpAwarded: true } }
+      )
+      if (xpResult) await User.findByIdAndUpdate(userId, { $inc: { xp: 15 } })
     }
     return res.json(task)
   } catch (e) {

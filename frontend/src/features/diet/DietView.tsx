@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useMealsStore } from '@/store'
+import { useMealsStore, useSettingsStore } from '@/store'
 import { toISODate, formatDate } from '@/lib/utils'
 import { ListSkeleton } from '@/components/Skeletons'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Trash2, X, Apple, Utensils, Copy, Sunrise, Sun, Moon as MoonIcon } from 'lucide-react'
-import { getStoredGoals } from '@/lib/goals'
 import { DateNavigator } from '@/components/DateNavigator'
 import { toast } from '@/components/Toast'
 
@@ -28,7 +27,7 @@ export function DietView() {
   const [fat, setFat] = useState(0)
   const [selectedDate, setSelectedDate] = useState(toISODate())
   const today = toISODate()
-  const MACRO_GOALS = getStoredGoals()
+  const MACRO_GOALS = useSettingsStore(s => s.goals)
 
   useEffect(() => { fetchMeals(selectedDate).catch(() => toast.error('Failed to load meals')) }, [fetchMeals, selectedDate])
 

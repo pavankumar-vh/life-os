@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useChatStore } from '@/store'
+import { useChatStore, useSettingsStore } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Trash2, User, Sparkles, X, ArrowDown, Settings, ChevronDown, Zap, RotateCcw } from 'lucide-react'
 
@@ -44,16 +44,13 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
 ]
 
 function getStoredProvider(): string {
-  if (typeof window === 'undefined') return 'openai'
-  return localStorage.getItem('lifeos-ai-provider') || 'openai'
+  return useSettingsStore.getState().aiProvider || 'openai'
 }
 function getStoredModel(provider: string): string {
-  if (typeof window === 'undefined') return ''
-  return localStorage.getItem(`lifeos-ai-model-${provider}`) || PROVIDERS.find(p => p.id === provider)?.models[0]?.id || ''
+  return useSettingsStore.getState().aiModels[provider] || PROVIDERS.find(p => p.id === provider)?.models[0]?.id || ''
 }
 function getStoredKey(provider: string): string {
-  if (typeof window === 'undefined') return ''
-  return localStorage.getItem(`lifeos-ai-key-${provider}`) || ''
+  return useSettingsStore.getState().aiKeys[provider] || ''
 }
 
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -112,39 +109,59 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 
   const handleProviderChange = (pid: string) => {
     setProvider(pid)
-    localStorage.setItem('lifeos-ai-provider', pid)
+    useSettingsStore.getState().updateSettings({ aiProvider: pid })
     setModel(getStoredModel(pid))
     setApiKeyInput('')
   }
 
   const handleModelChange = (mid: string) => {
     setModel(mid)
-    localStorage.setItem(`lifeos-ai-model-${provider}`, mid)
+    const s = useSettingsStore.getState()
+    useSettingsStore.getState().updateSettings({ aiModels: { ...s.aiModels, [provider]: mid } })
   }
 
   const handleSaveKey = () => {
     if (apiKeyInput.trim()) {
-      localStorage.setItem(`lifeos-ai-key-${provider}`, apiKeyInput.trim())
+      const s = useSettingsStore.getState()
+      useSettingsStore.getState().updateSettings({ aiKeys: { ...s.aiKeys, [provider]: apiKeyInput.trim() } })
       setApiKeyInput('')
       setShowConfig(false)
     }
   }
 
+  const escapeHtml = (str: string) =>
+    str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
   const renderMarkdown = (text: string) => {
-    return text
-      .replace(/```[\s\S]*?```/g, (match) => {
-        const code = match.replace(/```\w*\n?/, '').replace(/```$/, '')
-        return `<pre class="bg-[#0d0d0d] rounded-lg p-2.5 my-2 overflow-x-auto border border-border/10"><code class="text-[11px] text-text-secondary font-mono leading-relaxed">${code}</code></pre>`
-      })
+    // Extract code blocks first (preserve raw content)
+    const codeBlocks: string[] = []
+    let processed = text.replace(/```[\s\S]*?```/g, (match) => {
+      const code = match.replace(/```\w*\n?/, '').replace(/```$/, '')
+      codeBlocks.push(`<pre class="bg-[#0d0d0d] rounded-lg p-2.5 my-2 overflow-x-auto border border-border/10"><code class="text-[11px] text-text-secondary font-mono leading-relaxed">${escapeHtml(code)}</code></pre>`)
+      return `__CODE_BLOCK_${codeBlocks.length - 1}__`
+    })
+    // Extract inline code
+    const inlineCode: string[] = []
+    processed = processed.replace(/`(.*?)`/g, (_, code) => {
+      inlineCode.push(`<code class="bg-bg-elevated/80 px-1.5 py-0.5 rounded-md text-accent text-[11px] font-mono">${escapeHtml(code)}</code>`)
+      return `__INLINE_CODE_${inlineCode.length - 1}__`
+    })
+    // Escape remaining HTML
+    processed = escapeHtml(processed)
+    // Apply markdown formatting
+    processed = processed
       .replace(/\*\*(.*?)\*\*/g, '<strong class="text-text-primary font-semibold">$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-bg-elevated/80 px-1.5 py-0.5 rounded-md text-accent text-[11px] font-mono">$1</code>')
       .replace(/^### (.*$)/gm, '<h3 class="text-[13px] font-semibold text-text-primary mt-3 mb-1.5">$1</h3>')
       .replace(/^## (.*$)/gm, '<h2 class="text-sm font-semibold text-text-primary mt-3 mb-1.5">$1</h2>')
       .replace(/^- (.*$)/gm, '<div class="flex gap-1.5 ml-1 my-0.5"><span class="text-accent/50 mt-px">•</span><span class="text-text-secondary text-[12px] leading-relaxed">$1</span></div>')
       .replace(/^(\d+)\. (.*$)/gm, '<div class="flex gap-1.5 ml-1 my-0.5"><span class="text-accent/50 text-[11px] mt-px min-w-[14px]">$1.</span><span class="text-text-secondary text-[12px] leading-relaxed">$2</span></div>')
       .replace(/\n\n/g, '<div class="h-2"></div>')
       .replace(/\n/g, '<br/>')
+    // Restore code blocks and inline code
+    codeBlocks.forEach((block, i) => { processed = processed.replace(`__CODE_BLOCK_${i}__`, block) })
+    inlineCode.forEach((code, i) => { processed = processed.replace(`__INLINE_CODE_${i}__`, code) })
+    return processed
   }
 
   return (
@@ -288,7 +305,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
                         <Zap className="w-3 h-3 text-green-soft" />
                         <span className="flex-1 text-xs text-green-soft font-medium">Connected</span>
                         <span className="text-[11px] text-text-muted font-mono">...{getStoredKey(provider).slice(-5)}</span>
-                        <button onClick={() => { localStorage.removeItem(`lifeos-ai-key-${provider}`); setApiKeyInput('') }}
+                        <button onClick={() => { const s = useSettingsStore.getState(); const keys = { ...s.aiKeys }; delete keys[provider]; s.updateSettings({ aiKeys: keys }); setApiKeyInput('') }}
                           className="text-text-muted hover:text-red-soft p-0.5 transition-colors">
                           <Trash2 className="w-3 h-3" />
                         </button>

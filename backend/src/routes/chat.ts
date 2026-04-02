@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import rateLimit from 'express-rate-limit'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { ChatMessage } from '../models/ChatMessage'
 import { Journal } from '../models/Journal'
@@ -13,6 +14,14 @@ import { SleepLog } from '../models/SleepLog'
 import { WaterLog } from '../models/WaterLog'
 import { Gratitude } from '../models/Gratitude'
 import { Book } from '../models/Book'
+
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: 'Too many chat requests, please slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 
 const router = Router()
 router.use(authMiddleware)
@@ -136,7 +145,7 @@ router.get('/', async (req: AuthRequest, res) => {
 })
 
 // POST /api/chat — send message (streaming SSE)
-router.post('/', async (req: AuthRequest, res) => {
+router.post('/', chatLimiter, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
     const { message, apiKey, provider = 'openai', model } = req.body
@@ -280,6 +289,7 @@ router.post('/', async (req: AuthRequest, res) => {
       res.write('data: [DONE]\n\n')
     } catch (err) {
       console.error('Stream error:', err)
+      try { res.write(`data: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`) } catch {}
     } finally {
       res.end()
     }

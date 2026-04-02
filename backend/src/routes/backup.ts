@@ -69,44 +69,45 @@ router.post('/import', async (req: AuthRequest, res) => {
     const uid = userId
     const { data } = body
     let count = 0
+    const MAX_ITEMS = 5000
 
     if (data.habits?.length) {
-      for (const h of data.habits) {
+      for (const h of data.habits.slice(0, MAX_ITEMS)) {
         const { _id, userId: _, ...rest } = h
         await Habit.findOneAndUpdate({ userId: uid, name: rest.name }, { ...rest, userId: uid }, { upsert: true, new: true })
         count++
       }
     }
     if (data.journal?.length) {
-      for (const j of data.journal) {
+      for (const j of data.journal.slice(0, MAX_ITEMS)) {
         const { _id, userId: _, ...rest } = j
         await Journal.findOneAndUpdate({ userId: uid, date: rest.date }, { ...rest, userId: uid }, { upsert: true, new: true })
         count++
       }
     }
     if (data.workouts?.length) {
-      for (const w of data.workouts) {
+      for (const w of data.workouts.slice(0, MAX_ITEMS)) {
         const { _id, userId: _, ...rest } = w
         await Workout.findOneAndUpdate({ userId: uid, date: rest.date, name: rest.name }, { ...rest, userId: uid }, { upsert: true, new: true })
         count++
       }
     }
     if (data.meals?.length) {
-      for (const m of data.meals) {
+      for (const m of data.meals.slice(0, MAX_ITEMS)) {
         const { _id, userId: _, ...rest } = m
         await Meal.findOneAndUpdate({ userId: uid, date: rest.date, name: rest.name }, { ...rest, userId: uid }, { upsert: true, new: true })
         count++
       }
     }
     if (data.tasks?.length) {
-      for (const t of data.tasks) {
+      for (const t of data.tasks.slice(0, MAX_ITEMS)) {
         const { _id, userId: _, ...rest } = t
         await Task.findOneAndUpdate({ userId: uid, title: rest.title }, { ...rest, userId: uid }, { upsert: true, new: true })
         count++
       }
     }
     if (data.goals?.length) {
-      for (const g of data.goals) {
+      for (const g of data.goals.slice(0, MAX_ITEMS)) {
         const { _id, userId: _, ...rest } = g
         await Goal.findOneAndUpdate({ userId: uid, title: rest.title }, { ...rest, userId: uid }, { upsert: true, new: true })
         count++

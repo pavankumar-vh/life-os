@@ -63,8 +63,11 @@ function buildDemoTimeline(from: string, to: string): TimelineEvent[] {
 router.get('/', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
-    const from = (req.query.from as string) || toISODate(new Date(Date.now() - 30 * 86400000))
-    const to = (req.query.to as string) || toISODate()
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    const rawFrom = req.query.from as string
+    const rawTo = req.query.to as string
+    const from = (rawFrom && dateRegex.test(rawFrom)) ? rawFrom : toISODate(new Date(Date.now() - 30 * 86400000))
+    const to = (rawTo && dateRegex.test(rawTo)) ? rawTo : toISODate()
 
     if (isDemoUser(userId)) {
       return res.json(buildDemoTimeline(from, to))

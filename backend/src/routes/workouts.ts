@@ -28,7 +28,9 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId })
     }
     const workout = await Workout.create({ ...body, userId })
-    await User.findByIdAndUpdate(userId, { $inc: { xp: 25 } })
+    if (workout) {
+      await User.findByIdAndUpdate(userId, { $inc: { xp: 25 } })
+    }
     return res.status(201).json(workout)
   } catch (e) {
     console.error('POST /api/workouts error:', e)

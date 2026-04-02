@@ -29,6 +29,7 @@ router.post('/', async (req: AuthRequest, res) => {
     }
     if (bodyId) {
       const item = await Gratitude.findOneAndUpdate({ _id: bodyId, userId }, body, { new: true })
+      if (!item) return res.status(404).json({ error: 'Not found' })
       return res.json(item)
     }
     const item = await Gratitude.create({ ...body, userId })

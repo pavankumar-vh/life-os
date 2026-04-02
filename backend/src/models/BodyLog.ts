@@ -39,4 +39,6 @@ const BodyLogSchema = new Schema<IBodyLog>({
   notes: { type: String, default: '' },
 }, { timestamps: true })
 
+BodyLogSchema.index({ userId: 1, date: 1 }, { unique: true })
+
 export const BodyLog = mongoose.model<IBodyLog>('BodyLog', BodyLogSchema)

@@ -14,4 +14,6 @@ const WaterLogSchema = new Schema<IWaterLog>({
   goal: { type: Number, default: 8 },
 }, { timestamps: true })
 
+WaterLogSchema.index({ userId: 1, date: 1 }, { unique: true })
+
 export const WaterLog = mongoose.model<IWaterLog>('WaterLog', WaterLogSchema)
