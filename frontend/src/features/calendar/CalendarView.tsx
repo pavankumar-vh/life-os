@@ -307,7 +307,7 @@ export function CalendarView() {
                     const cfg = TYPE_CONFIG[event.type]
                     return (
                       <motion.div key={i} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
-                        className="flex items-start gap-2.5 p-2.5 rounded-lg bg-bg-elevated/50 hover:bg-bg-hover transition-colors">
+                        className="flex items-start gap-2.5 p-2.5 rounded-lg bg-bg-elevated hover:bg-bg-hover transition-colors">
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${cfg?.bg || 'bg-bg-elevated'}`}>
                           <span className="text-sm">{event.icon}</span>
                         </div>

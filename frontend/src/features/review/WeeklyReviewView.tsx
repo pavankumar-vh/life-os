@@ -196,7 +196,7 @@ export function WeeklyReviewView() {
           {reviewData.weekJournals.length > 0 && (
             <div className="flex gap-1">
               {reviewData.weekJournals.map(j => (
-                <div key={j._id} className="flex-1 text-center p-2 bg-bg-elevated/50 rounded-lg">
+                <div key={j._id} className="flex-1 text-center p-2 bg-bg-elevated rounded-lg">
                   <div className="flex justify-center"><MoodIcon mood={j.mood || 3} size={20} /></div>
                   <p className="text-xs text-text-muted mt-0.5">{j.date.slice(5)}</p>
                 </div>
@@ -209,15 +209,15 @@ export function WeeklyReviewView() {
         <div className="card">
           <h3 className="text-xs font-medium text-text-muted mb-3 flex items-center gap-1.5"><Dumbbell className="w-3.5 h-3.5 text-green-soft" /> Gym</h3>
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="p-2 bg-bg-elevated/50 rounded-lg">
+            <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-green-soft">{reviewData.weekWorkouts.length}</p>
               <p className="text-xs text-text-muted">Workouts</p>
             </div>
-            <div className="p-2 bg-bg-elevated/50 rounded-lg">
+            <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-accent">{Math.round(reviewData.totalVolume / 1000)}k</p>
               <p className="text-xs text-text-muted">Volume (kg)</p>
             </div>
-            <div className="p-2 bg-bg-elevated/50 rounded-lg">
+            <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-blue-soft">{reviewData.totalDuration}m</p>
               <p className="text-xs text-text-muted">Duration</p>
             </div>
@@ -249,11 +249,11 @@ export function WeeklyReviewView() {
         <div className="card">
           <h3 className="text-xs font-medium text-text-muted mb-3 flex items-center gap-1.5"><Moon className="w-3.5 h-3.5 text-purple-soft" /> Sleep</h3>
           <div className="grid grid-cols-2 gap-2 text-center">
-            <div className="p-2 bg-bg-elevated/50 rounded-lg">
+            <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-purple-soft">{reviewData.avgSleep}h</p>
               <p className="text-xs text-text-muted">Avg Hours</p>
             </div>
-            <div className="p-2 bg-bg-elevated/50 rounded-lg">
+            <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-green-soft">{reviewData.avgSleepQuality}/5</p>
               <p className="text-xs text-text-muted">Avg Quality</p>
             </div>
@@ -264,11 +264,11 @@ export function WeeklyReviewView() {
           <h3 className="text-xs font-medium text-text-muted mb-3 flex items-center gap-1.5"><Scale className="w-3.5 h-3.5 text-accent" /> Body</h3>
           {reviewData.latestBody ? (
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="p-2 bg-bg-elevated/50 rounded-lg">
+              <div className="p-2 bg-bg-elevated rounded-lg">
                 <p className="text-lg font-bold text-accent">{reviewData.latestBody.weight || '—'}</p>
                 <p className="text-xs text-text-muted">Weight (kg)</p>
               </div>
-              <div className="p-2 bg-bg-elevated/50 rounded-lg">
+              <div className="p-2 bg-bg-elevated rounded-lg">
                 <p className="text-lg font-bold text-blue-soft">{reviewData.latestBody.bodyFat || '—'}%</p>
                 <p className="text-xs text-text-muted">Body Fat</p>
               </div>

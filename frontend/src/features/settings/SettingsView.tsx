@@ -43,7 +43,7 @@ export function SettingsView() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+  const apiBase = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
 
   // Check Google connection status
@@ -170,7 +170,7 @@ export function SettingsView() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between p-3 bg-bg-elevated/50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-bg-elevated rounded-lg">
               <div className="flex items-center gap-3">
                 {focusMode ? <EyeOff className="w-4 h-4 text-accent" /> : <Eye className="w-4 h-4 text-text-muted" />}
                 <div>
@@ -195,7 +195,7 @@ export function SettingsView() {
             ].map(prov => {
               const storedKey = settingsAiKeys[prov.id] || ''
               return (
-                <div key={prov.id} className="flex items-center gap-3 p-3 bg-bg-elevated/50 rounded-lg mb-2">
+                <div key={prov.id} className="flex items-center gap-3 p-3 bg-bg-elevated rounded-lg mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-text-primary">{prov.label}</p>
                     {storedKey ? (
@@ -231,7 +231,7 @@ export function SettingsView() {
                 { keys: '⌘N', desc: 'Quick Add' }, { keys: '⌘/', desc: 'Focus Mode' },
                 { keys: '⌘1-9', desc: 'Navigate views' }, { keys: 'Esc', desc: 'Close dialogs' },
               ].map(s => (
-                <div key={s.keys} className="flex items-center justify-between p-2.5 bg-bg-elevated/50 rounded-lg">
+                <div key={s.keys} className="flex items-center justify-between p-2.5 bg-bg-elevated rounded-lg">
                   <span className="text-xs text-text-secondary">{s.desc}</span>
                   <kbd className="kbd">{s.keys}</kbd>
                 </div>
@@ -261,7 +261,7 @@ export function SettingsView() {
                     { key: 'carbs' as GoalKeys, label: 'Carbs', unit: 'g', icon: Activity, color: 'text-blue-soft' },
                     { key: 'fat' as GoalKeys, label: 'Fat', unit: 'g', icon: Scale, color: 'text-orange-soft' },
                   ].map(g => (
-                    <div key={g.key} className="p-3 bg-bg-elevated/50 rounded-xl">
+                    <div key={g.key} className="p-3 bg-bg-elevated rounded-xl">
                       <div className="flex items-center gap-1.5 mb-2">
                         <g.icon className={`w-3.5 h-3.5 ${g.color}`} />
                         <span className="text-xs text-text-secondary font-medium">{g.label}</span>
@@ -285,7 +285,7 @@ export function SettingsView() {
                     { key: 'sleep' as GoalKeys, label: 'Sleep', unit: 'hours', icon: Moon, color: 'text-purple-soft' },
                     { key: 'steps' as GoalKeys, label: 'Steps', unit: 'steps/day', icon: Activity, color: 'text-green-soft' },
                   ].map(g => (
-                    <div key={g.key} className="p-3 bg-bg-elevated/50 rounded-xl">
+                    <div key={g.key} className="p-3 bg-bg-elevated rounded-xl">
                       <div className="flex items-center gap-1.5 mb-2">
                         <g.icon className={`w-3.5 h-3.5 ${g.color}`} />
                         <span className="text-xs text-text-secondary font-medium">{g.label}</span>
@@ -301,7 +301,7 @@ export function SettingsView() {
               </div>
 
               {/* Workout frequency */}
-              <div className="p-3 bg-bg-elevated/50 rounded-xl">
+              <div className="p-3 bg-bg-elevated rounded-xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Dumbbell className="w-4 h-4 text-accent" />
@@ -481,13 +481,13 @@ export function SettingsView() {
                 { label: 'Tasks', count: tasks.length, color: 'text-blue-soft' },
                 { label: 'Goals', count: goalsData.length, color: 'text-accent' },
               ].map(d => (
-                <div key={d.label} className="text-center p-3 bg-bg-elevated/50 rounded-xl">
+                <div key={d.label} className="text-center p-3 bg-bg-elevated rounded-xl">
                   <p className={`text-xl font-bold ${d.color}`}>{d.count}</p>
                   <p className="text-xs text-text-secondary">{d.label}</p>
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between p-3 bg-bg-elevated/50 rounded-xl">
+            <div className="flex items-center justify-between p-3 bg-bg-elevated rounded-xl">
               <div>
                 <p className="text-sm font-medium">{totalRecords} total records</p>
                 <p className="text-xs text-text-muted">Across all categories</p>
@@ -568,7 +568,7 @@ export function SettingsView() {
                 { title: 'Import Anywhere', desc: 'Restore backups on any LifeOS instance.', icon: ArrowRightLeft },
                 { title: 'No Lock-in', desc: 'Your data is always yours. Export and leave anytime.', icon: Unlock },
               ].map(item => (
-                <div key={item.title} className="flex items-start gap-3 p-3 bg-bg-elevated/50 rounded-xl">
+                <div key={item.title} className="flex items-start gap-3 p-3 bg-bg-elevated rounded-xl">
                   <item.icon className="w-4 h-4 text-accent shrink-0 mt-0.5" />
                   <div>
                     <p className="text-xs font-medium text-text-primary">{item.title}</p>

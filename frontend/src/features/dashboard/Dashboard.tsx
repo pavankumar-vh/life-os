@@ -345,7 +345,7 @@ export function Dashboard() {
             return (
               <div key={date} className="flex-1 flex flex-col items-center gap-1.5">
                 <span className="text-xs text-text-muted">{completed}/{total}</span>
-                <div className="w-full rounded-lg overflow-hidden relative" style={{ height: '72px', background: 'rgba(255,255,255,0.03)' }}>
+                <div className="w-full rounded-lg overflow-hidden relative" style={{ height: '72px', background: 'rgba(255,255,255,0.08)' }}>
                   <motion.div
                     className="w-full rounded-lg absolute bottom-0"
                     style={{
@@ -403,7 +403,7 @@ export function Dashboard() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.6 + idx * 0.04, duration: 0.3 }}
-                    whileHover={{ background: 'rgba(255,255,255,0.04)' }}
+                    whileHover={{ background: 'rgba(255,255,255,0.09)' }}
                   >
                     <motion.div
                       className="w-1.5 h-5 rounded-full shrink-0"
@@ -512,9 +512,8 @@ export function Dashboard() {
                 return (
                   <motion.div
                     key={w._id}
-                    className="rounded-xl p-3"
-                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-                    whileHover={{ background: 'rgba(255,255,255,0.06)' }}
+                    className="rounded-xl p-3 bg-bg-elevated border border-border"
+                    whileHover={{ background: 'rgba(255,255,255,0.12)' }}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium text-text-primary">{w.name}</span>
@@ -551,7 +550,7 @@ export function Dashboard() {
                 <motion.div
                   key={t._id}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all"
-                  whileHover={{ background: 'rgba(255,255,255,0.04)' }}
+                  whileHover={{ background: 'rgba(255,255,255,0.09)' }}
                 >
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.priority === 'urgent' ? 'bg-red-soft' : 'bg-orange-soft'}`}
                     style={{ boxShadow: `0 0 6px ${t.priority === 'urgent' ? 'rgba(251,113,133,0.4)' : 'rgba(251,146,60,0.4)'}` }}
@@ -563,7 +562,7 @@ export function Dashboard() {
             </div>
           )}
           {closestGoal && (
-            <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="rounded-xl p-3 bg-bg-elevated border border-border">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-text-muted flex items-center gap-1"><Target className="w-3 h-3 text-blue-soft" /> Closest goal</span>
                 <span className="text-xs font-bold text-accent">{Math.round((closestGoal.progress / closestGoal.target) * 100)}%</span>
@@ -607,9 +606,8 @@ export function Dashboard() {
         </div>
         {todayEntry ? (
           <motion.div
-            className="rounded-xl p-4"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-            whileHover={{ background: 'rgba(255,255,255,0.06)' }}
+            className="rounded-xl p-4 bg-bg-elevated border border-border"
+            whileHover={{ background: 'rgba(255,255,255,0.12)' }}
           >
             <div className="flex items-center gap-2 mb-2">
               <span className="text-lg"><MoodIcon mood={todayEntry.mood || 3} size={22} /></span>

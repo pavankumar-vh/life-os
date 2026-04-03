@@ -337,7 +337,7 @@ export function GymView() {
                           onFocus={() => setShowExSearch(true)} placeholder="Search exercises..." className="input pl-9" />
                       </div>
                       {showExSearch && searchEx && (
-                        <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-bg-elevated border border-border rounded-lg shadow-card max-h-40 overflow-y-auto">
+                        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-bg-solid border border-border rounded-lg shadow-xl max-h-40 overflow-y-auto backdrop-blur-xl">
                           {filteredExercises.map(ex => (
                             <button key={ex} onClick={() => addExercise(ex)}
                               className="w-full text-left px-3 py-2 text-sm hover:bg-bg-hover transition-colors">{ex}</button>

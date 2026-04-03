@@ -1,98 +1,117 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { useWhiteboardStore } from '@/store'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useWhiteboardStore, type WhiteboardData, type WhiteboardFolderData } from '@/store'
 import { ListSkeleton } from '@/components/Skeletons'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Trash2, Pencil, ChevronLeft, MoreHorizontal,
-  Download, Copy
+  Download, Copy, FolderPlus, Folder, FolderOpen, ArrowLeft,
+  LayoutGrid, List, Search, X, Edit3, Move, ChevronRight,
 } from 'lucide-react'
-import { Tldraw, getSnapshot, loadSnapshot, type Editor, type TLEditorSnapshot } from 'tldraw'
-import 'tldraw/tldraw.css'
+import { toast } from '@/components/Toast'
+import dynamic from 'next/dynamic'
+
+const ExcalidrawWrapper = dynamic(
+  () => import('@excalidraw/excalidraw').then(mod => {
+    const Exc = mod.Excalidraw
+    return function Wrapper(props: any) { return <Exc {...props} /> }
+  }),
+  { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center text-text-muted text-sm">Loading editor...</div> }
+)
+
+type ViewMode = 'grid' | 'list'
 
 export function WhiteboardView() {
-  const { boards, activeBoard, isLoading, fetchBoards, saveBoard, deleteBoard, setActiveBoard } = useWhiteboardStore()
+  const {
+    boards, folders, activeBoard, isLoading,
+    fetchBoards, fetchFolders, saveBoard, deleteBoard,
+    saveFolder, deleteFolder, setActiveBoard,
+  } = useWhiteboardStore()
+
   const [showBoardList, setShowBoardList] = useState(true)
   const [boardTitle, setBoardTitle] = useState('Untitled Board')
   const [menuOpen, setMenuOpen] = useState(false)
-  const editorRef = useRef<Editor | null>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [showNewFolder, setShowNewFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null)
+  const [renameFolderName, setRenameFolderName] = useState('')
+  const [movingBoard, setMovingBoard] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ id: string; type: 'board' | 'folder'; x: number; y: number } | null>(null)
+  const excalidrawRef = useRef<any>(null)
   const hasLoaded = useRef(false)
 
   useEffect(() => {
-    if (!hasLoaded.current) { fetchBoards(); hasLoaded.current = true }
-  }, [fetchBoards])
-
-  const triggerSave = useCallback(() => {
-    if (!activeBoard || !editorRef.current) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      if (!editorRef.current || !activeBoard) return
-      const { document } = getSnapshot(editorRef.current.store)
-      saveBoard({
-        _id: activeBoard._id,
-        title: boardTitle,
-        snapshot: document as unknown as Record<string, unknown>,
-      })
-    }, 2000)
-  }, [activeBoard, boardTitle, saveBoard])
-
-  const handleMount = useCallback((editor: Editor) => {
-    editorRef.current = editor
-    editor.user.updateUserPreferences({ colorScheme: 'dark' })
-
-    if (activeBoard?.snapshot && Object.keys(activeBoard.snapshot).length > 0) {
-      try {
-        loadSnapshot(
-          editor.store,
-          { document: activeBoard.snapshot } as unknown as Partial<TLEditorSnapshot>
-        )
-      } catch (e) {
-        console.warn('Failed to load snapshot:', e)
-      }
+    if (!hasLoaded.current) {
+      fetchBoards()
+      fetchFolders()
+      hasLoaded.current = true
     }
+  }, [fetchBoards, fetchFolders])
 
-    const unsub = editor.store.listen(() => {
-      triggerSave()
-    }, { scope: 'document', source: 'user' })
+  useEffect(() => {
+    const handler = () => setContextMenu(null)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [])
 
-    return () => {
-      unsub()
-      if (activeBoard && editorRef.current) {
-        const { document } = getSnapshot(editorRef.current.store)
-        saveBoard({
-          _id: activeBoard._id,
-          title: boardTitle,
-          snapshot: document as unknown as Record<string, unknown>,
-        })
-      }
+  const breadcrumbs = useMemo(() => {
+    const path: WhiteboardFolderData[] = []
+    let id = currentFolderId
+    while (id) {
+      const folder = folders.find(f => f._id === id)
+      if (!folder) break
+      path.unshift(folder)
+      id = folder.parentId
     }
-  }, [activeBoard, boardTitle, saveBoard, triggerSave])
+    return path
+  }, [currentFolderId, folders])
+
+  const currentFolders = useMemo(() => {
+    let items = folders.filter(f => f.parentId === currentFolderId)
+    if (searchQuery) items = items.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    return items.sort((a, b) => a.name.localeCompare(b.name))
+  }, [folders, currentFolderId, searchQuery])
+
+  const currentBoards = useMemo(() => {
+    let items = boards.filter(b => (b.folderId || null) === currentFolderId)
+    if (searchQuery) items = items.filter(b => b.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    return items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  }, [boards, currentFolderId, searchQuery])
+
+  const totalInFolder = (folderId: string) => {
+    return boards.filter(b => b.folderId === folderId).length +
+           folders.filter(f => f.parentId === folderId).length
+  }
 
   const createNewBoard = async () => {
-    const board = await saveBoard({ title: 'Untitled Board', snapshot: {} })
+    const board = await saveBoard({ title: 'Untitled Board', folderId: currentFolderId, snapshot: {} })
     setBoardTitle('Untitled Board')
     setActiveBoard(board)
     setShowBoardList(false)
   }
 
-  const openBoard = (board: typeof boards[0]) => {
+  const openBoard = (board: WhiteboardData) => {
     setBoardTitle(board.title)
     setActiveBoard(board)
     setShowBoardList(false)
   }
 
   const goBack = () => {
-    if (activeBoard && editorRef.current) {
-      const { document } = getSnapshot(editorRef.current.store)
+    if (activeBoard && excalidrawRef.current) {
+      const elements = excalidrawRef.current.getSceneElements()
+      const appState = excalidrawRef.current.getAppState()
+      const files = excalidrawRef.current.getFiles()
       saveBoard({
         _id: activeBoard._id,
         title: boardTitle,
-        snapshot: document as unknown as Record<string, unknown>,
+        snapshot: { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files },
       })
     }
-    editorRef.current = null
+    excalidrawRef.current = null
     setShowBoardList(true)
     setActiveBoard(null)
   }
@@ -100,101 +119,408 @@ export function WhiteboardView() {
   const duplicateBoard = async () => {
     if (!activeBoard) return
     let snapshot = activeBoard.snapshot
-    if (editorRef.current) {
-      const { document } = getSnapshot(editorRef.current.store)
-      snapshot = document as unknown as Record<string, unknown>
+    if (excalidrawRef.current) {
+      const elements = excalidrawRef.current.getSceneElements()
+      const appState = excalidrawRef.current.getAppState()
+      const files = excalidrawRef.current.getFiles()
+      snapshot = { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files }
     }
-    await saveBoard({ title: boardTitle + ' (copy)', snapshot })
+    await saveBoard({ title: boardTitle + ' (copy)', folderId: activeBoard.folderId, snapshot })
     setMenuOpen(false)
+    toast.success('Board duplicated')
   }
 
   const exportBoard = () => {
-    if (!editorRef.current) return
-    const snap = getSnapshot(editorRef.current.store)
-    const data = JSON.stringify({ title: boardTitle, document: snap.document }, null, 2)
+    if (!excalidrawRef.current) return
+    const elements = excalidrawRef.current.getSceneElements()
+    const appState = excalidrawRef.current.getAppState()
+    const data = JSON.stringify({ title: boardTitle, elements, appState }, null, 2)
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = window.document.createElement('a')
     a.href = url
-    a.download = boardTitle.replace(/\s+/g, '-') + '.json'
+    a.download = boardTitle.replace(/\s+/g, '-') + '.excalidraw.json'
     a.click()
     URL.revokeObjectURL(url)
     setMenuOpen(false)
+    toast.success('Exported')
   }
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return
+    await saveFolder({ name: newFolderName.trim(), parentId: currentFolderId })
+    setNewFolderName('')
+    setShowNewFolder(false)
+    toast.success('Folder created')
+  }
+
+  const handleRenameFolder = async (id: string) => {
+    if (!renameFolderName.trim()) return
+    await saveFolder({ _id: id, name: renameFolderName.trim() })
+    setRenamingFolder(null)
+    toast.success('Folder renamed')
+  }
+
+  const handleDeleteFolder = async (id: string) => {
+    await deleteFolder(id)
+    toast.success('Folder deleted')
+  }
+
+  const handleMoveBoard = async (boardId: string, targetFolderId: string | null) => {
+    const board = boards.find(b => b._id === boardId)
+    if (!board) return
+    await saveBoard({ _id: boardId, title: board.title, folderId: targetFolderId, snapshot: board.snapshot })
+    setMovingBoard(null)
+    toast.success('Board moved')
+  }
+
+  const handleContextMenu = (e: React.MouseEvent, id: string, type: 'board' | 'folder') => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ id, type, x: e.clientX, y: e.clientY })
+  }
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleExcalidrawChange = useCallback((elements: readonly any[], appState: any, files: any) => {
+    if (!activeBoard) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      saveBoard({
+        _id: activeBoard._id,
+        title: boardTitle,
+        snapshot: {
+          elements: [...elements],
+          appState: { viewBackgroundColor: appState.viewBackgroundColor },
+          files,
+        },
+      })
+    }, 3000)
+  }, [activeBoard, boardTitle, saveBoard])
 
   if (isLoading && boards.length === 0) return <ListSkeleton />
 
+  // ════════════════ BOARD LIST / DRIVE VIEW ════════════════
   if (showBoardList || !activeBoard) {
     return (
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        <div className="flex items-center justify-between mb-6">
+      <div className="space-y-4 animate-in fade-in duration-300">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-text-primary">Whiteboard</h1>
-            <p className="text-xs text-text-muted mt-1">Draw, sketch, diagram {'\u2014'} powered by tldraw</p>
+            <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+              <Pencil size={22} className="text-accent" /> Whiteboard
+            </h1>
+            <p className="text-text-muted text-sm mt-1">Draw, sketch & organize your ideas</p>
           </div>
-          <button onClick={createNewBoard}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors">
-            <Plus className="w-4 h-4" /> New Board
-          </button>
-        </div>
-
-        {boards.length === 0 ? (
-          <div className="card text-center py-16">
-            <Pencil className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-40" />
-            <p className="text-sm text-text-muted mb-4">No boards yet</p>
-            <button onClick={createNewBoard}
-              className="px-4 py-2 rounded-xl bg-accent/10 text-accent text-sm hover:bg-accent/20 transition-colors">
-              Create your first board
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowNewFolder(true)} className="btn-ghost text-xs">
+              <FolderPlus size={14} /> New Folder
+            </button>
+            <button onClick={createNewBoard} className="btn text-xs">
+              <Plus size={14} /> New Board
             </button>
           </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="card">
+          <div className="flex items-center gap-1 mb-3 text-xs">
+            <button onClick={() => setCurrentFolderId(null)}
+              className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${!currentFolderId ? 'text-accent font-medium' : 'text-text-muted hover:text-text-primary hover:bg-glass-strong'}`}>
+              My Boards
+            </button>
+            {breadcrumbs.map(bc => (
+              <span key={bc._id} className="flex items-center gap-1">
+                <ChevronRight size={12} className="text-text-muted" />
+                <button onClick={() => setCurrentFolderId(bc._id)}
+                  className="px-2 py-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-glass-strong transition-colors cursor-pointer">
+                  {bc.name}
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search boards & folders..." className="input text-xs w-full !pl-9" />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <div className="flex border border-glass-border rounded-lg overflow-hidden">
+              <button onClick={() => setViewMode('grid')}
+                className={`p-2 transition-colors cursor-pointer ${viewMode === 'grid' ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-glass-strong'}`}>
+                <LayoutGrid size={14} />
+              </button>
+              <button onClick={() => setViewMode('list')}
+                className={`p-2 transition-colors cursor-pointer ${viewMode === 'list' ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-glass-strong'}`}>
+                <List size={14} />
+              </button>
+            </div>
+            {currentFolderId && (
+              <button onClick={() => {
+                const parent = folders.find(f => f._id === currentFolderId)
+                setCurrentFolderId(parent?.parentId ?? null)
+              }} className="btn-ghost text-xs">
+                <ArrowLeft size={14} /> Back
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* New Folder */}
+        <AnimatePresence>
+          {showNewFolder && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+              <div className="card border-accent/30 flex items-center gap-3">
+                <Folder size={18} className="text-accent shrink-0" />
+                <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} autoFocus
+                  placeholder="Folder name..." className="input text-sm flex-1"
+                  onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setShowNewFolder(false) }} />
+                <button onClick={handleCreateFolder} className="btn text-xs">Create</button>
+                <button onClick={() => setShowNewFolder(false)} className="btn-ghost text-xs"><X size={14} /></button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Move modal */}
+        <AnimatePresence>
+          {movingBoard && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+              onClick={() => setMovingBoard(null)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                className="card w-80 p-5 space-y-3" onClick={e => e.stopPropagation()}>
+                <h3 className="text-sm font-medium text-text-primary flex items-center gap-2"><Move size={14} /> Move to folder</h3>
+                <button onClick={() => handleMoveBoard(movingBoard, null)}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs text-text-secondary hover:bg-glass-strong transition-colors flex items-center gap-2 cursor-pointer">
+                  <Folder size={14} /> Root (My Boards)
+                </button>
+                {folders.map(f => (
+                  <button key={f._id} onClick={() => handleMoveBoard(movingBoard, f._id)}
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs text-text-secondary hover:bg-glass-strong transition-colors flex items-center gap-2 cursor-pointer">
+                    <Folder size={14} style={{ color: f.color }} /> {f.name}
+                  </button>
+                ))}
+                <button onClick={() => setMovingBoard(null)} className="btn-ghost text-xs w-full">Cancel</button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Content */}
+        {currentFolders.length === 0 && currentBoards.length === 0 ? (
+          <div className="card text-center py-16">
+            <Pencil className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-40" />
+            <p className="text-sm text-text-muted mb-4">
+              {searchQuery ? 'No results found' : currentFolderId ? 'This folder is empty' : 'No boards yet'}
+            </p>
+            {!searchQuery && (
+              <button onClick={createNewBoard} className="btn text-xs mx-auto">
+                <Plus size={14} /> Create your first board
+              </button>
+            )}
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div>
+            {currentFolders.length > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] uppercase text-text-muted tracking-wider mb-2">Folders</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {currentFolders.map(folder => (
+                    <motion.div key={folder._id}
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      className="card cursor-pointer hover:border-accent/20 transition-all group"
+                      onClick={() => setCurrentFolderId(folder._id)}
+                      onContextMenu={e => handleContextMenu(e, folder._id, 'folder')}>
+                      <div className="flex items-start justify-between mb-2">
+                        <FolderOpen size={28} style={{ color: folder.color }} className="opacity-80" />
+                        <button onClick={e => { e.stopPropagation(); handleContextMenu(e, folder._id, 'folder') }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-glass-strong text-text-muted transition-all">
+                          <MoreHorizontal size={14} />
+                        </button>
+                      </div>
+                      {renamingFolder === folder._id ? (
+                        <input value={renameFolderName} onChange={e => setRenameFolderName(e.target.value)} autoFocus
+                          className="input text-xs w-full" onClick={e => e.stopPropagation()}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRenameFolder(folder._id); if (e.key === 'Escape') setRenamingFolder(null) }}
+                          onBlur={() => handleRenameFolder(folder._id)} />
+                      ) : (
+                        <p className="text-sm font-medium text-text-primary truncate">{folder.name}</p>
+                      )}
+                      <p className="text-[10px] text-text-muted mt-1">{totalInFolder(folder._id)} items</p>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {currentBoards.length > 0 && (
+              <div>
+                {currentFolders.length > 0 && <p className="text-[10px] uppercase text-text-muted tracking-wider mb-2">Boards</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <AnimatePresence>
+                    {currentBoards.map(board => (
+                      <motion.div key={board._id}
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+                        className="card cursor-pointer hover:border-accent/20 transition-all group"
+                        onClick={() => openBoard(board)}
+                        onContextMenu={e => handleContextMenu(e, board._id, 'board')}>
+                        <div className="w-full h-24 rounded-lg bg-bg-elevated mb-3 flex items-center justify-center overflow-hidden">
+                          <Pencil size={24} className="text-text-muted opacity-20" />
+                        </div>
+                        <div className="flex items-start justify-between">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-medium text-text-primary truncate">{board.title}</h3>
+                            <p className="text-[10px] text-text-muted mt-0.5">
+                              {new Date(board.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          </div>
+                          <button onClick={e => { e.stopPropagation(); handleContextMenu(e, board._id, 'board') }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-glass-strong text-text-muted transition-all">
+                            <MoreHorizontal size={14} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AnimatePresence>
-              {boards.map(board => (
-                <motion.div key={board._id}
-                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                  className="card cursor-pointer hover:border-accent/20 transition-all group"
-                  onClick={() => openBoard(board)}>
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-sm font-medium text-text-primary">{board.title}</h3>
-                    <button onClick={e => { e.stopPropagation(); if (confirm('Delete this board?')) deleteBoard(board._id) }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-500/10 text-text-muted hover:text-red-400 transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-text-muted">
-                    <span className="ml-auto">{new Date(board.updatedAt).toLocaleDateString()}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+          <div className="card divide-y divide-glass-border">
+            {currentFolders.map(folder => (
+              <div key={folder._id}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-glass-strong transition-colors cursor-pointer group"
+                onClick={() => setCurrentFolderId(folder._id)}
+                onContextMenu={e => handleContextMenu(e, folder._id, 'folder')}>
+                <FolderOpen size={18} style={{ color: folder.color }} />
+                {renamingFolder === folder._id ? (
+                  <input value={renameFolderName} onChange={e => setRenameFolderName(e.target.value)} autoFocus
+                    className="input text-xs flex-1" onClick={e => e.stopPropagation()}
+                    onKeyDown={e => { if (e.key === 'Enter') handleRenameFolder(folder._id); if (e.key === 'Escape') setRenamingFolder(null) }}
+                    onBlur={() => handleRenameFolder(folder._id)} />
+                ) : (
+                  <span className="text-sm font-medium text-text-primary flex-1 truncate">{folder.name}</span>
+                )}
+                <span className="text-[10px] text-text-muted">{totalInFolder(folder._id)} items</span>
+                <button onClick={e => { e.stopPropagation(); handleContextMenu(e, folder._id, 'folder') }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-glass-strong text-text-muted transition-all">
+                  <MoreHorizontal size={14} />
+                </button>
+              </div>
+            ))}
+            {currentBoards.map(board => (
+              <div key={board._id}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-glass-strong transition-colors cursor-pointer group"
+                onClick={() => openBoard(board)}
+                onContextMenu={e => handleContextMenu(e, board._id, 'board')}>
+                <Pencil size={16} className="text-text-muted shrink-0" />
+                <span className="text-sm font-medium text-text-primary flex-1 truncate">{board.title}</span>
+                <span className="text-[10px] text-text-muted">
+                  {new Date(board.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+                <button onClick={e => { e.stopPropagation(); handleContextMenu(e, board._id, 'board') }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-glass-strong text-text-muted transition-all">
+                  <MoreHorizontal size={14} />
+                </button>
+              </div>
+            ))}
           </div>
         )}
+
+        {/* Context Menu */}
+        <AnimatePresence>
+          {contextMenu && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed z-50 w-44 rounded-xl bg-[rgba(20,20,20,0.95)] border border-glass-border shadow-xl overflow-hidden backdrop-blur-md"
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+              onClick={e => e.stopPropagation()}>
+              {contextMenu.type === 'board' ? (
+                <>
+                  <button onClick={() => { setMovingBoard(contextMenu.id); setContextMenu(null) }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
+                    <Move size={13} /> Move to folder
+                  </button>
+                  <button onClick={() => {
+                    const b = boards.find(x => x._id === contextMenu.id)
+                    if (b) { saveBoard({ title: b.title + ' (copy)', folderId: b.folderId, snapshot: b.snapshot }); toast.success('Duplicated') }
+                    setContextMenu(null)
+                  }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
+                    <Copy size={13} /> Duplicate
+                  </button>
+                  <div className="border-t border-glass-border" />
+                  <button onClick={() => { deleteBoard(contextMenu.id); toast.success('Board deleted'); setContextMenu(null) }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => {
+                    const f = folders.find(x => x._id === contextMenu.id)
+                    setRenameFolderName(f?.name ?? '')
+                    setRenamingFolder(contextMenu.id)
+                    setContextMenu(null)
+                  }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
+                    <Edit3 size={13} /> Rename
+                  </button>
+                  <div className="border-t border-glass-border" />
+                  <button onClick={() => { handleDeleteFolder(contextMenu.id); setContextMenu(null) }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     )
   }
 
+  // ════════════════ EXCALIDRAW EDITOR ════════════════
+  const initialData = activeBoard.snapshot && Object.keys(activeBoard.snapshot).length > 0
+    ? {
+        elements: (activeBoard.snapshot as any).elements ?? [],
+        appState: {
+          ...((activeBoard.snapshot as any).appState ?? {}),
+          theme: 'dark' as const,
+        },
+        files: (activeBoard.snapshot as any).files ?? undefined,
+      }
+    : { elements: [], appState: { theme: 'dark' as const } }
+
   return (
-    <div className="h-full w-full relative tldraw-wrapper" style={{ minHeight: 'calc(100vh - 64px)' }}>
+    <div className="h-full w-full relative" style={{ minHeight: 'calc(100vh - 64px)' }}>
       <div className="absolute top-3 left-3 z-[300] flex items-center gap-2">
         <button onClick={goBack}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-text-secondary hover:text-text-primary text-sm transition-colors backdrop-blur-sm">
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-text-secondary hover:text-text-primary text-sm transition-colors backdrop-blur-sm cursor-pointer">
           <ChevronLeft className="w-4 h-4" /> Boards
         </button>
         <input value={boardTitle} onChange={e => setBoardTitle(e.target.value)}
           onBlur={() => {
             if (activeBoard) {
-              const snap = editorRef.current
-                ? (getSnapshot(editorRef.current.store).document as unknown as Record<string, unknown>)
-                : activeBoard.snapshot
-              saveBoard({ _id: activeBoard._id, title: boardTitle, snapshot: snap })
+              let snapshot = activeBoard.snapshot
+              if (excalidrawRef.current) {
+                const elements = excalidrawRef.current.getSceneElements()
+                const appState = excalidrawRef.current.getAppState()
+                const files = excalidrawRef.current.getFiles()
+                snapshot = { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files }
+              }
+              saveBoard({ _id: activeBoard._id, title: boardTitle, snapshot })
             }
           }}
           className="px-3 py-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-sm text-text-primary outline-none min-w-[140px] backdrop-blur-sm"
         />
         <div className="relative">
           <button onClick={() => setMenuOpen(!menuOpen)}
-            className="p-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-text-secondary hover:text-text-primary transition-colors backdrop-blur-sm">
+            className="p-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-text-secondary hover:text-text-primary transition-colors backdrop-blur-sm cursor-pointer">
             <MoreHorizontal className="w-4 h-4" />
           </button>
           <AnimatePresence>
@@ -202,16 +528,16 @@ export function WhiteboardView() {
               <motion.div initial={{ opacity: 0, scale: 0.95, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                 className="absolute top-full left-0 mt-2 w-44 rounded-xl bg-[rgba(20,20,20,0.95)] border border-white/[0.06] shadow-xl overflow-hidden z-50 backdrop-blur-md">
                 <button onClick={duplicateBoard}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
                   <Copy className="w-3.5 h-3.5" /> Duplicate Board
                 </button>
                 <button onClick={exportBoard}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
                   <Download className="w-3.5 h-3.5" /> Export JSON
                 </button>
                 <div className="border-t border-white/[0.06]" />
-                <button onClick={() => { if (confirm('Delete this board?')) { deleteBoard(activeBoard._id); setShowBoardList(true); setActiveBoard(null); setMenuOpen(false) } }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors">
+                <button onClick={() => { deleteBoard(activeBoard._id); setShowBoardList(true); setActiveBoard(null); setMenuOpen(false); toast.success('Board deleted') }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
                   <Trash2 className="w-3.5 h-3.5" /> Delete Board
                 </button>
               </motion.div>
@@ -220,10 +546,12 @@ export function WhiteboardView() {
         </div>
       </div>
 
-      <Tldraw
+      <ExcalidrawWrapper
         key={activeBoard._id}
-        onMount={handleMount}
-        inferDarkMode
+        excalidrawAPI={(api: any) => { excalidrawRef.current = api }}
+        initialData={initialData}
+        onChange={handleExcalidrawChange}
+        theme="dark"
       />
     </div>
   )

@@ -638,7 +638,7 @@ export function JournalView() {
                   </div>
 
                   {/* Prompt hint */}
-                  <div className="bg-bg-elevated/50 rounded-lg px-3 py-2 border border-border-subtle">
+                  <div className="bg-bg-elevated rounded-lg px-3 py-2 border border-border-subtle">
                     <p className="text-xs text-accent/70 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Prompt: {dailyPrompt}</p>
                   </div>
 
@@ -712,7 +712,7 @@ export function JournalView() {
                   </div>
 
                   {/* Summary before save */}
-                  <div className="bg-bg-elevated/50 rounded-xl p-3 border border-border-subtle">
+                  <div className="bg-bg-elevated rounded-xl p-3 border border-border-subtle">
                     <p className="text-xs text-text-muted mb-2">Entry summary</p>
                     <div className="flex items-center gap-3 text-xs text-text-secondary">
                       <span className="flex items-center gap-1"><MoodIcon mood={editMood || 3} size={14} /> {MOOD_LABELS[(editMood || 3) - 1]}</span>
@@ -859,13 +859,13 @@ export function JournalView() {
                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 pt-3 border-t border-border-subtle">
                                 {entry.highlights && (
-                                  <div className="bg-bg-elevated/50 rounded-lg p-3">
+                                  <div className="bg-bg-elevated rounded-lg p-3">
                                     <p className="text-xs text-text-muted flex items-center gap-1 mb-1.5"><Star className="w-3 h-3 text-yellow-400" /> Highlights</p>
                                     <p className="text-xs text-text-secondary leading-relaxed">{entry.highlights}</p>
                                   </div>
                                 )}
                                 {entry.gratitude?.length > 0 && (
-                                  <div className="bg-bg-elevated/50 rounded-lg p-3">
+                                  <div className="bg-bg-elevated rounded-lg p-3">
                                     <p className="text-xs text-text-muted flex items-center gap-1 mb-1.5"><Heart className="w-3 h-3 text-rose-400" /> Gratitude</p>
                                     <ul className="space-y-1">
                                       {entry.gratitude.map((g: string, gi: number) => (
@@ -877,7 +877,7 @@ export function JournalView() {
                                   </div>
                                 )}
                                 {entry.improvements && (
-                                  <div className="bg-bg-elevated/50 rounded-lg p-3">
+                                  <div className="bg-bg-elevated rounded-lg p-3">
                                     <p className="text-xs text-text-muted flex items-center gap-1 mb-1.5"><TrendingUp className="w-3 h-3 text-blue-soft" /> To Improve</p>
                                     <p className="text-xs text-text-secondary leading-relaxed">{entry.improvements}</p>
                                   </div>

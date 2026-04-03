@@ -1,10 +1,73 @@
 import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
-import { Whiteboard } from '../models/Whiteboard'
+import { Whiteboard, WhiteboardFolder } from '../models/Whiteboard'
 
 const router = Router()
 router.use(authMiddleware)
+
+// ─── FOLDERS ────────────────────────────────────────
+
+router.get('/folders', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    if (isDemoUser(userId)) return res.json([])
+    const folders = await WhiteboardFolder.find({ userId }).sort({ name: 1 })
+    return res.json(folders)
+  } catch (e) {
+    console.error('GET /api/whiteboards/folders error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
+router.post('/folders', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const data = sanitizeBody(req.body)
+    const bodyId = req.body._id
+    if (isDemoUser(userId)) {
+      return res.json({ _id: bodyId || `demo-${Date.now()}`, ...data, userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    }
+    let folder
+    if (bodyId) {
+      folder = await WhiteboardFolder.findOneAndUpdate({ _id: bodyId, userId }, { ...data, userId }, { new: true })
+      if (!folder) return res.status(404).json({ error: 'Folder not found' })
+    } else {
+      folder = await WhiteboardFolder.create({ ...data, userId })
+    }
+    return res.json(folder)
+  } catch (e) {
+    console.error('POST /api/whiteboards/folders error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
+router.delete('/folders/:id', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const { id } = req.params
+    if (isDemoUser(userId)) return res.json({ success: true })
+    const folderId = Array.isArray(id) ? id[0] : id
+    // Move boards in this folder to root
+    await Whiteboard.updateMany({ folderId, userId }, { $set: { folderId: null } })
+    // Delete sub-folders recursively
+    const deleteRecursive = async (fid: string) => {
+      const children = await WhiteboardFolder.find({ parentId: fid, userId })
+      for (const child of children) {
+        await Whiteboard.updateMany({ folderId: child._id, userId }, { $set: { folderId: null } })
+        await deleteRecursive(String(child._id))
+      }
+      await WhiteboardFolder.findOneAndDelete({ _id: fid, userId })
+    }
+    await deleteRecursive(folderId)
+    return res.json({ success: true })
+  } catch (e) {
+    console.error('DELETE /api/whiteboards/folders error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// ─── BOARDS ─────────────────────────────────────────
 
 router.get('/', async (req: AuthRequest, res) => {
   try {

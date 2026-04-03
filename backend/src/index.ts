@@ -33,11 +33,17 @@ import googleRoutes from './routes/google'
 import settingsRoutes from './routes/settings'
 
 const app = express()
-const PORT = process.env.PORT || 5001
+const PORT = process.env.PORT || 4000
 
 app.use(helmet())
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3000',
+    // Allow local network IP testing
+    /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:3000$/
+  ],
   credentials: true,
 }))
 app.use(express.json({ limit: '2mb' }))

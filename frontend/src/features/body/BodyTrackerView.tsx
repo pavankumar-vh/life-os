@@ -1,199 +1,514 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useBodyTrackerStore, type BodyLogData } from '@/store'
-import { toISODate, formatDate } from '@/lib/utils'
+import { format, parseISO } from 'date-fns'
+import { useBodyTrackerStore } from '../../store'
+import {
+  AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, ReferenceLine,
+} from 'recharts'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, X, Scale, TrendingDown, TrendingUp, Ruler, Activity } from 'lucide-react'
-import { ListSkeleton } from '@/components/Skeletons'
-import { DateNavigator } from '@/components/DateNavigator'
+import {
+  Scale, Ruler, History, RefreshCw, Plus, X, TrendingUp, TrendingDown, Minus,
+  ChevronLeft, ChevronRight, Calendar,
+} from 'lucide-react'
 import { toast } from '@/components/Toast'
+import { DateNavigator } from '@/components/DateNavigator'
+import { toISODate } from '@/lib/utils'
 
 export function BodyTrackerView() {
-  const { logs, isLoading, fetchLogs, addLog, deleteLog } = useBodyTrackerStore()
-  const [showAdd, setShowAdd] = useState(false)
-  const [weight, setWeight] = useState<number | ''>('')
-  const [bodyFat, setBodyFat] = useState<number | ''>('')
-  const [chest, setChest] = useState<number | ''>('')
-  const [waist, setWaist] = useState<number | ''>('')
-  const [hips, setHips] = useState<number | ''>('')
-  const [arms, setArms] = useState<number | ''>('')
-  const [thighs, setThighs] = useState<number | ''>('')
-  const [notes, setNotes] = useState('')
-  const [selectedDate, setSelectedDate] = useState(toISODate())
+  const { logs, isLoading, fetchLogs, addLog } = useBodyTrackerStore()
+  const [showForm, setShowForm] = useState(false)
+
+  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [weight, setWeight] = useState('')
+  const [bodyFat, setBodyFat] = useState('')
+
+  const [neck, setNeck] = useState('')
+  const [shoulders, setShoulders] = useState('')
+  const [chest, setChest] = useState('')
+  const [waist, setWaist] = useState('')
+  const [hips, setHips] = useState('')
+
+  const [leftArm, setLeftArm] = useState('')
+  const [rightArm, setRightArm] = useState('')
+  const [leftForearm, setLeftForearm] = useState('')
+  const [rightForearm, setRightForearm] = useState('')
+  const [leftThigh, setLeftThigh] = useState('')
+  const [rightThigh, setRightThigh] = useState('')
+  const [leftCalf, setLeftCalf] = useState('')
+  const [rightCalf, setRightCalf] = useState('')
 
   useEffect(() => { fetchLogs().catch(() => toast.error('Failed to load body logs')) }, [fetchLogs])
 
-  const stats = useMemo(() => {
-    if (logs.length < 2) return null
-    const latest = logs[0]
-    const oldest = logs[logs.length - 1]
-    const prev = logs[1]
-    return {
-      currentWeight: latest.weight,
-      weightChange: latest.weight && prev.weight ? +(latest.weight - prev.weight).toFixed(1) : 0,
-      totalChange: latest.weight && oldest.weight ? +(latest.weight - oldest.weight).toFixed(1) : 0,
-      currentBF: latest.bodyFat,
-      bfChange: latest.bodyFat && prev.bodyFat ? +(latest.bodyFat - prev.bodyFat).toFixed(1) : 0,
-      entries: logs.length,
-    }
-  }, [logs])
-
-  const handleAdd = async () => {
-    await addLog({
-      date: selectedDate,
-      weight: weight || undefined,
-      bodyFat: bodyFat || undefined,
-      measurements: {
-        chest: chest || undefined,
-        waist: waist || undefined,
-        hips: hips || undefined,
-        arms: arms || undefined,
-        thighs: thighs || undefined,
-      },
-      notes,
-    }).catch(() => toast.error('Failed to save body log'))
-    setWeight(''); setBodyFat(''); setChest(''); setWaist(''); setHips(''); setArms(''); setThighs(''); setNotes('')
-    setShowAdd(false)
+  const handlePrefill = () => {
+    if (!logs.length) return toast.error('No previous logs')
+    const last = logs[logs.length - 1]
+    setWeight(last.weight?.toString() ?? '')
+    setBodyFat(last.bodyFat?.toString() ?? '')
+    setNeck(last.measurements?.neck?.toString() ?? '')
+    setShoulders(last.measurements?.shoulders?.toString() ?? '')
+    setChest(last.measurements?.chest?.toString() ?? '')
+    setWaist(last.measurements?.waist?.toString() ?? '')
+    setHips(last.measurements?.hips?.toString() ?? '')
+    setLeftArm(last.measurements?.leftArm?.toString() ?? last.measurements?.arms?.toString() ?? '')
+    setRightArm(last.measurements?.rightArm?.toString() ?? last.measurements?.arms?.toString() ?? '')
+    setLeftForearm(last.measurements?.leftForearm?.toString() ?? last.measurements?.forearms?.toString() ?? '')
+    setRightForearm(last.measurements?.rightForearm?.toString() ?? last.measurements?.forearms?.toString() ?? '')
+    setLeftThigh(last.measurements?.leftThigh?.toString() ?? last.measurements?.thighs?.toString() ?? '')
+    setRightThigh(last.measurements?.rightThigh?.toString() ?? last.measurements?.thighs?.toString() ?? '')
+    setLeftCalf(last.measurements?.leftCalf?.toString() ?? last.measurements?.calves?.toString() ?? '')
+    setRightCalf(last.measurements?.rightCalf?.toString() ?? last.measurements?.calves?.toString() ?? '')
+    toast.success('Prefilled from last entry')
   }
 
-  // Mini chart for weight history
-  const weightHistory = useMemo(() => {
-    const data = logs.filter(l => l.weight).slice(0, 12).reverse()
-    if (data.length < 2) return null
-    const weights = data.map(d => d.weight!)
-    const min = Math.min(...weights)
-    const max = Math.max(...weights)
-    const range = max - min || 1
-    return data.map(d => ({
-      date: d.date,
-      weight: d.weight!,
-      pct: ((d.weight! - min) / range) * 100,
-    }))
+  const handleSubmit = async () => {
+    if (!weight) return toast.error('Weight is required')
+    try {
+      await addLog({
+        date,
+        weight: Number(weight),
+        bodyFat: bodyFat ? Number(bodyFat) : undefined,
+        measurements: {
+          neck: neck ? Number(neck) : undefined,
+          shoulders: shoulders ? Number(shoulders) : undefined,
+          chest: chest ? Number(chest) : undefined,
+          waist: waist ? Number(waist) : undefined,
+          hips: hips ? Number(hips) : undefined,
+          leftArm: leftArm ? Number(leftArm) : undefined,
+          rightArm: rightArm ? Number(rightArm) : undefined,
+          leftForearm: leftForearm ? Number(leftForearm) : undefined,
+          rightForearm: rightForearm ? Number(rightForearm) : undefined,
+          leftThigh: leftThigh ? Number(leftThigh) : undefined,
+          rightThigh: rightThigh ? Number(rightThigh) : undefined,
+          leftCalf: leftCalf ? Number(leftCalf) : undefined,
+          rightCalf: rightCalf ? Number(rightCalf) : undefined,
+        },
+        notes: '',
+      })
+      toast.success('Log saved!')
+      setShowForm(false)
+    } catch {
+      toast.error('Failed to save log')
+    }
+  }
+
+  const reversed = useMemo(() => [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [logs])
+  const allChartData = useMemo(() => [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [logs])
+  const [chartRange, setChartRange] = useState<'7d' | '30d' | '90d' | 'all'>('all')
+  const chartData = useMemo(() => {
+    if (chartRange === 'all') return allChartData
+    const now = Date.now()
+    const days = chartRange === '7d' ? 7 : chartRange === '30d' ? 30 : 90
+    const cutoff = now - days * 86400000
+    return allChartData.filter(d => new Date(d.date).getTime() >= cutoff)
+  }, [allChartData, chartRange])
+  const avgWeight = useMemo(() => {
+    if (!chartData.length) return 0
+    return chartData.reduce((s, d) => s + (d.weight ?? 0), 0) / chartData.length
+  }, [chartData])
+  const hasBodyFat = useMemo(() => chartData.some(d => d.bodyFat), [chartData])
+
+  const latest = reversed[0]
+  const prev = reversed[1]
+  const weightDelta = latest && prev ? (latest.weight ?? 0) - (prev.weight ?? 0) : null
+
+  // Calendar state
+  const today = toISODate()
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date(date + 'T12:00:00')
+    return { year: d.getFullYear(), month: d.getMonth() }
+  })
+
+  const loggedDates = useMemo(() => new Set(logs.map(l => l.date)), [logs])
+  const logByDate = useMemo(() => {
+    const map: Record<string, typeof logs[0]> = {}
+    logs.forEach(l => { map[l.date] = l })
+    return map
   }, [logs])
 
+  const calDays = useMemo(() => {
+    const { year, month } = calMonth
+    const firstDay = new Date(year, month, 1).getDay()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const days: (string | null)[] = []
+    for (let i = 0; i < firstDay; i++) days.push(null)
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+    }
+    return days
+  }, [calMonth])
+
+  const calMonthLabel = new Date(calMonth.year, calMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const navMonth = (offset: number) => {
+    setCalMonth(prev => {
+      let m = prev.month + offset, y = prev.year
+      if (m < 0) { m = 11; y-- }
+      if (m > 11) { m = 0; y++ }
+      return { year: y, month: m }
+    })
+  }
+
+  const selectedDayLog = logByDate[date]
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Scale className="w-6 h-6 text-accent" /> Body Tracker
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <Scale size={22} className="text-accent" /> Body Tracker
           </h1>
-          <DateNavigator value={selectedDate} onChange={setSelectedDate} />
+          <p className="text-text-muted text-sm mt-1">Track your physique progress</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn flex items-center gap-2"><Plus className="w-4 h-4" /> Log</button>
+        <div className="flex items-center gap-2">
+          <button onClick={handlePrefill} className="btn-ghost text-xs">
+            <RefreshCw size={14} /> Prefill
+          </button>
+          <button onClick={() => setShowForm(!showForm)} className="btn text-xs">
+            {showForm ? <X size={14} /> : <Plus size={14} />}
+            {showForm ? 'Cancel' : 'New Log'}
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-accent">{stats.currentWeight || '—'}</p>
-            <p className="text-xs text-text-muted">Current Weight (kg)</p>
-          </div>
-          <div className="card text-center">
-            <div className="flex items-center justify-center gap-1">
-              {stats.weightChange <= 0 ? <TrendingDown className="w-4 h-4 text-green-soft" /> : <TrendingUp className="w-4 h-4 text-red-soft" />}
-              <p className={`text-2xl font-bold ${stats.weightChange <= 0 ? 'text-green-soft' : 'text-red-soft'}`}>{stats.weightChange > 0 ? '+' : ''}{stats.weightChange}</p>
+      <DateNavigator value={date} onChange={(d) => { setDate(d); const dd = new Date(d + 'T12:00:00'); setCalMonth({ year: dd.getFullYear(), month: dd.getMonth() }) }} />
+
+      {latest && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Weight', value: `${latest.weight ?? '-'} kg`, delta: weightDelta, unit: 'kg' },
+            { label: 'Body Fat', value: latest.bodyFat ? `${latest.bodyFat}%` : '-', delta: latest && prev && latest.bodyFat && prev.bodyFat ? latest.bodyFat - prev.bodyFat : null, unit: '%' },
+            { label: 'Last Log', value: (() => { try { return format(parseISO(latest.date), 'MMM d') } catch { return latest.date } })(), delta: null, unit: '' },
+            { label: 'Data Points', value: Object.values(latest.measurements ?? {}).filter(Boolean).length.toString(), delta: null, unit: '' },
+          ].map((s) => (
+            <div key={s.label} className="stat-card">
+              <p className="text-[10px] uppercase text-text-muted tracking-wider mb-1">{s.label}</p>
+              <div className="flex items-end gap-2">
+                <p className="text-xl font-bold text-text-primary">{s.value}</p>
+                {s.delta !== null && s.delta !== 0 && (
+                  <span className={`flex items-center gap-0.5 text-xs font-medium mb-0.5 ${s.delta > 0 ? 'text-green-soft' : 'text-red-soft'}`}>
+                    {s.delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {s.delta > 0 ? '+' : ''}{s.delta.toFixed(1)}{s.unit}
+                  </span>
+                )}
+                {s.delta === 0 && (
+                  <span className="flex items-center gap-0.5 text-xs font-medium mb-0.5 text-text-muted"><Minus size={12} /> 0</span>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-text-muted">vs Last Entry (kg)</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-blue-soft">{stats.currentBF || '—'}%</p>
-            <p className="text-xs text-text-muted">Body Fat</p>
-          </div>
-          <div className="card text-center">
-            <p className={`text-2xl font-bold ${stats.totalChange! <= 0 ? 'text-green-soft' : 'text-orange-soft'}`}>{stats.totalChange! > 0 ? '+' : ''}{stats.totalChange}</p>
-            <p className="text-xs text-text-muted">Total Change (kg)</p>
-          </div>
+          ))}
         </div>
       )}
 
-      {/* Weight Chart */}
-      {weightHistory && (
-        <div className="card mb-6">
-          <h3 className="text-xs font-medium text-text-muted mb-3">Weight Trend</h3>
-          <div className="flex items-end gap-1 h-24">
-            {weightHistory.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-xs text-text-muted">{d.weight}</span>
-                <div className="w-full bg-accent/20 rounded-t-sm relative" style={{ height: `${Math.max(8, d.pct)}%` }}>
-                  <div className="absolute inset-0 bg-accent/60 rounded-t-sm" />
-                </div>
-                <span className="text-[11px] text-text-secondary">{d.date.slice(5)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Add Form */}
       <AnimatePresence>
-        {showAdd && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
+        {showForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
             <div className="card border-accent/30">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium">Log Body Stats</h3>
-                <button onClick={() => setShowAdd(false)} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <Scale size={14} className="text-accent" /> Log Entry
+                </h3>
+                <button onClick={() => setShowForm(false)} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div><label className="text-xs text-text-secondary uppercase block mb-1">Weight (kg)</label>
-                  <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
-                <div><label className="text-xs text-text-secondary uppercase block mb-1">Body Fat %</label>
-                  <input type="number" step="0.1" value={bodyFat} onChange={e => setBodyFat(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="text-[10px] text-text-secondary uppercase block mb-1">Weight (kg) *</label>
+                  <input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} className="input text-xs w-full" placeholder="0.0" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-text-secondary uppercase block mb-1">Body Fat (%)</label>
+                  <input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} className="input text-xs w-full" placeholder="0.0" />
+                </div>
               </div>
-              <p className="text-xs text-text-muted mb-2 flex items-center gap-1"><Ruler className="w-3 h-3" /> Measurements (cm)</p>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div><label className="text-xs text-text-secondary block mb-1">Chest</label>
-                  <input type="number" step="0.5" value={chest} onChange={e => setChest(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
-                <div><label className="text-xs text-text-secondary block mb-1">Waist</label>
-                  <input type="number" step="0.5" value={waist} onChange={e => setWaist(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
-                <div><label className="text-xs text-text-secondary block mb-1">Hips</label>
-                  <input type="number" step="0.5" value={hips} onChange={e => setHips(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
-                <div><label className="text-xs text-text-secondary block mb-1">Arms</label>
-                  <input type="number" step="0.5" value={arms} onChange={e => setArms(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
-                <div><label className="text-xs text-text-secondary block mb-1">Thighs</label>
-                  <input type="number" step="0.5" value={thighs} onChange={e => setThighs(e.target.value ? +e.target.value : '')} className="input text-xs" /></div>
+
+              <div className="mb-4">
+                <p className="text-[10px] uppercase text-text-muted tracking-wider mb-2 flex items-center gap-1.5">
+                  <Ruler size={12} /> Core Measurements (cm)
+                </p>
+                <div className="grid grid-cols-5 gap-3">
+                  {[
+                    { label: 'Neck', val: neck, set: setNeck },
+                    { label: 'Shoulders', val: shoulders, set: setShoulders },
+                    { label: 'Chest', val: chest, set: setChest },
+                    { label: 'Waist', val: waist, set: setWaist },
+                    { label: 'Hips', val: hips, set: setHips },
+                  ].map((m) => (
+                    <div key={m.label}>
+                      <label className="text-[10px] text-text-secondary uppercase block mb-1">{m.label}</label>
+                      <input type="number" step="0.1" value={m.val} onChange={(e) => m.set(e.target.value)} className="input text-xs w-full" placeholder="0.0" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" className="input w-full mb-4 text-xs" />
-              <button onClick={handleAdd} className="btn w-full">Save Entry</button>
+
+              <div className="mb-5">
+                <p className="text-[10px] uppercase text-text-muted tracking-wider mb-2 flex items-center gap-1.5">
+                  <Ruler size={12} /> Extremities — Left / Right (cm)
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Arms', L: leftArm, setL: setLeftArm, R: rightArm, setR: setRightArm },
+                    { label: 'Forearms', L: leftForearm, setL: setLeftForearm, R: rightForearm, setR: setRightForearm },
+                    { label: 'Thighs', L: leftThigh, setL: setLeftThigh, R: rightThigh, setR: setRightThigh },
+                    { label: 'Calves', L: leftCalf, setL: setLeftCalf, R: rightCalf, setR: setRightCalf },
+                  ].map((m) => (
+                    <div key={m.label} className="space-y-1.5">
+                      <label className="text-[10px] font-semibold text-text-secondary uppercase block">{m.label}</label>
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-text-muted font-mono pointer-events-none">L</span>
+                          <input type="number" step="0.1" value={m.L} onChange={(e) => m.setL(e.target.value)} className="input text-xs w-full !pl-7" placeholder="0.0" />
+                        </div>
+                        <div className="flex-1 relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-text-muted font-mono pointer-events-none">R</span>
+                          <input type="number" step="0.1" value={m.R} onChange={(e) => m.setR(e.target.value)} className="input text-xs w-full !pl-7" placeholder="0.0" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={handleSubmit} disabled={isLoading} className="btn w-full">
+                {isLoading ? 'Saving...' : 'Save Log'}
+              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Logs List */}
-      {isLoading ? (
-        <ListSkeleton rows={3} />
-      ) : logs.length === 0 ? (
-        <div className="text-center py-16 card"><p className="text-sm text-text-muted">No body stats logged yet</p></div>
-      ) : (
-        <div className="space-y-2">
-          {logs.map(log => (
-            <div key={log._id} className="card group flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                <Scale className="w-4 h-4 text-accent" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Calendar */}
+        <div className="lg:col-span-4 card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[10px] uppercase text-text-muted tracking-wider flex items-center gap-1.5">
+              <Calendar size={12} /> Log Calendar
+            </h2>
+            <button onClick={() => { setDate(today); const d = new Date(); setCalMonth({ year: d.getFullYear(), month: d.getMonth() }) }}
+              className="text-[10px] text-accent hover:text-accent-warm transition-colors cursor-pointer">Today</button>
+          </div>
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => navMonth(-1)} className="p-1 rounded-lg hover:bg-glass-strong transition-colors"><ChevronLeft size={16} className="text-text-muted" /></button>
+            <span className="text-xs font-medium text-text-primary">{calMonthLabel}</span>
+            <button onClick={() => navMonth(1)} className="p-1 rounded-lg hover:bg-glass-strong transition-colors"><ChevronRight size={16} className="text-text-muted" /></button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+              <div key={d} className="text-center text-[10px] text-text-muted py-1">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calDays.map((iso, i) => {
+              if (!iso) return <div key={`e-${i}`} />
+              const day = new Date(iso + 'T12:00:00').getDate()
+              const isSelected = iso === date
+              const hasLog = loggedDates.has(iso)
+              const isCurrentDay = iso === today
+              return (
+                <button key={iso} onClick={() => { setDate(iso); }}
+                  className={`relative aspect-square flex items-center justify-center text-xs rounded-lg transition-all cursor-pointer
+                    ${isSelected ? 'bg-accent/20 text-accent font-bold ring-1 ring-accent/40' :
+                      isCurrentDay ? 'text-accent font-semibold' :
+                      'text-text-secondary hover:bg-glass-strong'}`}>
+                  {day}
+                  {hasLog && <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${isSelected ? 'bg-accent' : 'bg-green-soft'}`} />}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Selected day detail */}
+          {selectedDayLog && (
+            <div className="mt-4 pt-4 border-t border-glass-border space-y-2">
+              <p className="text-[10px] uppercase text-text-muted tracking-wider">
+                {(() => { try { return format(parseISO(date), 'MMMM d, yyyy') } catch { return date } })()}
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold text-text-primary">{selectedDayLog.weight} kg</span>
+                {selectedDayLog.bodyFat !== undefined && <span className="text-xs text-text-muted">{selectedDayLog.bodyFat}% BF</span>}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-medium">{formatDate(log.date)}</p>
-                </div>
-                <div className="flex flex-wrap gap-3 mt-1 text-xs">
-                  {log.weight && <span className="text-accent font-medium">{log.weight} kg</span>}
-                  {log.bodyFat && <span className="text-blue-soft">{log.bodyFat}% BF</span>}
-                  {log.measurements?.chest && <span className="text-text-muted">Chest: {log.measurements.chest}</span>}
-                  {log.measurements?.waist && <span className="text-text-muted">Waist: {log.measurements.waist}</span>}
-                  {log.measurements?.arms && <span className="text-text-muted">Arms: {log.measurements.arms}</span>}
-                </div>
-                {log.notes && <p className="text-xs text-text-muted mt-0.5">{log.notes}</p>}
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(selectedDayLog.measurements ?? {}).filter(([, v]) => v).map(([k, v]) => (
+                  <span key={k} className="text-[10px] bg-glass border border-glass-border px-2 py-0.5 rounded-md text-text-secondary">
+                    {k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}: {v}
+                  </span>
+                ))}
               </div>
-              <button onClick={() => { if (confirm('Delete this log?')) deleteLog(log._id).catch(() => toast.error('Failed to delete')) }} className="text-text-muted hover:text-red-soft md:opacity-0 md:group-hover:opacity-100 transition-all">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
             </div>
-          ))}
+          )}
+          {!selectedDayLog && (
+            <div className="mt-4 pt-4 border-t border-glass-border text-center text-text-muted text-xs py-3">
+              No log for this date
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Weight Trend */}
+        <div className="lg:col-span-5 card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[10px] uppercase text-text-muted tracking-wider flex items-center gap-1.5">
+              <TrendingUp size={12} /> Weight Trend
+            </h2>
+            <div className="flex gap-1">
+              {(['7d', '30d', '90d', 'all'] as const).map(r => (
+                <button key={r} onClick={() => setChartRange(r)}
+                  className={`text-[10px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer
+                    ${chartRange === r ? 'bg-accent/20 text-accent' : 'text-text-muted hover:text-text-secondary hover:bg-glass-strong'}`}>
+                  {r === 'all' ? 'All' : r.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="h-[280px]">
+            {chartData.length > 1 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#e8d5b7" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#e8d5b7" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="bfGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis
+                    dataKey="date" stroke="rgba(255,255,255,0.15)" fontSize={10}
+                    tickLine={false} axisLine={false}
+                    tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return v } }}
+                  />
+                  <YAxis
+                    yAxisId="weight"
+                    domain={['dataMin - 2', 'dataMax + 2']} stroke="rgba(255,255,255,0.15)"
+                    fontSize={10} tickLine={false} axisLine={false}
+                    tickFormatter={(v) => `${v}kg`}
+                  />
+                  {hasBodyFat && (
+                    <YAxis
+                      yAxisId="bf" orientation="right"
+                      domain={['dataMin - 2', 'dataMax + 2']} stroke="rgba(255,255,255,0.1)"
+                      fontSize={10} tickLine={false} axisLine={false}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                  )}
+                  <ReferenceLine
+                    yAxisId="weight" y={avgWeight}
+                    stroke="rgba(232,213,183,0.25)" strokeDasharray="4 4"
+                    label={{ value: `avg ${avgWeight.toFixed(1)}`, position: 'insideTopRight', fill: 'rgba(232,213,183,0.4)', fontSize: 10 }}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      let dateLabel = String(label ?? '')
+                      try { dateLabel = format(parseISO(dateLabel), 'EEEE, MMM d, yyyy') } catch { /* */ }
+                      const w = payload.find(p => p.dataKey === 'weight')?.value as number | undefined
+                      const bf = payload.find(p => p.dataKey === 'bodyFat')?.value as number | undefined
+                      return (
+                        <div className="bg-[rgba(10,10,10,0.96)] border border-glass-border rounded-xl px-4 py-3 shadow-2xl backdrop-blur-xl">
+                          <p className="text-[10px] text-text-muted mb-2">{dateLabel}</p>
+                          {w !== undefined && (
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-accent" />
+                              <span className="text-sm font-semibold text-text-primary">{w} kg</span>
+                            </div>
+                          )}
+                          {bf !== undefined && bf !== null && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="w-2 h-2 rounded-full bg-blue-400" />
+                              <span className="text-sm text-text-secondary">{bf}% BF</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Area
+                    yAxisId="weight" type="monotone" dataKey="weight"
+                    stroke="#e8d5b7" strokeWidth={2.5} fill="url(#weightGrad)"
+                    dot={false}
+                    activeDot={{ r: 5, stroke: '#e8d5b7', strokeWidth: 2, fill: '#0a0a0a' }}
+                  />
+                  {hasBodyFat && (
+                    <Area
+                      yAxisId="bf" type="monotone" dataKey="bodyFat"
+                      stroke="#60a5fa" strokeWidth={1.5} fill="url(#bfGrad)"
+                      dot={false} strokeDasharray="4 2"
+                      activeDot={{ r: 4, stroke: '#60a5fa', strokeWidth: 2, fill: '#0a0a0a' }}
+                    />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-text-muted text-sm">
+                <Scale className="w-8 h-8 mb-2 opacity-30" />
+                Add at least 2 logs to see trends
+              </div>
+            )}
+          </div>
+          {chartData.length > 1 && (
+            <div className="flex items-center justify-center gap-5 mt-3 pt-3 border-t border-glass-border">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 rounded-full bg-accent" />
+                <span className="text-[10px] text-text-muted">Weight</span>
+              </div>
+              {hasBodyFat && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 rounded-full bg-blue-400 opacity-70" />
+                  <span className="text-[10px] text-text-muted">Body Fat</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-[1px] border-t border-dashed border-accent/40" />
+                <span className="text-[10px] text-text-muted">Avg</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Recent Logs */}
+        <div className="lg:col-span-3 card">
+          <h2 className="text-[10px] uppercase text-text-muted tracking-wider mb-4 flex items-center gap-1.5">
+            <History size={12} /> Recent Logs
+          </h2>
+          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+            {reversed.map((log, i) => {
+              let dateStr = log.date
+              try { dateStr = format(parseISO(log.date), 'MMM dd, yyyy') } catch { /* */ }
+              const pts = Object.values(log.measurements ?? {}).filter(Boolean).length
+              const prevLog = reversed[i + 1]
+              const wd = prevLog ? (log.weight ?? 0) - (prevLog.weight ?? 0) : null
+
+              return (
+                <button key={log._id} onClick={() => { setDate(log.date); const d = new Date(log.date + 'T12:00:00'); setCalMonth({ year: d.getFullYear(), month: d.getMonth() }) }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-colors text-left cursor-pointer
+                    ${log.date === date ? 'bg-accent/10 border-accent/30' : 'bg-glass border-glass-border hover:bg-glass-strong'}`}>
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">{dateStr}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs font-semibold text-accent">{log.weight} kg</span>
+                      {log.bodyFat !== undefined && <span className="text-[11px] text-text-muted">{log.bodyFat}%</span>}
+                      {wd !== null && wd !== 0 && (
+                        <span className={`text-[10px] font-medium ${wd > 0 ? 'text-green-soft' : 'text-red-soft'}`}>
+                          {wd > 0 ? '+' : ''}{wd.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-text-muted bg-glass px-2 py-1 rounded-md">{pts} pts</span>
+                </button>
+              )
+            })}
+            {!reversed.length && (
+              <div className="text-center text-text-muted py-8 text-sm">
+                No logs yet. Start tracking!
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

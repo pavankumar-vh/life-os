@@ -9,12 +9,20 @@ export interface IBodyLog extends Document {
     chest?: number
     waist?: number
     hips?: number
-    arms?: number
-    thighs?: number
+    arms?: number // legacy
+    leftArm?: number
+    rightArm?: number
+    thighs?: number // legacy
+    leftThigh?: number
+    rightThigh?: number
     neck?: number
     shoulders?: number
-    forearms?: number
-    calves?: number
+    forearms?: number // legacy
+    leftForearm?: number
+    rightForearm?: number
+    calves?: number // legacy
+    leftCalf?: number
+    rightCalf?: number
   }
   notes?: string
   createdAt: Date
@@ -30,11 +38,19 @@ const BodyLogSchema = new Schema<IBodyLog>({
     waist: Number,
     hips: Number,
     arms: Number,
+    leftArm: Number,
+    rightArm: Number,
     thighs: Number,
+    leftThigh: Number,
+    rightThigh: Number,
     neck: Number,
     shoulders: Number,
     forearms: Number,
+    leftForearm: Number,
+    rightForearm: Number,
     calves: Number,
+    leftCalf: Number,
+    rightCalf: Number,
   },
   notes: { type: String, default: '' },
 }, { timestamps: true })

@@ -244,7 +244,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
                 >
                   <div className="p-3 space-y-3">
                     {/* Provider pills */}
-                    <div className="flex gap-1.5 p-1 rounded-xl bg-bg-surface/50">
+                    <div className="flex gap-1.5 p-1 rounded-xl bg-bg-elevated">
                       {PROVIDERS.map(p => (
                         <button
                           key={p.id}
@@ -370,8 +370,8 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
                         onClick={() => { setInput(s.text); inputRef.current?.focus() }}
                         className="text-left px-3 py-2.5 rounded-xl text-[11px] text-text-secondary hover:text-text-primary transition-all hover:bg-accent/5 hover:border-accent/10"
                         style={{
-                          background: 'rgba(255,255,255,0.02)',
-                          border: '1px solid rgba(255,255,255,0.04)',
+                          background: 'rgba(255,255,255,0.06)',
+                          border: '1px solid rgba(255,255,255,0.09)',
                         }}
                       >
                         <span className="text-sm mr-1">{s.icon}</span>
@@ -491,11 +491,11 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
                     className="w-full resize-none rounded-2xl px-4 py-3 pr-12 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none transition-all disabled:opacity-50"
                     style={{
                       maxHeight: 120,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.06)',
+                      background: 'rgba(255,255,255,0.07)',
+                      border: '1px solid rgba(255,255,255,0.10)',
                     }}
-                    onFocus={e => { e.target.style.borderColor = 'rgba(232,213,183,0.2)'; e.target.style.background = 'rgba(255,255,255,0.05)' }}
-                    onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.06)'; e.target.style.background = 'rgba(255,255,255,0.04)' }}
+                    onFocus={e => { e.target.style.borderColor = 'rgba(232,213,183,0.2)'; e.target.style.background = 'rgba(255,255,255,0.09)' }}
+                    onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.10)'; e.target.style.background = 'rgba(255,255,255,0.07)' }}
                   />
                   <motion.button
                     whileHover={{ scale: 1.08 }}

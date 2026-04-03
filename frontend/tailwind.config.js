@@ -7,11 +7,16 @@ module.exports = {
       colors: {
         bg: {
           DEFAULT: '#0a0a0a',
+          primary: '#0a0a0a',
           surface: 'rgba(255,255,255,0.05)',
           elevated: 'rgba(255,255,255,0.09)',
           hover: 'rgba(255,255,255,0.13)',
           wash: 'rgba(10,10,10,0.8)',
           solid: '#161616',
+        },
+        brand: {
+          primary: '#0A84FF',
+          secondary: '#0070E0',
         },
         accent: {
           DEFAULT: '#e8d5b7',
@@ -31,9 +36,9 @@ module.exports = {
           accent: 'rgba(232,213,183,0.22)',
         },
         text: {
-          primary: 'rgba(255,255,255,0.95)',
-          secondary: 'rgba(255,255,255,0.72)',
-          muted: 'rgba(255,255,255,0.55)',
+          primary: '#F9FAFB',
+          secondary: '#D1D5DB',
+          muted: '#9CA3AF',
         },
         glass: {
           DEFAULT: 'rgba(255,255,255,0.04)',

@@ -7,7 +7,8 @@ import { ListSkeleton } from '@/components/Skeletons'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Trash2, X, Apple, Utensils, Copy, Sunrise, Sun, Moon as MoonIcon,
-  Droplets, Flame, ChevronDown, Zap, Leaf, Target, BarChart3, Award, Coffee
+  Droplets, Flame, ChevronDown, Zap, Leaf, Target, BarChart3, Award, Coffee,
+  Cookie, CircleEllipsis
 } from 'lucide-react'
 import { DateNavigator } from '@/components/DateNavigator'
 import { toast } from '@/components/Toast'
@@ -15,9 +16,11 @@ import { toast } from '@/components/Toast'
 /* ────── constants ────── */
 const MEAL_TYPES = [
   { value: 'breakfast', label: 'Breakfast', icon: Sunrise, color: '#FBBF24' },
+  { value: 'morning_snack', label: 'Snack', icon: Cookie, color: '#F472B6' },
   { value: 'lunch', label: 'Lunch', icon: Sun, color: '#34D399' },
   { value: 'snack', label: 'Snack', icon: Coffee, color: '#A78BFA' },
   { value: 'dinner', label: 'Dinner', icon: MoonIcon, color: '#60A5FA' },
+  { value: 'other', label: 'Other', icon: CircleEllipsis, color: '#94A3B8' },
 ] as const
 
 const QUICK_ADDS = [
@@ -93,7 +96,7 @@ function MacroBar({ label, value, goal, unit, color, icon: Icon }: {
       <p className={`text-lg font-bold ${color}`}>
         {value}<span className="text-xs font-normal text-text-muted">/{goal}{unit}</span>
       </p>
-      <div className="h-1.5 bg-bg-elevated/80 rounded-full overflow-hidden mt-1">
+      <div className="h-1.5 bg-bg-elevated border border-border rounded-full overflow-hidden mt-1">
         <motion.div
           className={`h-full rounded-full ${isOver ? 'bg-red-soft' : ''}`}
           style={!isOver ? { background: color.includes('#') ? color : undefined,
@@ -131,7 +134,7 @@ function NutritionScore({ protein, carbs, fat, calories, goal }: {
     <div className="flex items-center gap-3 w-full mt-2">
       <div className={`text-2xl font-black ${gradeColor}`}>{grade}</div>
       <div className="flex-1">
-        <div className="h-1.5 bg-bg-elevated rounded-full overflow-hidden">
+        <div className="h-1.5 bg-bg-elevated border border-border rounded-full overflow-hidden">
           <motion.div className="h-full rounded-full"
             style={{ background: 'linear-gradient(90deg, #f87171, #fbbf24, #34d399)' }}
             initial={{ width: 0 }} animate={{ width: `${score}%` }}
@@ -149,7 +152,7 @@ function NutritionScore({ protein, carbs, fat, calories, goal }: {
 /* ────── Macro donut ────── */
 function MacroDonut({ protein, carbs, fat, size = 64 }: { protein: number; carbs: number; fat: number; size?: number }) {
   const total = protein * 4 + carbs * 4 + fat * 9
-  if (total === 0) return <div className="rounded-full bg-bg-elevated" style={{ width: size, height: size }} />
+  if (total === 0) return <div className="rounded-full bg-bg-elevated border border-border" style={{ width: size, height: size }} />
 
   const pPct = (protein * 4 / total) * 100
   const cPct = (carbs * 4 / total) * 100
@@ -320,7 +323,7 @@ export function DietView() {
                   <Plus size={11} />
                 </button>
                 <button onClick={handleWaterRemove}
-                  className="w-5 h-5 rounded-full bg-bg-elevated text-text-muted flex items-center justify-center hover:bg-bg-hover transition-colors">
+                  className="w-5 h-5 rounded-full bg-bg-elevated border border-border text-text-muted flex items-center justify-center hover:bg-bg-hover transition-colors">
                   <span className="text-xs leading-none">−</span>
                 </button>
               </div>
@@ -330,11 +333,11 @@ export function DietView() {
       </div>
 
       {/* ═══ Meal Type Quick Cards ═══ */}
-      <div className="grid grid-cols-4 gap-2 mb-4">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
         {mealTypeCalories.map(mt => (
           <button key={mt.value}
             onClick={() => { resetForm(); setMealType(mt.value as typeof mealType); setShowAdd(true) }}
-            className="card !p-3 text-center hover:border-border-strong transition-all group cursor-pointer">
+            className="bg-bg-elevated border border-border rounded-xl p-3 text-center hover:border-border-strong transition-all group cursor-pointer">
             <mt.icon size={16} className="mx-auto mb-1 text-text-muted group-hover:text-accent transition-colors"
               style={{ color: mt.count > 0 ? mt.color : undefined }} />
             <p className="text-xs font-medium text-text-primary">{mt.label}</p>
@@ -369,7 +372,7 @@ export function DietView() {
                     className={`flex-1 py-2 rounded-lg text-xs transition-all flex flex-col items-center gap-1 ${
                       mealType === t.value
                         ? 'bg-accent/20 text-accent font-medium ring-1 ring-accent/30'
-                        : 'bg-bg-elevated text-text-muted hover:bg-bg-hover'
+                        : 'bg-bg-elevated border border-border text-text-muted hover:bg-bg-hover'
                     }`}>
                     <t.icon size={14} />
                     {t.label}
@@ -391,7 +394,7 @@ export function DietView() {
                 {showQuickAdd && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-3">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 p-3 bg-bg-elevated/50 rounded-lg">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 p-3 bg-bg-elevated border border-border rounded-lg">
                       {QUICK_ADDS.map(item => (
                         <button key={item.name} onClick={() => handleQuickAdd(item)}
                           className="text-left p-2 rounded-md hover:bg-bg-hover transition-colors">
@@ -443,7 +446,7 @@ export function DietView() {
 
               {/* Live preview */}
               {calories > 0 && (
-                <div className="flex items-center gap-3 p-2 bg-bg-elevated/50 rounded-lg mb-3 text-[11px] flex-wrap">
+                <div className="flex items-center gap-3 p-2 bg-bg-elevated border border-border rounded-lg mb-3 text-[11px] flex-wrap">
                   <span className="text-accent font-medium">{calories} kcal</span>
                   <span className="text-green-soft">P {protein}g</span>
                   <span className="text-blue-soft">C {carbs}g</span>
@@ -486,7 +489,7 @@ export function DietView() {
               <div key={type.value} className="card !p-0 overflow-hidden">
                 {/* Meal type header */}
                 <button onClick={() => setExpandedType(expandedType === type.value ? null : type.value)}
-                  className="w-full flex items-center gap-3 p-4 hover:bg-bg-hover/50 transition-colors">
+                  className="w-full flex items-center gap-3 p-4 hover:bg-bg-hover transition-colors">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                     style={{ backgroundColor: `${type.color}20` }}>
                     <type.icon size={16} style={{ color: type.color }} />
@@ -514,7 +517,7 @@ export function DietView() {
                       <div className="border-t border-border/50">
                         {typeMeals.map((meal, idx) => (
                           <div key={meal._id}
-                            className={`flex items-center gap-3 px-4 py-3 group hover:bg-bg-hover/30 transition-colors ${
+                            className={`flex items-center gap-3 px-4 py-3 group hover:bg-bg-hover transition-colors ${
                               idx < typeMeals.length - 1 ? 'border-b border-border/30' : ''
                             }`}>
                             <div className="w-1 h-8 rounded-full" style={{ backgroundColor: type.color, opacity: 0.4 }} />
@@ -566,7 +569,7 @@ export function DietView() {
                   <div key={mt.value} className="flex items-center gap-3">
                     <mt.icon size={14} style={{ color: mt.color }} className="shrink-0" />
                     <span className="text-xs text-text-muted w-16">{mt.label}</span>
-                    <div className="flex-1 h-2 bg-bg-elevated rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-bg-elevated border border-border rounded-full overflow-hidden">
                       <motion.div className="h-full rounded-full" style={{ backgroundColor: mt.color }}
                         initial={{ width: 0 }} animate={{ width: `${pct}%` }}
                         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} />
@@ -585,19 +588,19 @@ export function DietView() {
               <Award size={13} /> Daily Summary
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-2 bg-bg-elevated/50 rounded-lg">
+              <div className="text-center p-2 bg-bg-elevated border border-border rounded-lg">
                 <p className="text-lg font-bold text-accent">{totals.calories}</p>
                 <p className="text-[10px] text-text-muted">Total Calories</p>
               </div>
-              <div className="text-center p-2 bg-bg-elevated/50 rounded-lg">
+              <div className="text-center p-2 bg-bg-elevated border border-border rounded-lg">
                 <p className="text-lg font-bold text-text-primary">{meals.length}</p>
                 <p className="text-[10px] text-text-muted">Meals Logged</p>
               </div>
-              <div className="text-center p-2 bg-bg-elevated/50 rounded-lg">
+              <div className="text-center p-2 bg-bg-elevated border border-border rounded-lg">
                 <p className="text-lg font-bold text-green-soft">{totals.protein}g</p>
                 <p className="text-[10px] text-text-muted">Total Protein</p>
               </div>
-              <div className="text-center p-2 bg-bg-elevated/50 rounded-lg">
+              <div className="text-center p-2 bg-bg-elevated border border-border rounded-lg">
                 <p className="text-lg font-bold text-blue-soft">{waterLog.glasses}/{waterLog.goal}</p>
                 <p className="text-[10px] text-text-muted">Glasses Water</p>
               </div>

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { toISODate } from '@/lib/utils'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+const API_BASE = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
 
 // ─── TYPES ─────────────────────────────────────────
 
@@ -119,7 +119,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     set({ isLoading: true })
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const url = `${API_BASE}/api/auth/login`
+      console.log('[LifeOS] Login request to:', url)
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -128,7 +130,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!res.ok) throw new Error(data.error || 'Login failed')
       localStorage.setItem('lifeos-token', data.token)
       set({ user: data.user, token: data.token, isLoading: false })
-    } catch (err) {
+    } catch (err: any) {
+      console.error('[LifeOS] Login error:', err?.message, '| API_BASE:', API_BASE)
       set({ isLoading: false })
       throw err
     }
@@ -589,11 +592,19 @@ export interface BodyLogData {
     waist?: number
     hips?: number
     arms?: number
+    leftArm?: number
+    rightArm?: number
     thighs?: number
+    leftThigh?: number
+    rightThigh?: number
     neck?: number
     shoulders?: number
     forearms?: number
+    leftForearm?: number
+    rightForearm?: number
     calves?: number
+    leftCalf?: number
+    rightCalf?: number
   }
   notes?: string
 }
@@ -1239,31 +1250,50 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // ─── WHITEBOARD TYPES & STORE ───────────────────────
 
+export interface WhiteboardFolderData {
+  _id: string
+  name: string
+  parentId: string | null
+  color: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface WhiteboardData {
   _id: string
   title: string
+  folderId: string | null
   snapshot: Record<string, unknown>
+  thumbnail: string
   createdAt: string
   updatedAt: string
 }
 
 interface WhiteboardState {
   boards: WhiteboardData[]
+  folders: WhiteboardFolderData[]
   activeBoard: WhiteboardData | null
   isLoading: boolean
   fetchBoards: () => Promise<void>
+  fetchFolders: () => Promise<void>
   saveBoard: (board: Partial<WhiteboardData>) => Promise<WhiteboardData>
   deleteBoard: (id: string) => Promise<void>
+  saveFolder: (folder: Partial<WhiteboardFolderData>) => Promise<WhiteboardFolderData>
+  deleteFolder: (id: string) => Promise<void>
   setActiveBoard: (board: WhiteboardData | null) => void
 }
 
 export const useWhiteboardStore = create<WhiteboardState>((set, get) => ({
   boards: [],
+  folders: [],
   activeBoard: null,
   isLoading: false,
   fetchBoards: async () => {
     set({ isLoading: true })
     try { set({ boards: await api('/whiteboards') }) } finally { set({ isLoading: false }) }
+  },
+  fetchFolders: async () => {
+    try { set({ folders: await api('/whiteboards/folders') }) } catch { /* */ }
   },
   saveBoard: async (board) => {
     const data = await api('/whiteboards', { method: 'POST', body: JSON.stringify(board) })
@@ -1279,6 +1309,22 @@ export const useWhiteboardStore = create<WhiteboardState>((set, get) => ({
     await api(`/whiteboards/${id}`, { method: 'DELETE' })
     const boards = get().boards.filter(b => b._id !== id)
     set({ boards, activeBoard: get().activeBoard?._id === id ? null : get().activeBoard })
+  },
+  saveFolder: async (folder) => {
+    const data = await api('/whiteboards/folders', { method: 'POST', body: JSON.stringify(folder) })
+    const existing = get().folders.find(f => f._id === data._id)
+    if (existing) {
+      set({ folders: get().folders.map(f => f._id === data._id ? data : f) })
+    } else {
+      set({ folders: [...get().folders, data] })
+    }
+    return data
+  },
+  deleteFolder: async (id) => {
+    await api(`/whiteboards/folders/${id}`, { method: 'DELETE' })
+    set({ folders: get().folders.filter(f => f._id !== id) })
+    // Move boards from deleted folder to root in local state
+    set({ boards: get().boards.map(b => b.folderId === id ? { ...b, folderId: null } : b) })
   },
   setActiveBoard: (board) => set({ activeBoard: board }),
 }))

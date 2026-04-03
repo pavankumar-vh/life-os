@@ -108,7 +108,7 @@ export function AppShell() {
   // Auto-fetch user on mount
   useEffect(() => {
     if (token && !user) {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+      const apiBase = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
       fetch(`${apiBase}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then((data) => { if (data._id) useAuthStore.getState().setUser(data) })
@@ -134,31 +134,14 @@ export function AppShell() {
       >
         {/* Notes & Whiteboard get full-bleed layout; everything else stays centered */}
         {activeView === 'notes' || activeView === 'whiteboard' ? (
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key={activeView}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
-            >
-              <ActiveView />
-            </motion.div>
-          </AnimatePresence>
+          <div key={activeView} className="h-full">
+            <ActiveView />
+          </div>
         ) : (
         <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 pb-24 md:pb-8">
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key={activeView}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ActiveView />
-            </motion.div>
-          </AnimatePresence>
+          <div key={activeView}>
+            <ActiveView />
+          </div>
         </div>
         )}
       </main>

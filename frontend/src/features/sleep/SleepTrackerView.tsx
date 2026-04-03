@@ -4,10 +4,15 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSleepTrackerStore } from '@/store'
 import { toISODate, formatDate } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, X, Moon, Sun, TrendingUp, Clock, Star } from 'lucide-react'
+import { Plus, Trash2, X, Moon, Sun, TrendingUp, Clock, Star, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ListSkeleton } from '@/components/Skeletons'
 import { DateNavigator } from '@/components/DateNavigator'
 import { toast } from '@/components/Toast'
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, ReferenceLine, Cell,
+} from 'recharts'
+import { format, parseISO } from 'date-fns'
 
 const QUALITY_LABELS = ['', 'Terrible', 'Poor', 'Fair', 'Good', 'Excellent']
 const QUALITY_COLORS = ['', 'text-red-soft', 'text-orange-soft', 'text-text-muted', 'text-green-soft', 'text-accent']
@@ -59,15 +64,21 @@ export function SleepTrackerView() {
     setShowAdd(false)
   }
 
-  // Weekly chart
-  const weekChart = useMemo(() => {
-    return logs.slice(0, 7).reverse().map(l => ({
-      date: l.date,
-      hours: l.hours,
-      quality: l.quality,
-      pct: Math.min(100, (l.hours / 10) * 100),
-    }))
-  }, [logs])
+  // Chart data
+  const [chartRange, setChartRange] = useState<'7d' | '14d' | '30d' | 'all'>('14d')
+  const chartData = useMemo(() => {
+    const sorted = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    if (chartRange === 'all') return sorted
+    const days = chartRange === '7d' ? 7 : chartRange === '14d' ? 14 : 30
+    const cutoff = Date.now() - days * 86400000
+    return sorted.filter(d => new Date(d.date).getTime() >= cutoff)
+  }, [logs, chartRange])
+  const avgHoursLine = useMemo(() => {
+    if (!chartData.length) return 0
+    return chartData.reduce((s, d) => s + d.hours, 0) / chartData.length
+  }, [chartData])
+
+  const QUALITY_BAR_COLORS = ['', '#ef4444', '#f97316', '#9ca3af', '#4ade80', '#e8d5b7']
 
   return (
     <div>
@@ -107,27 +118,122 @@ export function SleepTrackerView() {
         </div>
       )}
 
-      {/* Week Chart */}
-      {weekChart.length > 0 && (
+      {/* Sleep Chart */}
+      {chartData.length > 1 && (
         <div className="card mb-6">
-          <h3 className="text-xs font-medium text-text-muted mb-3">Last 7 Nights</h3>
-          <div className="flex items-end gap-2 h-28">
-            {weekChart.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-[11px] text-text-secondary">{d.hours}h</span>
-                <div className="w-full rounded-t-md relative transition-all" style={{ height: `${d.pct}%` }}>
-                  <div className={`absolute inset-0 rounded-t-md ${
-                    d.quality >= 4 ? 'bg-green-soft/60' : d.quality === 3 ? 'bg-accent/50' : 'bg-red-soft/50'
-                  }`} />
-                </div>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }, (_, s) => (
-                    <div key={s} className={`w-1 h-1 rounded-full ${s < d.quality ? 'bg-accent' : 'bg-bg-elevated'}`} />
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[10px] uppercase text-text-muted tracking-wider flex items-center gap-1.5">
+              <TrendingUp size={12} /> Sleep Trends
+            </h3>
+            <div className="flex gap-1">
+              {(['7d', '14d', '30d', 'all'] as const).map(r => (
+                <button key={r} onClick={() => setChartRange(r)}
+                  className={`text-[10px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer
+                    ${chartRange === r ? 'bg-accent/20 text-accent' : 'text-text-muted hover:text-text-secondary hover:bg-glass-strong'}`}>
+                  {r === 'all' ? 'All' : r.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hours Area Chart */}
+          <div className="h-[200px] mb-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis
+                  dataKey="date" stroke="rgba(255,255,255,0.15)" fontSize={10}
+                  tickLine={false} axisLine={false}
+                  tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return v } }}
+                />
+                <YAxis
+                  domain={[0, 12]} stroke="rgba(255,255,255,0.15)"
+                  fontSize={10} tickLine={false} axisLine={false}
+                  tickFormatter={(v) => `${v}h`}
+                />
+                <ReferenceLine
+                  y={8} stroke="rgba(74,222,128,0.2)" strokeDasharray="4 4"
+                  label={{ value: '8h goal', position: 'insideTopRight', fill: 'rgba(74,222,128,0.35)', fontSize: 10 }}
+                />
+                <ReferenceLine
+                  y={avgHoursLine} stroke="rgba(96,165,250,0.25)" strokeDasharray="4 4"
+                  label={{ value: `avg ${avgHoursLine.toFixed(1)}h`, position: 'insideTopLeft', fill: 'rgba(96,165,250,0.4)', fontSize: 10 }}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
+                    const d = payload[0]?.payload
+                    if (!d) return null
+                    let dateLabel = d.date
+                    try { dateLabel = format(parseISO(d.date), 'EEEE, MMM d') } catch { /* */ }
+                    return (
+                      <div className="bg-[rgba(10,10,10,0.96)] border border-glass-border rounded-xl px-4 py-3 shadow-2xl backdrop-blur-xl">
+                        <p className="text-[10px] text-text-muted mb-2">{dateLabel}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-400" />
+                          <span className="text-sm font-semibold text-text-primary">{d.hours}h sleep</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[d.quality] }} />
+                          <span className="text-xs text-text-secondary">{QUALITY_LABELS[d.quality]} ({d.quality}/5)</span>
+                        </div>
+                        <div className="text-[10px] text-text-muted mt-2 flex items-center gap-3">
+                          <span>🛏 {d.bedtime}</span>
+                          <span>☀️ {d.waketime}</span>
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+                <Area
+                  type="monotone" dataKey="hours"
+                  stroke="#60a5fa" strokeWidth={2.5} fill="url(#sleepHoursGrad)"
+                  dot={false}
+                  activeDot={{ r: 5, stroke: '#60a5fa', strokeWidth: 2, fill: '#0a0a0a' }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Quality Bar Chart */}
+          <div className="h-[60px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="date" hide />
+                <YAxis domain={[0, 5]} hide />
+                <Bar dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={QUALITY_BAR_COLORS[d.quality]} opacity={0.6} />
                   ))}
-                </div>
-                <span className="text-[11px] text-text-secondary">{d.date.slice(5)}</span>
-              </div>
-            ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-5 mt-3 pt-3 border-t border-glass-border">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 rounded-full bg-blue-400" />
+              <span className="text-[10px] text-text-muted">Hours</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 rounded-full bg-accent" />
+              <span className="text-[10px] text-text-muted">Quality</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-[1px] border-t border-dashed border-green-soft/40" />
+              <span className="text-[10px] text-text-muted">8h Goal</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-[1px] border-t border-dashed border-blue-400/40" />
+              <span className="text-[10px] text-text-muted">Avg</span>
+            </div>
           </div>
         </div>
       )}

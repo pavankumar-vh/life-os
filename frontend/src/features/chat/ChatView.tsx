@@ -141,7 +141,7 @@ export function ChatView() {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto rounded-2xl bg-bg-surface/50 border border-border/30 p-4 space-y-4 relative"
+        className="flex-1 overflow-y-auto rounded-2xl bg-bg-elevated border border-border/30 p-4 space-y-4 relative"
       >
         {isLoading ? (
           <ListSkeleton />
