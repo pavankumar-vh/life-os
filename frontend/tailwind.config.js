@@ -7,11 +7,11 @@ module.exports = {
       colors: {
         bg: {
           DEFAULT: '#0a0a0a',
-          surface: 'rgba(255,255,255,0.03)',
-          elevated: 'rgba(255,255,255,0.06)',
-          hover: 'rgba(255,255,255,0.08)',
+          surface: 'rgba(255,255,255,0.05)',
+          elevated: 'rgba(255,255,255,0.09)',
+          hover: 'rgba(255,255,255,0.13)',
           wash: 'rgba(10,10,10,0.8)',
-          solid: '#141414',
+          solid: '#161616',
         },
         accent: {
           DEFAULT: '#e8d5b7',
@@ -26,14 +26,14 @@ module.exports = {
         orange: { soft: '#fb923c', muted: '#c2410c' },
         cyan: { soft: '#22d3ee' },
         border: {
-          DEFAULT: 'rgba(255,255,255,0.10)',
-          strong: 'rgba(255,255,255,0.16)',
-          accent: 'rgba(232,213,183,0.18)',
+          DEFAULT: 'rgba(255,255,255,0.12)',
+          strong: 'rgba(255,255,255,0.20)',
+          accent: 'rgba(232,213,183,0.22)',
         },
         text: {
-          primary: 'rgba(255,255,255,0.93)',
-          secondary: 'rgba(255,255,255,0.65)',
-          muted: 'rgba(255,255,255,0.45)',
+          primary: 'rgba(255,255,255,0.95)',
+          secondary: 'rgba(255,255,255,0.72)',
+          muted: 'rgba(255,255,255,0.55)',
         },
         glass: {
           DEFAULT: 'rgba(255,255,255,0.04)',
