@@ -28,7 +28,7 @@ export function HabitsView() {
 
   const handleToggle = useCallback(async (id: string, date: string, e: React.MouseEvent) => {
     const habit = habits.find(h => h._id === id)
-    const wasDone = habit?.completedDates.includes(date)
+    const wasDone = habit?.completedDates?.includes(date)
     await toggleHabit(id, date).catch(() => toast.error('Failed to toggle habit'))
     // Fire confetti when completing (not uncompleting)
     if (!wasDone) {
@@ -51,24 +51,24 @@ export function HabitsView() {
 
   const last7Days = useMemo(() => last30Days.slice(-7), [last30Days])
 
-  const completedToday = habits.filter((h) => h.completedDates.includes(selectedDate)).length
+  const completedToday = habits.filter((h) => (h.completedDates || []).includes(selectedDate)).length
   const totalHabits = habits.length
   const completionRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0
-  const bestStreak = Math.max(0, ...habits.map(h => h.bestStreak))
-  const currentStreaks = habits.reduce((s, h) => s + h.streak, 0)
-  const totalCompletions = habits.reduce((s, h) => s + h.completedDates.length, 0)
+  const bestStreak = Math.max(0, ...habits.map(h => h.bestStreak || 0))
+  const currentStreaks = habits.reduce((s, h) => s + (h.streak || 0), 0)
+  const totalCompletions = habits.reduce((s, h) => s + (h.completedDates || []).length, 0)
 
   // Weekly completion rates
   const weeklyRate = useMemo(() => {
     if (totalHabits === 0) return 0
     const total = last7Days.length * totalHabits
-    const done = last7Days.reduce((s, d) => s + habits.filter(h => h.completedDates.includes(d)).length, 0)
+    const done = last7Days.reduce((s, d) => s + habits.filter(h => (h.completedDates || []).includes(d)).length, 0)
     return Math.round((done / total) * 100)
   }, [last7Days, habits, totalHabits])
 
   const filteredHabits = habits.filter(h => {
-    if (filter === 'done') return h.completedDates.includes(selectedDate)
-    if (filter === 'pending') return !h.completedDates.includes(selectedDate)
+    if (filter === 'done') return (h.completedDates || []).includes(selectedDate)
+    if (filter === 'pending') return !(h.completedDates || []).includes(selectedDate)
     return true
   })
 
@@ -163,8 +163,8 @@ export function HabitsView() {
       ) : (
         <div className="space-y-2">
           {filteredHabits.map((habit) => {
-            const isDone = habit.completedDates.includes(selectedDate)
-            const completionCount = last30Days.filter(d => habit.completedDates.includes(d)).length
+            const isDone = (habit.completedDates || []).includes(selectedDate)
+            const completionCount = last30Days.filter(d => (habit.completedDates || []).includes(d)).length
             const rate30 = Math.round((completionCount / 30) * 100)
             return (
               <motion.div key={habit._id} layout className={`card group transition-all ${isDone ? 'border-green-soft/30' : 'hover:border-border-strong'}`}>
@@ -187,7 +187,7 @@ export function HabitsView() {
                   <div className="hidden md:flex items-center gap-[2px]">
                     {last30Days.slice(-14).map((date) => (
                       <div key={date} className="w-2.5 h-2.5 rounded-[2px]"
-                        style={{ backgroundColor: habit.completedDates.includes(date) ? habit.color : '#1f1f1f' }} title={date} />
+                        style={{ backgroundColor: (habit.completedDates || []).includes(date) ? habit.color : '#1f1f1f' }} title={date} />
                     ))}
                   </div>
                   <button onClick={() => { if (confirm('Delete this habit?')) deleteHabit(habit._id).catch(() => toast.error('Failed to delete')) }}
@@ -210,7 +210,7 @@ export function HabitsView() {
         // For each day, count how many habits were completed
         const dayData = heatmapDays.map(date => ({
           date,
-          count: habits.filter(h => h.completedDates.includes(date)).length,
+          count: habits.filter(h => (h.completedDates || []).includes(date)).length,
         }))
         const maxCount = Math.max(1, ...dayData.map(d => d.count))
         const getColor = (count: number) => {

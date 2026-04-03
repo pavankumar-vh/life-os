@@ -39,7 +39,10 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     const updates = sanitizeBody(req.body)
-    if (isDemoUser(userId)) return res.json({ _id: id, ...updates, userId })
+    if (isDemoUser(userId)) {
+      const existing = DEMO_FLASHCARDS.find(f => f._id === id)
+      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
+    }
     const item = await Flashcard.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!item) return res.status(404).json({ error: 'Not found' })
     return res.json(item)

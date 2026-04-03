@@ -41,7 +41,8 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     const updates = sanitizeBody(req.body)
     if (isDemoUser(userId)) {
-      return res.json({ _id: id, ...updates, userId })
+      const existing = DEMO_TASKS.find(t => t._id === id)
+      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
     }
     const task = await Task.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!task) return res.status(404).json({ error: 'Not found' })

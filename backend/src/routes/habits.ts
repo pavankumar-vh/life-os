@@ -40,7 +40,8 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     const updates = sanitizeBody(req.body)
     if (isDemoUser(userId)) {
-      return res.json({ _id: id, ...updates, userId })
+      const existing = DEMO_HABITS.find(h => h._id === id)
+      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
     }
     const habit = await Habit.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!habit) return res.status(404).json({ error: 'Not found' })
@@ -74,7 +75,15 @@ router.patch('/:id/toggle', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Date required' })
     }
     if (isDemoUser(userId)) {
-      return res.json({ _id: id, toggled: true })
+      const habit = DEMO_HABITS.find(h => h._id === id)
+      if (!habit) return res.status(404).json({ error: 'Not found' })
+      const idx = habit.completedDates.indexOf(date)
+      if (idx >= 0) {
+        habit.completedDates.splice(idx, 1)
+      } else {
+        habit.completedDates.push(date)
+      }
+      return res.json({ ...habit })
     }
     const habit = await Habit.findOne({ _id: id, userId })
     if (!habit) return res.status(404).json({ error: 'Not found' })

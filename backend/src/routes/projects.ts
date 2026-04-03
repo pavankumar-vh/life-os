@@ -39,7 +39,10 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     const updates = sanitizeBody(req.body)
-    if (isDemoUser(userId)) return res.json({ _id: id, ...updates, userId })
+    if (isDemoUser(userId)) {
+      const existing = DEMO_PROJECTS.find(p => p._id === id)
+      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
+    }
     const item = await Project.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!item) return res.status(404).json({ error: 'Not found' })
     return res.json(item)
