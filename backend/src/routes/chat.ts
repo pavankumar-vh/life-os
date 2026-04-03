@@ -2,19 +2,8 @@ import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { ChatMessage } from '../models/ChatMessage'
-import { Journal } from '../models/Journal'
-import { Habit } from '../models/Habit'
-import { Task } from '../models/Task'
-import { Goal } from '../models/Goal'
-import { Expense } from '../models/Expense'
-import { Workout } from '../models/Workout'
-import { Meal } from '../models/Meal'
-import { BodyLog } from '../models/BodyLog'
-import { SleepLog } from '../models/SleepLog'
-import { WaterLog } from '../models/WaterLog'
-import { Gratitude } from '../models/Gratitude'
-import { Book } from '../models/Book'
 import { User } from '../models/User'
+import { buildSmartContext } from '../lib/contextEngine'
 
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -27,110 +16,26 @@ const chatLimiter = rateLimit({
 const router = Router()
 router.use(authMiddleware)
 
-async function gatherUserContext(userId: string): Promise<string> {
-  const now = new Date()
-  const thirtyDaysAgo = new Date(now)
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const isoToday = now.toISOString().split('T')[0]
+const SYSTEM_PROMPT = `You are the LifeOS AI Assistant — a personal, data-driven companion embedded in the user's life management platform.
 
-  const [
-    recentJournals, habits, pendingTasks, goals, recentExpenses,
-    recentWorkouts, recentMeals, recentBody, recentSleep,
-    todayWater, recentGratitude, books,
-  ] = await Promise.all([
-    Journal.find({ userId }).sort({ date: -1 }).limit(7).lean(),
-    Habit.find({ userId }).lean(),
-    Task.find({ userId, status: { $ne: 'done' } }).sort({ dueDate: 1 }).limit(20).lean(),
-    Goal.find({ userId }).lean(),
-    Expense.find({ userId, createdAt: { $gte: thirtyDaysAgo } }).lean(),
-    Workout.find({ userId }).sort({ date: -1 }).limit(5).lean(),
-    Meal.find({ userId }).sort({ date: -1 }).limit(7).lean(),
-    BodyLog.find({ userId }).sort({ date: -1 }).limit(5).lean(),
-    SleepLog.find({ userId }).sort({ date: -1 }).limit(7).lean(),
-    WaterLog.find({ userId, date: isoToday }).lean(),
-    Gratitude.find({ userId }).sort({ date: -1 }).limit(7).lean(),
-    Book.find({ userId }).lean(),
-  ])
-
-  const sections: string[] = []
-
-  if (recentJournals.length) {
-    sections.push(`RECENT JOURNAL ENTRIES (last 7):\n${recentJournals.map((j: any) =>
-      `- ${j.date}: mood=${j.mood}/5, energy=${j.energy}/5${j.title ? `, "${j.title}"` : ''}${j.content ? ` — ${(j.content as string).slice(0, 200)}` : ''}`
-    ).join('\n')}`)
-  }
-  if (habits.length) {
-    sections.push(`HABITS (${habits.length} total):\n${habits.map((h: any) =>
-      `- ${h.name}: streak=${h.streak}, best=${h.bestStreak}, frequency=${h.frequency}`
-    ).join('\n')}`)
-  }
-  if (pendingTasks.length) {
-    sections.push(`PENDING TASKS (${pendingTasks.length}):\n${pendingTasks.map((t: any) =>
-      `- [${t.priority}] ${t.title}${t.dueDate ? ` (due: ${t.dueDate})` : ''} — ${t.status}`
-    ).join('\n')}`)
-  }
-  if (goals.length) {
-    sections.push(`GOALS:\n${goals.map((g: any) =>
-      `- ${g.title}: ${g.progress}% complete${g.deadline ? ` (deadline: ${g.deadline})` : ''}`
-    ).join('\n')}`)
-  }
-  if (recentExpenses.length) {
-    const total = recentExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0)
-    sections.push(`EXPENSES (last 30 days): $${total.toFixed(2)} total across ${recentExpenses.length} entries`)
-  }
-  if (recentWorkouts.length) {
-    sections.push(`RECENT WORKOUTS:\n${recentWorkouts.map((w: any) =>
-      `- ${w.date}: ${w.name || 'Workout'}${w.exercises ? ` (${w.exercises.length} exercises)` : ''}`
-    ).join('\n')}`)
-  }
-  if (recentSleep.length) {
-    sections.push(`RECENT SLEEP:\n${recentSleep.map((s: any) =>
-      `- ${s.date}: ${s.bedtime}→${s.waketime}, quality=${s.quality}/5, ${s.hours || '?'}h`
-    ).join('\n')}`)
-  }
-  if (recentBody.length) {
-    const latest = recentBody[0] as any
-    sections.push(`BODY TRACKING (latest): weight=${latest.weight || '?'}kg, bodyFat=${latest.bodyFat || '?'}%`)
-  }
-  if (todayWater.length) {
-    const total = todayWater.reduce((s: number, w: any) => s + (w.glasses || 0), 0)
-    sections.push(`WATER TODAY: ${total} glasses`)
-  }
-  if (recentGratitude.length) {
-    sections.push(`RECENT GRATITUDE:\n${recentGratitude.map((g: any) =>
-      `- ${g.date}: ${g.items?.join(', ') || ''}`
-    ).join('\n')}`)
-  }
-  if (books.length) {
-    const reading = books.filter((b: any) => b.status === 'reading')
-    if (reading.length) {
-      sections.push(`CURRENTLY READING:\n${reading.map((b: any) =>
-        `- "${b.title}" by ${b.author}`
-      ).join('\n')}`)
-    }
-  }
-
-  return sections.join('\n\n')
-}
-
-const SYSTEM_PROMPT = `You are the LifeOS AI Assistant — a personal, empathetic, and insightful companion built into the user's life management platform.
-
-You have access to the user's personal data from LifeOS including their journal entries, habits, tasks, goals, workouts, sleep, nutrition, expenses, reading list, and more.
+You have access to rich, pre-analyzed data including trends, averages, correlations, and patterns computed from the user's LifeOS data (journals, habits, tasks, goals, workouts, sleep, nutrition, body composition, expenses, reading, and more).
 
 YOUR ROLE:
-- Answer questions about the user's data, patterns, and progress
-- Provide personalized insights, encouragement, and actionable advice
+- Answer questions about the user's data with specific numbers, trends and deltas
+- Provide personalized insights: "Your mood is 0.4 higher on gym days" not just "exercise helps mood"
+- Spot patterns: consistency gaps, overdue deadlines, undertrained muscle groups, sleep debt
 - Help with goal planning, habit optimization, and self-reflection
-- Be conversational, warm, and supportive
+- Give actionable, concrete recommendations grounded in their actual data
 - Also answer general knowledge questions when asked
 
 GUIDELINES:
-- Reference specific data when available
-- Be concise but thorough — no fluff
-- If data is limited, say so honestly
-- Never fabricate data — only reference what's provided
-- Use markdown formatting for readability
-- Keep responses focused and practical`
+- Always cite specific data points and numbers when available — the user expects precision
+- Compare week-over-week, current vs average, this month vs last month
+- Flag warnings proactively: overdue tasks, sleep deficit, missed habits, spending spikes
+- Be concise and direct — no filler. Use markdown formatting
+- If data is limited or absent for a topic, say so honestly
+- Never fabricate data — only reference what's in the context below
+- When the user asks about progress, compare against their own historical baseline, not generic standards`
 
 // GET /api/chat — get chat history
 router.get('/', async (req: AuthRequest, res) => {
@@ -178,7 +83,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
     const history = await ChatMessage.find({ userId }).sort({ createdAt: -1 }).limit(20).lean()
     history.reverse()
 
-    const userContext = await gatherUserContext(userId)
+    const userContext = await buildSmartContext(userId)
     const systemContent = SYSTEM_PROMPT + (userContext ? `\n\nUSER'S CURRENT DATA:\n${userContext}` : '')
 
     const historyMessages = history.map((m: any) => ({
