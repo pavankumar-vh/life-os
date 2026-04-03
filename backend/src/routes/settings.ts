@@ -50,6 +50,24 @@ router.put('/', async (req: AuthRequest, res) => {
       }
     }
 
+    // For aiKeys: only update keys that are real values (not masked "...xxxx")
+    // Merge with existing to avoid overwriting unrelated providers
+    if (updates['settings.aiKeys']) {
+      const incoming = updates['settings.aiKeys'] as Record<string, string>
+      const existing = (await User.findById(userId).select('settings.aiKeys').lean())?.settings?.aiKeys || {}
+      const merged: Record<string, string> = { ...existing }
+      for (const [provider, value] of Object.entries(incoming)) {
+        if (value && !value.startsWith('...')) {
+          merged[provider] = value
+        } else if (value === '') {
+          // Allow clearing a key by sending empty string
+          delete merged[provider]
+        }
+        // Skip masked values — keep existing
+      }
+      updates['settings.aiKeys'] = merged
+    }
+
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No valid settings provided' })
     }

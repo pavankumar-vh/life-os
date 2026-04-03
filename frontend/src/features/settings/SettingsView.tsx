@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSettingsStore, DEFAULT_GOALS } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -43,15 +43,15 @@ export function SettingsView() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
 
   // Check Google connection status
-  useState(() => {
+  useEffect(() => {
     if (!authToken) return
     fetch(`${apiBase}/api/google/status`, { headers: { Authorization: `Bearer ${authToken}` } })
       .then(r => r.json()).then(d => setGoogleConnected(d.connected)).catch(() => {})
-  })
+  }, [authToken, apiBase])
 
   // Goals from settings store
   const settingsGoals = useSettingsStore(s => s.goals)

@@ -108,7 +108,7 @@ export function AppShell() {
   // Auto-fetch user on mount
   useEffect(() => {
     if (token && !user) {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
       fetch(`${apiBase}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then((data) => { if (data._id) useAuthStore.getState().setUser(data) })
