@@ -40,10 +40,10 @@ export const DEMO_WORKOUTS = [
 ]
 
 export const DEMO_MEALS = [
-  { _id: 'dm1', userId: 'demo-user-001', date: today, name: 'Oats + Banana + Protein Shake', type: 'breakfast' as const, calories: 520, protein: 38, carbs: 65, fat: 12 },
-  { _id: 'dm2', userId: 'demo-user-001', date: today, name: 'Chicken Rice Bowl', type: 'lunch' as const, calories: 680, protein: 45, carbs: 72, fat: 18 },
-  { _id: 'dm3', userId: 'demo-user-001', date: today, name: 'Greek Yogurt + Almonds', type: 'snack' as const, calories: 220, protein: 15, carbs: 12, fat: 14 },
-  { _id: 'dm4', userId: 'demo-user-001', date: today, name: 'Salmon + Sweet Potato', type: 'dinner' as const, calories: 580, protein: 42, carbs: 48, fat: 22 },
+  { _id: 'dm1', userId: 'demo-user-001', date: today, name: 'Oats + Banana + Protein Shake', type: 'breakfast' as const, calories: 520, protein: 38, carbs: 65, fat: 12, fiber: 8, sugar: 18 },
+  { _id: 'dm2', userId: 'demo-user-001', date: today, name: 'Chicken Rice Bowl', type: 'lunch' as const, calories: 680, protein: 45, carbs: 72, fat: 18, fiber: 4, sugar: 3 },
+  { _id: 'dm3', userId: 'demo-user-001', date: today, name: 'Greek Yogurt + Almonds', type: 'snack' as const, calories: 220, protein: 15, carbs: 12, fat: 14, fiber: 2, sugar: 8 },
+  { _id: 'dm4', userId: 'demo-user-001', date: today, name: 'Salmon + Sweet Potato', type: 'dinner' as const, calories: 580, protein: 42, carbs: 48, fat: 22, fiber: 6, sugar: 10 },
 ]
 
 export const DEMO_TASKS = [

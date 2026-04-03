@@ -9,6 +9,8 @@ export interface IMeal extends Document {
   protein: number
   carbs: number
   fat: number
+  fiber: number
+  sugar: number
   createdAt: Date
 }
 
@@ -21,6 +23,8 @@ const MealSchema = new Schema<IMeal>({
   protein: { type: Number, default: 0 },
   carbs: { type: Number, default: 0 },
   fat: { type: Number, default: 0 },
+  fiber: { type: Number, default: 0 },
+  sugar: { type: Number, default: 0 },
 }, { timestamps: true })
 
 MealSchema.index({ userId: 1, date: 1 })
