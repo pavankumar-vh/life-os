@@ -73,8 +73,8 @@ export function GymView() {
 
   // ─── Computed stats ──────────────────────────
   const todayWorkouts = workouts.filter((w) => w.date === selectedDate)
-  const totalVolume = todayWorkouts.reduce((s, w) => s + w.exercises.reduce((se, ex) =>
-    se + ex.sets.reduce((ss, set) => ss + set.reps * set.weight, 0), 0), 0)
+  const totalVolume = todayWorkouts.reduce((s, w) => s + (w.exercises || []).reduce((se, ex) =>
+    se + (ex.sets || []).reduce((ss, set) => ss + (set.reps || 0) * (set.weight || 0), 0), 0), 0)
   const totalDuration = todayWorkouts.reduce((s, w) => s + w.duration, 0)
 
   const last7Days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
@@ -83,8 +83,8 @@ export function GymView() {
 
   const weeklyVolume = useMemo(() => last7Days.map(date => {
     const dayWorkouts = workouts.filter(w => w.date === date)
-    return dayWorkouts.reduce((s, w) => s + w.exercises.reduce((se, ex) =>
-      se + ex.sets.reduce((ss, set) => ss + set.reps * set.weight, 0), 0), 0)
+    return dayWorkouts.reduce((s, w) => s + (w.exercises || []).reduce((se, ex) =>
+      se + (ex.sets || []).reduce((ss, set) => ss + (set.reps || 0) * (set.weight || 0), 0), 0), 0)
   }), [last7Days, workouts])
 
   const weeklyWorkoutCount = workouts.filter(w => last7Days.includes(w.date)).length
@@ -142,8 +142,8 @@ export function GymView() {
       const startStr = toISODate(start); const endStr = toISODate(end)
       const vol = workouts
         .filter(wo => wo.date >= startStr && wo.date <= endStr)
-        .reduce((s, wo) => s + wo.exercises.reduce((se, ex) =>
-          se + ex.sets.reduce((ss, set) => ss + set.reps * set.weight, 0), 0), 0)
+        .reduce((s, wo) => s + (wo.exercises || []).reduce((se, ex) =>
+          se + (ex.sets || []).reduce((ss, set) => ss + (set.reps || 0) * (set.weight || 0), 0), 0), 0)
       weeks.push({ label: w === 0 ? 'This wk' : w === 1 ? 'Last wk' : `${w}w ago`, volume: vol })
     }
     return weeks.reverse()
@@ -277,7 +277,11 @@ export function GymView() {
                 <Tooltip
                   contentStyle={{ background: 'rgba(15,15,15,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, fontSize: 12 }}
                   labelStyle={{ color: 'rgba(255,255,255,0.6)' }}
-                  formatter={(value) => [`${(Number(value) / 1000).toFixed(1)}k kg`, 'Volume']}
+                  itemStyle={{ color: 'rgba(255,255,255,0.85)' }}
+                  formatter={(value) => {
+                    const v = Number(value)
+                    return [v >= 1000 ? `${(v / 1000).toFixed(1)}k kg` : `${v.toLocaleString()} kg`, 'Volume']
+                  }}
                   cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                 />
                 <Bar dataKey="volume" radius={[6, 6, 0, 0]} animationDuration={800}>
@@ -297,7 +301,7 @@ export function GymView() {
               </h3>
               <div className="space-y-2">
                 {muscleGroupSplit.filter(([, c]) => c > 0).map(([group, count]) => {
-                  const maxSets = Math.max(1, ...muscleGroupSplit.map(([, c]) => c))
+                  const maxSets = muscleGroupSplit.length > 0 ? Math.max(1, ...muscleGroupSplit.map(([, c]) => c)) : 1
                   return (
                     <div key={group} className="flex items-center gap-3">
                       <span className="text-xs text-text-secondary w-20">{group}</span>
@@ -599,7 +603,11 @@ export function GymView() {
                 <Tooltip
                   contentStyle={{ background: 'rgba(15,15,15,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, fontSize: 12 }}
                   labelStyle={{ color: 'rgba(255,255,255,0.6)' }}
-                  formatter={(value) => [`${(Number(value) / 1000).toFixed(1)}k kg`, 'Volume']}
+                  itemStyle={{ color: 'rgba(255,255,255,0.85)' }}
+                  formatter={(value) => {
+                    const v = Number(value)
+                    return [v >= 1000 ? `${(v / 1000).toFixed(1)}k kg` : `${v.toLocaleString()} kg`, 'Volume']
+                  }}
                 />
                 <Area type="monotone" dataKey="volume" stroke="#e8d5b7" strokeWidth={2} fill="url(#volGrad)" animationDuration={800} />
               </AreaChart>
@@ -630,7 +638,7 @@ export function GymView() {
               </h3>
               <div className="space-y-2">
                 {personalRecords.map(([exName, pr], i) => {
-                  const maxPR = personalRecords[0][1].weight
+                  const maxPR = personalRecords.length > 0 ? personalRecords[0][1].weight : 1
                   return (
                     <div key={exName} className="flex items-center gap-3">
                       <span className="text-xs text-text-muted w-5">{i + 1}</span>

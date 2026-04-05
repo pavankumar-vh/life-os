@@ -84,6 +84,7 @@ export function JournalView() {
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [dateFilter, setDateFilter] = useState<string | null>(null)
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
+  const [editDate, setEditDate] = useState(toISODate())
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const contentRef = useRef<HTMLTextAreaElement>(null)
   const today = toISODate()
@@ -105,7 +106,9 @@ export function JournalView() {
     return () => clearTimeout(timer)
   }, [saveDraft, showNew])
 
-  const startNew = (template = 'free') => {
+  const startNew = (template = 'free', date?: string) => {
+    const targetDate = date || toISODate()
+    setEditDate(targetDate)
     // Try to restore draft from memory
     const draft = draftRef.current
     if (draft && !activeEntry) {
@@ -146,6 +149,7 @@ export function JournalView() {
 
   const startEdit = (entry: typeof entries[0]) => {
     setActiveEntry(entry._id)
+    setEditDate(typeof entry.date === 'string' ? entry.date : toISODate(new Date(entry.date)))
     setEditTitle(entry.title)
     setEditContent(entry.content?.replace(/<[^>]*>/g, '') || '')
     setEditMood(entry.mood)
@@ -162,8 +166,8 @@ export function JournalView() {
     const tags = editTags.split(',').map((t) => t.trim()).filter(Boolean)
     const gratitude = editGratitude.split('\n').map(g => g.trim()).filter(Boolean)
     const data: Record<string, unknown> = {
-      date: today,
-      title: editTitle || `Journal — ${formatDate(today)}`,
+      date: editDate,
+      title: editTitle || `Journal — ${formatDate(editDate)}`,
       content: `<p>${editContent.split('\n').join('</p><p>')}</p>`,
       mood: editMood || 3,
       energy: editEnergy || 3,
@@ -425,8 +429,19 @@ export function JournalView() {
           <div className="flex gap-2">
             {moodTrend.map((d, i) => {
               const isToday = d.date === today
+              const dayEntry = entries.find(e => (typeof e.date === 'string' ? e.date : toISODate(new Date(e.date))) === d.date)
+              const isSelected = dateFilter === d.date
               return (
-                <div key={i} className={`flex-1 text-center rounded-xl p-2 transition-colors ${isToday ? 'bg-accent/10 ring-1 ring-accent/30' : ''}`}>
+                <div
+                  key={i}
+                  onClick={() => {
+                    if (dayEntry) {
+                      setDateFilter(isSelected ? null : d.date)
+                      setExpandedEntry(isSelected ? null : dayEntry._id)
+                    }
+                  }}
+                  className={`flex-1 text-center rounded-xl p-2 transition-colors ${dayEntry ? 'cursor-pointer hover:bg-accent/5' : ''} ${isSelected ? 'bg-accent/10 ring-1 ring-accent/30' : isToday ? 'bg-accent/10 ring-1 ring-accent/30' : ''}`}
+                >
                   <p className={`text-[11px] mb-1.5 ${isToday ? 'text-accent font-semibold' : 'text-text-muted'}`}>{d.label}</p>
                   <div className="flex flex-col items-center gap-1">
                     {d.mood > 0 ? (

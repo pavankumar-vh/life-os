@@ -46,7 +46,7 @@ export function WeeklyReviewView() {
   const reviewData = useMemo(() => {
     // Habits
     const habitCompletions = habits.map(h => {
-      const weekCompleted = week.dates.filter(d => h.completedDates.includes(d)).length
+      const weekCompleted = week.dates.filter(d => (h.completedDates || []).includes(d)).length
       return { name: h.name, icon: h.icon, completed: weekCompleted, total: 7, rate: Math.round((weekCompleted / 7) * 100) }
     })
     const overallHabitRate = habitCompletions.length > 0

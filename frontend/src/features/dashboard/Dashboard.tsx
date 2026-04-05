@@ -85,7 +85,7 @@ export function Dashboard() {
   // Dashboard silently ignores load errors — data will simply be empty
   }, [fetchHabits, fetchTasks, fetchGoals, fetchWorkouts, fetchMeals, fetchEntries, today])
 
-  const completedHabitsToday = habits.filter((h) => h.completedDates.includes(today)).length
+  const completedHabitsToday = habits.filter((h) => (h.completedDates || []).includes(today)).length
   const totalHabits = habits.length
   const habitPercent = totalHabits > 0 ? Math.round((completedHabitsToday / totalHabits) * 100) : 0
   const todoTasks = tasks.filter((t) => t.status === 'todo').length
@@ -98,15 +98,15 @@ export function Dashboard() {
   const todayProtein = meals.reduce((sum, m) => sum + m.protein, 0)
   const todayCarbs = meals.reduce((sum, m) => sum + m.carbs, 0)
   const todayFat = meals.reduce((sum, m) => sum + m.fat, 0)
-  const bestStreak = Math.max(0, ...habits.map((h) => h.streak))
-  const totalStreaks = habits.reduce((s, h) => s + h.streak, 0)
+  const bestStreak = habits.length > 0 ? Math.max(0, ...habits.map((h) => h.streak || 0)) : 0
+  const totalStreaks = habits.reduce((s, h) => s + (h.streak || 0), 0)
 
   const last7Days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i)); return toISODate(d)
   }), [])
 
   const weeklyHabitData = useMemo(() => last7Days.map(date => {
-    const completed = habits.filter(h => h.completedDates.includes(date)).length
+    const completed = habits.filter(h => (h.completedDates || []).includes(date)).length
     return { date, completed, total: totalHabits }
   }), [last7Days, habits, totalHabits])
 
@@ -395,7 +395,7 @@ export function Dashboard() {
           ) : (
             <div className="space-y-1">
               {habits.map((habit, idx) => {
-                const done = habit.completedDates.includes(today)
+                const done = (habit.completedDates || []).includes(today)
                 return (
                   <motion.div
                     key={habit._id}
