@@ -3,6 +3,7 @@ import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Goal } from '../models/Goal'
 import { User } from '../models/User'
+import { audit } from '../lib/audit'
 import { DEMO_GOALS } from '../lib/demo-data'
 
 const router = Router()
@@ -28,6 +29,7 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId, progress: 0, status: 'active' })
     }
     const goal = await Goal.create({ ...body, userId })
+    audit(userId, 'create', 'goals', goal._id, { after: goal.toJSON() })
     return res.status(201).json(goal)
   } catch (e) {
     console.error('POST /api/goals error:', e)
@@ -46,6 +48,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
     }
     const goal = await Goal.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!goal) return res.status(404).json({ error: 'Not found' })
+    audit(userId, 'update', 'goals', id, { after: goal.toJSON(), changes: updates as Record<string, unknown> })
     // Award XP atomically: only if we're the one transitioning to completed
     if ((updates as any).status === 'completed') {
       const xpResult = await Goal.findOneAndUpdate(
@@ -66,6 +69,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const goal = await Goal.findOne({ _id: id, userId })
+    if (goal) audit(userId, 'delete', 'goals', id, { before: goal.toJSON() })
     await Goal.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { User } from '../models/User'
+import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
@@ -72,7 +73,9 @@ router.put('/', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'No valid settings provided' })
     }
 
+    const before = (await User.findById(userId).select('settings').lean())?.settings
     const user = await User.findByIdAndUpdate(userId, { $set: updates }, { new: true }).select('settings').lean()
+    audit(userId, 'update', 'settings', userId, { before, after: user?.settings })
     return res.json(user?.settings || DEFAULT_SETTINGS)
   } catch (e) {
     console.error('PUT /api/settings error:', e)

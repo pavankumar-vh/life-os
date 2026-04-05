@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Habit } from '../models/Habit'
+import { audit } from '../lib/audit'
 import { DEMO_HABITS } from '../lib/demo-data'
 
 const router = Router()
@@ -27,6 +28,7 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId, completedDates: [], streak: 0, bestStreak: 0 })
     }
     const habit = await Habit.create({ ...body, userId })
+    audit(userId, 'create', 'habits', habit._id, { after: habit.toJSON() })
     return res.status(201).json(habit)
   } catch (e) {
     console.error('POST /api/habits error:', e)
@@ -45,6 +47,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
     }
     const habit = await Habit.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!habit) return res.status(404).json({ error: 'Not found' })
+    audit(userId, 'update', 'habits', id, { after: habit.toJSON(), changes: updates as Record<string, unknown> })
     return res.json(habit)
   } catch (e) {
     console.error('PUT /api/habits error:', e)
@@ -57,6 +60,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const habit = await Habit.findOne({ _id: id, userId })
+    if (habit) audit(userId, 'delete', 'habits', id, { before: habit.toJSON() })
     await Habit.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {
@@ -113,6 +118,7 @@ router.patch('/:id/toggle', async (req: AuthRequest, res) => {
     if (streak > habit.bestStreak) habit.bestStreak = streak
 
     await habit.save()
+    audit(userId, 'update', 'habits', id, { after: habit.toJSON(), changes: { toggledDate: date } })
     return res.json(habit)
   } catch (e) {
     console.error('PATCH /api/habits/:id/toggle error:', e)

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { WaterLog } from '../models/WaterLog'
+import { audit } from '../lib/audit'
 import { DEMO_WATER_LOGS } from '../lib/demo-data'
 
 const router = Router()
@@ -31,6 +32,7 @@ router.post('/', async (req: AuthRequest, res) => {
       { ...body, userId },
       { new: true, upsert: true }
     )
+    audit(userId, 'create', 'water', item._id, { after: item.toJSON() })
     return res.json(item)
   } catch (e) {
     console.error('POST /api/water error:', e)

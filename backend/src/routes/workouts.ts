@@ -3,6 +3,7 @@ import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Workout } from '../models/Workout'
 import { User } from '../models/User'
+import { audit } from '../lib/audit'
 import { DEMO_WORKOUTS } from '../lib/demo-data'
 
 const router = Router()
@@ -28,6 +29,7 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId })
     }
     const workout = await Workout.create({ ...body, userId })
+    audit(userId, 'create', 'workouts', workout._id, { after: workout.toJSON() })
     if (workout) {
       await User.findByIdAndUpdate(userId, { $inc: { xp: 25 } })
     }
@@ -49,6 +51,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
     }
     const workout = await Workout.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!workout) return res.status(404).json({ error: 'Not found' })
+    audit(userId, 'update', 'workouts', id, { after: workout.toJSON(), changes: updates as Record<string, unknown> })
     return res.json(workout)
   } catch (e) {
     console.error('PUT /api/workouts error:', e)
@@ -61,6 +64,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const workout = await Workout.findOne({ _id: id, userId })
+    if (workout) audit(userId, 'delete', 'workouts', id, { before: workout.toJSON() })
     await Workout.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

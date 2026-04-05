@@ -2,6 +2,7 @@ import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { ChatMessage } from '../models/ChatMessage'
+import { audit } from '../lib/audit'
 import { User } from '../models/User'
 import { buildSmartContext } from '../lib/contextEngine'
 
@@ -187,6 +188,8 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
 
       const savedUser = await ChatMessage.create({ userId, role: 'user', content: message })
       const savedAssistant = await ChatMessage.create({ userId, role: 'assistant', content: fullContent })
+      audit(userId, 'create', 'chat_messages', savedUser._id, { after: { role: 'user', content: message } })
+      audit(userId, 'create', 'chat_messages', savedAssistant._id, { after: { role: 'assistant', content: fullContent } })
 
       res.write(`data: ${JSON.stringify({
         savedMessages: [
@@ -212,7 +215,9 @@ router.delete('/', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
     if (isDemoUser(userId)) return res.json({ ok: true })
+    const existing = await ChatMessage.find({ userId }).lean()
     await ChatMessage.deleteMany({ userId })
+    audit(userId, 'delete', 'chat_messages', 'all', { before: { count: existing.length } })
     return res.json({ ok: true })
   } catch (e) {
     console.error('DELETE /api/chat error:', e)

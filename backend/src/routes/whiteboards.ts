@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Whiteboard, WhiteboardFolder } from '../models/Whiteboard'
+import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
@@ -32,8 +33,10 @@ router.post('/folders', async (req: AuthRequest, res) => {
     if (bodyId) {
       folder = await WhiteboardFolder.findOneAndUpdate({ _id: bodyId, userId }, { ...data, userId }, { new: true })
       if (!folder) return res.status(404).json({ error: 'Folder not found' })
+      audit(userId, 'update', 'whiteboard_folders', bodyId, { after: folder.toJSON() })
     } else {
       folder = await WhiteboardFolder.create({ ...data, userId })
+      audit(userId, 'create', 'whiteboard_folders', folder._id, { after: folder.toJSON() })
     }
     return res.json(folder)
   } catch (e) {
@@ -60,6 +63,7 @@ router.delete('/folders/:id', async (req: AuthRequest, res) => {
       await WhiteboardFolder.findOneAndDelete({ _id: fid, userId })
     }
     await deleteRecursive(folderId)
+    audit(userId, 'delete', 'whiteboard_folders', folderId, { before: { folderId } })
     return res.json({ success: true })
   } catch (e) {
     console.error('DELETE /api/whiteboards/folders error:', e)
@@ -103,8 +107,10 @@ router.post('/', async (req: AuthRequest, res) => {
         { new: true }
       )
       if (!board) return res.status(404).json({ error: 'Board not found' })
+      audit(userId, 'update', 'whiteboards', bodyId, { after: board.toJSON() })
     } else {
       board = await Whiteboard.create({ ...data, userId })
+      audit(userId, 'create', 'whiteboards', board._id, { after: board.toJSON() })
     }
     return res.json(board)
   } catch (e) {
@@ -118,6 +124,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const board = await Whiteboard.findOne({ _id: id, userId })
+    if (board) audit(userId, 'delete', 'whiteboards', id, { before: board.toJSON() })
     await Whiteboard.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

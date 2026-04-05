@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Gratitude } from '../models/Gratitude'
+import { audit } from '../lib/audit'
 import { DEMO_GRATITUDE } from '../lib/demo-data'
 
 const router = Router()
@@ -30,9 +31,11 @@ router.post('/', async (req: AuthRequest, res) => {
     if (bodyId) {
       const item = await Gratitude.findOneAndUpdate({ _id: bodyId, userId }, body, { new: true })
       if (!item) return res.status(404).json({ error: 'Not found' })
+      audit(userId, 'update', 'gratitude', bodyId, { after: item.toJSON() })
       return res.json(item)
     }
     const item = await Gratitude.create({ ...body, userId })
+    audit(userId, 'create', 'gratitude', item._id, { after: item.toJSON() })
     return res.status(201).json(item)
   } catch (e) {
     console.error('POST /api/gratitude error:', e)
@@ -45,6 +48,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const item = await Gratitude.findOne({ _id: id, userId })
+    if (item) audit(userId, 'delete', 'gratitude', id, { before: item.toJSON() })
     await Gratitude.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

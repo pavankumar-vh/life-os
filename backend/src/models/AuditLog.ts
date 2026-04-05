@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface IAuditLog extends Document {
   userId: mongoose.Types.ObjectId | string
   action: 'create' | 'update' | 'delete'
-  collection: string
+  collectionName: string
   documentId: string
   before: Record<string, unknown> | null
   after: Record<string, unknown> | null
@@ -14,7 +14,7 @@ export interface IAuditLog extends Document {
 const AuditLogSchema = new Schema<IAuditLog>({
   userId: { type: Schema.Types.Mixed, required: true, index: true },
   action: { type: String, enum: ['create', 'update', 'delete'], required: true },
-  collection: { type: String, required: true, index: true },
+  collectionName: { type: String, required: true, index: true },
   documentId: { type: String, required: true },
   before: { type: Schema.Types.Mixed, default: null },
   after: { type: Schema.Types.Mixed, default: null },

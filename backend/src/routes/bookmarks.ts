@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Bookmark } from '../models/Bookmark'
+import { audit } from '../lib/audit'
 import { DEMO_BOOKMARKS } from '../lib/demo-data'
 
 const router = Router()
@@ -27,6 +28,7 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.json({ _id: `demo-${Date.now()}`, ...body, userId, createdAt: new Date().toISOString() })
     }
     const item = await Bookmark.create({ ...body, userId })
+    audit(userId, 'create', 'bookmarks', item._id, { after: item.toJSON() })
     return res.status(201).json(item)
   } catch (e) {
     console.error('POST /api/bookmarks error:', e)
@@ -39,6 +41,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const item = await Bookmark.findOne({ _id: id, userId })
+    if (item) audit(userId, 'delete', 'bookmarks', id, { before: item.toJSON() })
     await Bookmark.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

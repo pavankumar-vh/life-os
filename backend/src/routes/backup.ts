@@ -7,6 +7,7 @@ import { Workout } from '../models/Workout'
 import { Meal } from '../models/Meal'
 import { Task } from '../models/Task'
 import { Goal } from '../models/Goal'
+import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
@@ -114,6 +115,7 @@ router.post('/import', async (req: AuthRequest, res) => {
       }
     }
 
+    audit(uid, 'create', 'backup_import', 'bulk', { after: { count, collections: Object.keys(data) } })
     return res.json({ message: `Successfully imported ${count} records`, count })
   } catch (e) {
     console.error('POST /api/backup/import error:', e)

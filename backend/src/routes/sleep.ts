@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { SleepLog } from '../models/SleepLog'
+import { audit } from '../lib/audit'
 import { DEMO_SLEEP_LOGS } from '../lib/demo-data'
 
 const router = Router()
@@ -31,6 +32,7 @@ router.post('/', async (req: AuthRequest, res) => {
       { ...body, userId },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     )
+    audit(userId, 'create', 'sleep', log._id, { after: log.toJSON() })
     return res.json(log)
   } catch (e) {
     console.error('POST /api/sleep error:', e)

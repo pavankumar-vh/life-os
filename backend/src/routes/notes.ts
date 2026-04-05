@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Note } from '../models/Note'
+import { audit } from '../lib/audit'
 import { DEMO_NOTES } from '../lib/demo-data'
 
 const router = Router()
@@ -41,8 +42,10 @@ router.post('/', async (req: AuthRequest, res) => {
         { new: true }
       )
       if (!note) return res.status(404).json({ error: 'Note not found' })
+      audit(userId, 'update', 'notes', bodyId, { after: note.toJSON() })
     } else {
       note = await Note.create({ ...data, userId })
+      audit(userId, 'create', 'notes', note._id, { after: note.toJSON() })
     }
     return res.json(note)
   } catch (e) {
@@ -56,6 +59,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const note = await Note.findOne({ _id: id, userId })
+    if (note) audit(userId, 'delete', 'notes', id, { before: note.toJSON() })
     await Note.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

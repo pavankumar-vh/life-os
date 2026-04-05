@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Flashcard } from '../models/Flashcard'
+import { audit } from '../lib/audit'
 import { DEMO_FLASHCARDS } from '../lib/demo-data'
 
 const router = Router()
@@ -27,6 +28,7 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.json({ _id: `demo-${Date.now()}`, ...body, userId, timesReviewed: 0, timesCorrect: 0 })
     }
     const item = await Flashcard.create({ ...body, userId })
+    audit(userId, 'create', 'flashcards', item._id, { after: item.toJSON() })
     return res.status(201).json(item)
   } catch (e) {
     console.error('POST /api/flashcards error:', e)
@@ -45,6 +47,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
     }
     const item = await Flashcard.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!item) return res.status(404).json({ error: 'Not found' })
+    audit(userId, 'update', 'flashcards', id, { after: item.toJSON(), changes: updates as Record<string, unknown> })
     return res.json(item)
   } catch (e) {
     console.error('PUT /api/flashcards error:', e)
@@ -57,6 +60,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const item = await Flashcard.findOne({ _id: id, userId })
+    if (item) audit(userId, 'delete', 'flashcards', id, { before: item.toJSON() })
     await Flashcard.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

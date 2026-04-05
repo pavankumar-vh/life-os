@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { BodyLog } from '../models/BodyLog'
+import { audit } from '../lib/audit'
 import { DEMO_BODY_LOGS } from '../lib/demo-data'
 
 const router = Router()
@@ -31,6 +32,7 @@ router.post('/', async (req: AuthRequest, res) => {
       { ...body, userId },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     )
+    audit(userId, 'create', 'body', log._id, { after: log.toJSON() })
     return res.json(log)
   } catch (e) {
     console.error('POST /api/body error:', e)
@@ -43,6 +45,8 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const log = await BodyLog.findOne({ _id: id, userId })
+    if (log) audit(userId, 'delete', 'body', id, { before: log.toJSON() })
     await BodyLog.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {
