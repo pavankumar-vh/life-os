@@ -3,6 +3,7 @@ import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { sanitizeBody } from '../lib/sanitize'
 import { Task } from '../models/Task'
 import { User } from '../models/User'
+import { AuditLog } from '../models/AuditLog'
 import { DEMO_TASKS } from '../lib/demo-data'
 
 const router = Router()
@@ -13,6 +14,7 @@ router.get('/', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     if (isDemoUser(userId)) return res.json(DEMO_TASKS)
     const tasks = await Task.find({ userId }).sort({ createdAt: -1 })
+    console.log(`[TASKS] FETCH user=${userId} count=${tasks.length}`)
     return res.json(tasks)
   } catch (e) {
     console.error('GET /api/tasks error:', e)
@@ -28,6 +30,8 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId, status: 'todo' })
     }
     const task = await Task.create({ ...body, userId })
+    console.log(`[TASKS] CREATE user=${userId} id=${task._id} title="${task.title}" priority=${task.priority} status=${task.status}`)
+    AuditLog.create({ userId, action: 'create', collection: 'tasks', documentId: task._id, before: null, after: task.toJSON(), changes: null }).catch(() => {})
     return res.status(201).json(task)
   } catch (e) {
     console.error('POST /api/tasks error:', e)
@@ -44,8 +48,11 @@ router.put('/:id', async (req: AuthRequest, res) => {
       const existing = DEMO_TASKS.find(t => t._id === id)
       return res.json({ ...(existing || {}), ...updates, _id: id, userId })
     }
+    const before = await Task.findOne({ _id: id, userId })
     const task = await Task.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!task) return res.status(404).json({ error: 'Not found' })
+    console.log(`[TASKS] UPDATE user=${userId} id=${id} changes=${JSON.stringify(updates)}`)
+    AuditLog.create({ userId, action: 'update', collection: 'tasks', documentId: id, before: before?.toJSON() || null, after: task.toJSON(), changes: updates }).catch(() => {})
     // Award XP atomically: only if we're the one transitioning to done
     if ((updates as any).status === 'done') {
       const xpResult = await Task.findOneAndUpdate(
@@ -66,6 +73,11 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
+    const task = await Task.findOne({ _id: id, userId })
+    if (task) {
+      console.log(`[TASKS] DELETE user=${userId} id=${id} title="${task.title}" priority=${task.priority} status=${task.status}`)
+      AuditLog.create({ userId, action: 'delete', collection: 'tasks', documentId: id, before: task.toJSON(), after: null, changes: null }).catch(() => {})
+    }
     await Task.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {
