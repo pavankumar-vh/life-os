@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useNotesStore, type NoteData } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, Trash2, Search, Pin, Folder, ChevronLeft,
+  Plus, Trash2, Search, Pin, Folder, FolderPlus, ChevronLeft,
   MoreHorizontal, PinOff, Clock, Hash, Check, Loader2, FileText,
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Highlighter,
   List, ListOrdered, ListTodo, Heading1, Heading2, Heading3, Quote, Minus, Braces
@@ -318,6 +318,18 @@ export function NotesView() {
     setMenuOpen(null)
   }
 
+  const createFolder = () => {
+    const name = prompt('New folder name:')?.trim()
+    if (!name) return
+    saveNote({ title: '', content: '', folder: name, tags: [], pinned: false }).then(() => {
+      setFolderFilter(name)
+      setTimeout(() => {
+        const newest = useNotesStore.getState().notes.find(n => n.folder === name)
+        if (newest) { selectNote(newest); setTimeout(() => titleRef.current?.focus(), 50) }
+      }, 100)
+    })
+  }
+
   const onTitleChange = (v: string) => { setEditTitle(v); doSave() }
   const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
   const onTagsChange = (v: string) => { setEditTags(v); doSave() }
@@ -360,6 +372,9 @@ export function NotesView() {
               <Folder className="w-2.5 h-2.5" />{f === 'all' ? 'All' : f}
             </button>
           ))}
+          <button onClick={createFolder} title="New Folder" className="px-2 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30">
+            <FolderPlus className="w-2.5 h-2.5" />New
+          </button>
         </div>
         <div className="h-px bg-border shrink-0" />
         <div className="flex-1 overflow-y-auto overscroll-contain">
