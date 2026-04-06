@@ -6,6 +6,7 @@ export interface INote extends Document {
   content: string
   folder: string
   tags: string[]
+  photos: string[]
   pinned: boolean
   createdAt: Date
   updatedAt: Date
@@ -18,6 +19,7 @@ const NoteSchema = new Schema<INote>({
   folder: { type: String, default: 'General' },
   tags: [{ type: String }],
   pinned: { type: Boolean, default: false },
+  photos: [{ type: String }],
 }, { timestamps: true })
 
 export const Note = mongoose.model<INote>('Note', NoteSchema)

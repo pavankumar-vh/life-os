@@ -7,6 +7,7 @@ export interface IWishlistItem extends Document {
   priority: 'low' | 'medium' | 'high'
   estimatedCost: number
   url: string
+  image: string
   notes: string
   completed: boolean
 }
@@ -18,6 +19,7 @@ const WishlistItemSchema = new Schema<IWishlistItem>({
   priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
   estimatedCost: { type: Number, default: 0 },
   url: { type: String, default: '' },
+  image: { type: String, default: '' },
   notes: { type: String, default: '' },
   completed: { type: Boolean, default: false },
 }, { timestamps: true })

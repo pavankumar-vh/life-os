@@ -3,6 +3,7 @@ import { google } from 'googleapis'
 import { User } from '../models/User'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { getOAuth2Client, getAuthUrl, getAuthedClient } from '../lib/google'
+import { encrypt, decrypt, isEncrypted } from '../lib/crypto'
 
 const router = Router()
 router.use(authMiddleware)
@@ -35,8 +36,8 @@ router.post('/callback', async (req: AuthRequest, res: Response) => {
 
     await User.findByIdAndUpdate(req.user!.userId, {
       googleTokens: {
-        access_token: tokens.access_token!,
-        refresh_token: tokens.refresh_token || undefined,
+        access_token: encrypt(tokens.access_token!),
+        refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
         expiry_date: tokens.expiry_date || undefined,
       },
     })
@@ -79,16 +80,22 @@ async function getUserClient(userId: string) {
   if (!user?.googleTokens?.access_token) {
     throw new Error('Google not connected')
   }
-  const client = getAuthedClient({
-    access_token: user.googleTokens.access_token,
-    refresh_token: user.googleTokens.refresh_token,
-  })
 
-  // Listen for token refresh and persist
+  // Decrypt tokens (support both legacy plaintext and new encrypted format)
+  const rawAccess = user.googleTokens.access_token as unknown
+  const rawRefresh = user.googleTokens.refresh_token as unknown
+  const accessToken = isEncrypted(rawAccess) ? decrypt(rawAccess) : String(rawAccess)
+  const refreshToken = rawRefresh
+    ? (isEncrypted(rawRefresh) ? decrypt(rawRefresh) : String(rawRefresh))
+    : undefined
+
+  const client = getAuthedClient({ access_token: accessToken, refresh_token: refreshToken })
+
+  // Listen for token refresh and persist (encrypted)
   client.on('tokens', async (tokens) => {
-    const update: Record<string, string | number> = {}
-    if (tokens.access_token) update['googleTokens.access_token'] = tokens.access_token
-    if (tokens.refresh_token) update['googleTokens.refresh_token'] = tokens.refresh_token
+    const update: Record<string, unknown> = {}
+    if (tokens.access_token) update['googleTokens.access_token'] = encrypt(tokens.access_token)
+    if (tokens.refresh_token) update['googleTokens.refresh_token'] = encrypt(tokens.refresh_token)
     if (tokens.expiry_date) update['googleTokens.expiry_date'] = tokens.expiry_date
     if (Object.keys(update).length) {
       await User.findByIdAndUpdate(userId, { $set: update })
@@ -346,8 +353,8 @@ router.get('/fitness/steps', async (req: AuthRequest, res: Response) => {
 
     const from = req.query.from as string
     const to = req.query.to as string
-    const startTime = new Date(`${from || new Date().toISOString().split('T')[0]}T00:00:00Z`).getTime() * 1000000
-    const endTime = new Date(`${to || new Date().toISOString().split('T')[0]}T23:59:59Z`).getTime() * 1000000
+    const startTimeMillis = new Date(`${from || new Date().toISOString().split('T')[0]}T00:00:00Z`).getTime()
+    const endTimeMillis = new Date(`${to || new Date().toISOString().split('T')[0]}T23:59:59Z`).getTime()
 
     const response = await fitness.users.dataset.aggregate({
       userId: 'me',
@@ -357,8 +364,8 @@ router.get('/fitness/steps', async (req: AuthRequest, res: Response) => {
           { dataTypeName: 'com.google.calories.expended' },
         ],
         bucketByTime: { durationMillis: 86400000 },
-        startTimeMillis: String(Math.floor(startTime / 1000000)),
-        endTimeMillis: String(Math.floor(endTime / 1000000)),
+        startTimeMillis: String(startTimeMillis),
+        endTimeMillis: String(endTimeMillis),
       },
     } as any)
 

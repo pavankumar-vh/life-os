@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
 import { User } from '../models/User'
 import { audit } from '../lib/audit'
+import { encrypt, decrypt, isEncrypted } from '../lib/crypto'
 
 const router = Router()
 router.use(authMiddleware)
@@ -22,11 +23,18 @@ router.get('/', async (req: AuthRequest, res) => {
     if (isDemoUser(userId)) return res.json(DEFAULT_SETTINGS)
     const user = await User.findById(userId).select('settings').lean()
     const settings = user?.settings || DEFAULT_SETTINGS
-    // Mask AI keys — only return last 4 chars for display
+
+    // Decrypt AI keys then mask — only return last 4 chars for display
     const maskedKeys: Record<string, string> = {}
     if (settings.aiKeys) {
-      for (const [k, v] of Object.entries(settings.aiKeys as Record<string, string>)) {
-        maskedKeys[k] = v ? `...${v.slice(-4)}` : ''
+      for (const [k, v] of Object.entries(settings.aiKeys as Record<string, unknown>)) {
+        if (!v) { maskedKeys[k] = ''; continue }
+        try {
+          const plain = isEncrypted(v) ? decrypt(v) : String(v)
+          maskedKeys[k] = plain ? `...${plain.slice(-4)}` : ''
+        } catch {
+          maskedKeys[k] = '****' // decryption failed but key exists
+        }
       }
     }
     return res.json({ ...settings, aiKeys: maskedKeys })
@@ -42,7 +50,6 @@ router.put('/', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     if (isDemoUser(userId)) return res.json(req.body)
 
-    // Only allow updating known settings fields
     const allowed = ['accentColor', 'goals', 'aiProvider', 'aiModels', 'aiKeys', 'lastBackup']
     const updates: Record<string, unknown> = {}
     for (const key of allowed) {
@@ -51,22 +58,37 @@ router.put('/', async (req: AuthRequest, res) => {
       }
     }
 
-    // For aiKeys: only update keys that are real values (not masked "...xxxx")
-    // Merge with existing to avoid overwriting unrelated providers
+    // For aiKeys — decrypt existing, merge with incoming (only real values), re-encrypt all
     if (updates['settings.aiKeys']) {
       const incoming = updates['settings.aiKeys'] as Record<string, string>
-      const existing = (await User.findById(userId).select('settings.aiKeys').lean())?.settings?.aiKeys || {}
-      const merged: Record<string, string> = { ...existing }
+      const existingRaw = (await User.findById(userId).select('settings.aiKeys').lean())
+        ?.settings?.aiKeys as Record<string, unknown> || {}
+
+      // Decrypt existing keys
+      const existingDecrypted: Record<string, string> = {}
+      for (const [k, v] of Object.entries(existingRaw)) {
+        try {
+          existingDecrypted[k] = isEncrypted(v) ? decrypt(v) : String(v)
+        } catch { /* skip corrupted */ }
+      }
+
+      // Merge
+      const merged: Record<string, string> = { ...existingDecrypted }
       for (const [provider, value] of Object.entries(incoming)) {
         if (value && !value.startsWith('...')) {
           merged[provider] = value
         } else if (value === '') {
-          // Allow clearing a key by sending empty string
           delete merged[provider]
         }
         // Skip masked values — keep existing
       }
-      updates['settings.aiKeys'] = merged
+
+      // Encrypt all keys before saving
+      const encryptedMerged: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(merged)) {
+        if (v) encryptedMerged[k] = encrypt(v)
+      }
+      updates['settings.aiKeys'] = encryptedMerged
     }
 
     if (Object.keys(updates).length === 0) {
@@ -75,7 +97,7 @@ router.put('/', async (req: AuthRequest, res) => {
 
     const before = (await User.findById(userId).select('settings').lean())?.settings
     const user = await User.findByIdAndUpdate(userId, { $set: updates }, { new: true }).select('settings').lean()
-    audit(userId, 'update', 'settings', userId, { before, after: user?.settings })
+    audit(userId, 'update', 'settings', userId, { before, after: null })
     return res.json(user?.settings || DEFAULT_SETTINGS)
   } catch (e) {
     console.error('PUT /api/settings error:', e)

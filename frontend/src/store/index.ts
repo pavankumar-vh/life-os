@@ -686,6 +686,7 @@ export interface NoteData {
   content: string
   folder: string
   tags: string[]
+  photos: string[]
   pinned: boolean
   updatedAt: string
   createdAt: string

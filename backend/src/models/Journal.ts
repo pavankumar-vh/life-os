@@ -11,6 +11,7 @@ export interface IJournal extends Document {
   gratitude: string[]
   improvements: string
   tags: string[]
+  photos: string[]
   createdAt: Date
 }
 
@@ -25,6 +26,7 @@ const JournalSchema = new Schema<IJournal>({
   gratitude: [{ type: String }],
   improvements: { type: String, default: '' },
   tags: [{ type: String }],
+  photos: [{ type: String }],
 }, { timestamps: true })
 
 JournalSchema.index({ userId: 1, date: 1 }, { unique: true })

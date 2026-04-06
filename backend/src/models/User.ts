@@ -1,5 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
+// Encrypted field stored as { iv, tag, data } objects
+interface EncryptedField {
+  iv: string
+  tag: string
+  data: string
+}
+
 export interface IUser extends Document {
   email: string
   password: string
@@ -7,8 +14,8 @@ export interface IUser extends Document {
   xp: number
   level: number
   googleTokens?: {
-    access_token: string
-    refresh_token?: string
+    access_token: EncryptedField | string  // encrypted
+    refresh_token?: EncryptedField | string // encrypted
     expiry_date?: number
   }
   settings: {
@@ -25,10 +32,16 @@ export interface IUser extends Document {
     }
     aiProvider: string
     aiModels: Record<string, string>
-    aiKeys: Record<string, string>
+    aiKeys: Record<string, EncryptedField | string>  // encrypted
     lastBackup: string | null
   }
   createdAt: Date
+}
+
+const EncryptedFieldSchema = {
+  iv: String,
+  tag: String,
+  data: String,
 }
 
 const UserSchema = new Schema<IUser>({
@@ -38,8 +51,8 @@ const UserSchema = new Schema<IUser>({
   xp: { type: Number, default: 0 },
   level: { type: Number, default: 1 },
   googleTokens: {
-    access_token: String,
-    refresh_token: String,
+    access_token: Schema.Types.Mixed,   // string or EncryptedField
+    refresh_token: Schema.Types.Mixed,  // string or EncryptedField
     expiry_date: Number,
   },
   settings: {

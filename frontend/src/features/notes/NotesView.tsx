@@ -6,11 +6,12 @@ import { useNotesStore, type NoteData } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Trash2, Search, Pin, Folder, FolderPlus, ChevronLeft, X, Tag,
-  MoreHorizontal, PinOff, Clock, Hash, Check, Loader2, FileText,
+  MoreHorizontal, PinOff, Clock, Hash, Check, Loader2, FileText, ImagePlus,
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Highlighter,
   List, ListOrdered, ListTodo, Heading1, Heading2, Heading3, Quote, Minus, Braces
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
+import { PhotoUpload } from '@/components/PhotoUpload'
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -21,6 +22,7 @@ import TaskItem from '@tiptap/extension-task-item'
 import Highlight from '@tiptap/extension-highlight'
 import Typography from '@tiptap/extension-typography'
 import TiptapUnderline from '@tiptap/extension-underline'
+import Image from '@tiptap/extension-image'
 
 function relativeDate(d: string) {
   const now = new Date(), date = new Date(d)
@@ -140,6 +142,8 @@ export function NotesView() {
   const [showMobileEditor, setShowMobileEditor] = useState(false)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [editPhotos, setEditPhotos] = useState<string[]>([])
+  const editPhotosRef = useRef<string[]>([])
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
@@ -154,6 +158,7 @@ export function NotesView() {
   const modalInputRef = useRef<HTMLInputElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isLoadingNote = useRef(false)
   const activeIdRef = useRef<string | null>(null)
@@ -167,6 +172,11 @@ export function NotesView() {
   editFolderRef.current = editFolder
   editTagsRef.current = editTags
   editPinnedRef.current = editPinned
+  editPhotosRef.current = editPhotos
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+  // uploadImageInline is defined after useEditor below
+  const uploadImageInlineRef = useRef<(file: File) => Promise<void>>(async () => {})
 
   useEffect(() => { fetchNotes().catch(() => toast.error('Failed to load notes')) }, [fetchNotes])
 
@@ -177,22 +187,52 @@ export function NotesView() {
 
   const closeSlash = () => { setSlashOpen(false); setSlashFilter(''); setSlashIndex(0) }
 
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      heading: { levels: [1, 2, 3] },
+      codeBlock: { HTMLAttributes: { class: 'tiptap-code-block' } },
+    }),
+    Placeholder.configure({ placeholder: 'Start writing... (type / for commands, paste or drag images)' }),
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Highlight.configure({ multicolor: false }),
+    Typography,
+    TiptapUnderline,
+    Image.configure({ inline: false, allowBase64: false }),
+  ], [])
+
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        codeBlock: { HTMLAttributes: { class: 'tiptap-code-block' } },
-      }),
-      Placeholder.configure({ placeholder: 'Start writing... (type / for commands)' }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Highlight.configure({ multicolor: false }),
-      Typography,
-      TiptapUnderline,
-    ],
+    extensions,
     editorProps: {
       attributes: { class: 'tiptap-editor outline-none min-h-[50vh]' },
+      handlePaste(_view, event) {
+        const items = event.clipboardData?.items
+        if (!items) return false
+        for (const item of Array.from(items)) {
+          if (item.type.startsWith('image/')) {
+            event.preventDefault()
+            const file = item.getAsFile()
+            if (file) uploadImageInlineRef.current(file)
+            return true
+          }
+        }
+        return false
+      },
+      handleDrop(_view, event, _slice, moved) {
+        if (moved) return false
+        const files = event.dataTransfer?.files
+        if (!files?.length) return false
+        let handled = false
+        for (const file of Array.from(files)) {
+          if (file.type.startsWith('image/')) {
+            event.preventDefault()
+            uploadImageInlineRef.current(file)
+            handled = true
+          }
+        }
+        return handled
+      },
     },
     onUpdate: ({ editor: ed }) => {
       if (isLoadingNote.current) return
@@ -211,6 +251,32 @@ export function NotesView() {
       doSave(html)
     },
   })
+
+  // Define inline image uploader AFTER editor is declared (must reference editor ref)
+  const uploadImageInline = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) return
+    const token = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
+    if (!token) { toast.error('Not authenticated'); return }
+    const form = new FormData()
+    form.append('photo', file)
+    form.append('context', 'note')
+    if (activeIdRef.current) form.append('refId', activeIdRef.current)
+    try {
+      const res = await fetch(`${apiBase}/api/uploads/photo`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      })
+      if (!res.ok) { toast.error('Image upload failed'); return }
+      const data = await res.json()
+      editor?.chain().focus().setImage({ src: data.url, alt: file.name }).run()
+    } catch {
+      toast.error('Image upload failed')
+    }
+  }, [editor, apiBase])
+
+  // Keep ref in sync so paste/drop handlers (defined inside useEditor) can call this
+  uploadImageInlineRef.current = uploadImageInline
 
   useEffect(() => {
     if (!editor || !slashOpen) return
@@ -298,6 +364,7 @@ export function NotesView() {
       const tags = editTagsRef.current
       const tagsList = tags
       const pinned = editPinnedRef.current
+      const photos = editPhotosRef.current
       const id = activeIdRef.current
       if (!title.trim() && !content.trim()) { setSaveStatus('idle'); return }
       await saveNote({
@@ -307,6 +374,7 @@ export function NotesView() {
         folder,
         tags: tagsList,
         pinned,
+        photos,
       }).catch(() => { setSaveStatus('idle'); toast.error('Failed to save note') })
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 1500)
@@ -320,6 +388,7 @@ export function NotesView() {
     setEditTitle(note.title)
     setEditFolder(note.folder)
     setEditTags(note.tags || [])
+    setEditPhotos(note.photos || [])
     setTagInput('')
     setEditPinned(note.pinned)
     setShowMobileEditor(true)
@@ -584,6 +653,24 @@ export function NotesView() {
               <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
             </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
+            {/* Attachment / image upload button */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) {
+                  Array.from(e.target.files).forEach(uploadImageInline)
+                  e.target.value = ''
+                }
+              }}
+            />
+            <ToolBtn active={false} onClick={() => imageInputRef.current?.click()} title="Attach image (or paste/drag)">
+              <ImagePlus className="w-3.5 h-3.5" />
+            </ToolBtn>
+            <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             <ToolBtn active={editPinned} onClick={onPinToggle} title={editPinned ? 'Unpin' : 'Pin'}><Pin className="w-3.5 h-3.5" /></ToolBtn>
             <button onClick={() => handleDelete(activeId)} title="Delete" className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-red-soft hover:bg-red-soft/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
           </div>
@@ -661,6 +748,25 @@ export function NotesView() {
                 <ToolBtn active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}><Code className="w-3.5 h-3.5" /></ToolBtn>
               </BubbleMenu>
               <EditorContent editor={editor} />
+              {/* Small attachments tray — only shown if photos exist */}
+              {editPhotos.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-border/30">
+                  <div className="flex flex-wrap gap-2">
+                    {editPhotos.map((url, i) => (
+                      <div key={i} className="relative group w-20 h-20 rounded-lg overflow-hidden bg-bg-elevated">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => { const updated = editPhotos.filter((_, j) => j !== i); setEditPhotos(updated); editPhotosRef.current = updated; doSave() }}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <AnimatePresence>
                 {slashOpen && filteredSlashCmds.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}

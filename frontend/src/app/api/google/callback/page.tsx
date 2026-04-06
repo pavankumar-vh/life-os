@@ -31,7 +31,7 @@ export default function GoogleCallbackPage() {
       return
     }
 
-    const apiBase = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
     fetch(`${apiBase}/api/google/callback`, {
       method: 'POST',
       headers: {

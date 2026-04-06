@@ -19,6 +19,7 @@ export interface IWorkout extends Document {
   exercises: IExercise[]
   duration: number
   notes: string
+  photos: string[]
   createdAt: Date
 }
 
@@ -41,6 +42,7 @@ const WorkoutSchema = new Schema<IWorkout>({
   exercises: [ExerciseSchema],
   duration: { type: Number, default: 0 },
   notes: { type: String, default: '' },
+  photos: [{ type: String }],
 }, { timestamps: true })
 
 export const Workout = mongoose.model<IWorkout>('Workout', WorkoutSchema)
