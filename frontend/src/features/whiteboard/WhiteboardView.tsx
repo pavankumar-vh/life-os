@@ -238,15 +238,40 @@ export function WhiteboardView() {
   if (showBoardList || !activeBoard) {
     return (
       <div className="space-y-4 animate-in fade-in duration-300">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-              <Pencil size={22} className="text-accent" /> Whiteboard
+        {/* ── Header + Search in one bar ───────────────────────── */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xl font-bold text-text-primary flex items-center gap-2 shrink-0">
+              <Pencil size={18} className="text-accent" />
+              {currentFolderId ? (
+                <>
+                  <button onClick={() => setCurrentFolderId(null)}
+                    className="text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+                    Whiteboard
+                  </button>
+                  {breadcrumbs.map(bc => (
+                    <span key={bc._id} className="flex items-center gap-1">
+                      <ChevronRight size={13} className="text-text-muted" />
+                      <button onClick={() => setCurrentFolderId(bc._id)}
+                        className="text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+                        {bc.name}
+                      </button>
+                    </span>
+                  ))}
+                </>
+              ) : 'Whiteboard'}
             </h1>
-            <p className="text-text-muted text-xs mt-0.5">{boards.length} boards · {folders.length} folders</p>
+            <span className="text-[10px] text-text-muted shrink-0 hidden sm:block">{boards.length} boards · {folders.length} folders</span>
           </div>
           <div className="flex items-center gap-2">
+            {currentFolderId && (
+              <button onClick={() => {
+                const parent = folders.find(f => f._id === currentFolderId)
+                setCurrentFolderId(parent?.parentId ?? null)
+              }} className="btn-ghost text-xs">
+                <ArrowLeft size={14} /> Up
+              </button>
+            )}
             <button onClick={() => setShowNewFolder(true)} className="btn-ghost text-xs">
               <FolderPlus size={14} /> New Folder
             </button>
@@ -256,52 +281,27 @@ export function WhiteboardView() {
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="card">
-          <div className="flex items-center gap-1 mb-3 text-xs">
-            <button onClick={() => setCurrentFolderId(null)}
-              className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${!currentFolderId ? 'text-accent font-medium' : 'text-text-muted hover:text-text-primary hover:bg-glass-strong'}`}>
-              My Boards
-            </button>
-            {breadcrumbs.map(bc => (
-              <span key={bc._id} className="flex items-center gap-1">
-                <ChevronRight size={12} className="text-text-muted" />
-                <button onClick={() => setCurrentFolderId(bc._id)}
-                  className="px-2 py-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-glass-strong transition-colors cursor-pointer">
-                  {bc.name}
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search boards & folders..." className="input text-xs w-full !pl-9" />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-            <div className="flex border border-glass-border rounded-lg overflow-hidden">
-              <button onClick={() => setViewMode('grid')}
-                className={`p-2 transition-colors cursor-pointer ${viewMode === 'grid' ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-glass-strong'}`}>
-                <LayoutGrid size={14} />
-              </button>
-              <button onClick={() => setViewMode('list')}
-                className={`p-2 transition-colors cursor-pointer ${viewMode === 'list' ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-glass-strong'}`}>
-                <List size={14} />
-              </button>
-            </div>
-            {currentFolderId && (
-              <button onClick={() => {
-                const parent = folders.find(f => f._id === currentFolderId)
-                setCurrentFolderId(parent?.parentId ?? null)
-              }} className="btn-ghost text-xs">
-                <ArrowLeft size={14} /> Back
+        {/* ── Search + view toggle ─────────────────────────────── */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-xs">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search boards & folders..." className="input text-xs w-full !pl-8 !py-2" />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
+                <X size={11} />
               </button>
             )}
+          </div>
+          <div className="flex border border-glass-border rounded-lg overflow-hidden shrink-0">
+            <button onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-2 transition-colors cursor-pointer ${viewMode === 'grid' ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-glass-strong'}`}>
+              <LayoutGrid size={13} />
+            </button>
+            <button onClick={() => setViewMode('list')}
+              className={`px-2.5 py-2 transition-colors cursor-pointer ${viewMode === 'list' ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-glass-strong'}`}>
+              <List size={13} />
+            </button>
           </div>
         </div>
 
@@ -363,13 +363,21 @@ export function WhiteboardView() {
 
         {/* Content */}
         {currentFolders.length === 0 && currentBoards.length === 0 ? (
-          <div className="card text-center py-16">
-            <Pencil className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-40" />
-            <p className="text-sm text-text-muted mb-4">
-              {searchQuery ? 'No results found' : currentFolderId ? 'This folder is empty' : 'No boards yet'}
-            </p>
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(232,213,183,0.07)', border: '1px solid rgba(232,213,183,0.08)' }}>
+              <Pencil className="w-7 h-7 text-accent/40" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-text-primary mb-1">
+                {searchQuery ? 'No results found' : currentFolderId ? 'This folder is empty' : 'No boards yet'}
+              </p>
+              {!searchQuery && (
+                <p className="text-xs text-text-muted mb-4">Create a board to start sketching ideas</p>
+              )}
+            </div>
             {!searchQuery && (
-              <button onClick={createNewBoard} className="btn text-xs mx-auto">
+              <button onClick={createNewBoard} className="btn text-xs">
                 <Plus size={14} /> Create your first board
               </button>
             )}
@@ -421,20 +429,31 @@ export function WhiteboardView() {
                         className="card cursor-pointer hover:border-accent/20 transition-all group"
                         onClick={() => openBoard(board)}
                         onContextMenu={e => handleContextMenu(e, board._id, 'board')}>
-                        <div className="w-full h-28 rounded-xl bg-bg-elevated mb-3 flex items-center justify-center overflow-hidden border border-white/[0.03]">
+                        {/* Preview */}
+                        <div className="w-full h-28 relative overflow-hidden flex items-center justify-center rounded-xl mb-0"
+                          style={{ background: 'linear-gradient(135deg, rgba(232,213,183,0.05) 0%, rgba(10,10,10,0.7) 100%)' }}>
+                          <div className="absolute inset-0 opacity-[0.035]"
+                            style={{
+                              backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
+                              backgroundSize: '20px 20px',
+                            }} />
                           {hasContent ? (
-                            <div className="text-center">
-                              <Pencil size={20} className="text-accent mx-auto mb-1" />
+                            <div className="relative text-center">
+                              <div className="w-9 h-9 mx-auto rounded-xl flex items-center justify-center mb-1"
+                                style={{ background: 'rgba(232,213,183,0.1)', border: '1px solid rgba(232,213,183,0.15)' }}>
+                                <Pencil size={15} className="text-accent" />
+                              </div>
                               <p className="text-[10px] text-text-muted">{elementCount} elements</p>
                             </div>
                           ) : (
-                            <div className="text-center">
-                              <Pencil size={20} className="text-text-muted/30 mx-auto mb-1" />
-                              <p className="text-[10px] text-text-muted/50">Empty board</p>
+                            <div className="relative text-center opacity-40">
+                              <Pencil size={18} className="text-text-muted mx-auto mb-1" />
+                              <p className="text-[10px] text-text-muted">Empty</p>
                             </div>
                           )}
+                          <div className="absolute inset-0 bg-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between mt-3">
                           <div className="min-w-0 flex-1">
                             <h3 className="text-sm font-medium text-text-primary truncate">{board.title}</h3>
                             <p className="text-[10px] text-text-muted mt-0.5">
@@ -483,7 +502,10 @@ export function WhiteboardView() {
                 className="flex items-center gap-3 px-4 py-3 hover:bg-glass-strong transition-colors cursor-pointer group"
                 onClick={() => openBoard(board)}
                 onContextMenu={e => handleContextMenu(e, board._id, 'board')}>
-                <Pencil size={16} className="text-text-muted shrink-0" />
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgba(232,213,183,0.06)', border: '1px solid rgba(232,213,183,0.08)' }}>
+                  <Pencil size={12} className="text-accent/70" />
+                </div>
                 <span className="text-sm font-medium text-text-primary flex-1 truncate">{board.title}</span>
                 <span className="text-[10px] text-text-muted">
                   {new Date(board.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -568,11 +590,11 @@ export function WhiteboardView() {
   return (
     <div className="fixed inset-0 z-40 bg-bg-primary flex flex-col">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-bg-solid border-b border-border z-[300] shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 bg-bg-solid border-b border-border z-[300] shrink-0">
+        <div className="flex items-center gap-3">
           <button onClick={goBack}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bg-elevated border border-white/[0.06] text-text-secondary hover:text-text-primary text-xs transition-colors cursor-pointer">
-            <ChevronLeft className="w-3.5 h-3.5" /> Boards
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-elevated border border-white/[0.07] text-text-secondary hover:text-text-primary text-xs font-medium transition-all cursor-pointer hover:border-white/[0.12]">
+            <ChevronLeft className="w-4 h-4" /> Boards
           </button>
           <input value={boardTitle} onChange={e => setBoardTitle(e.target.value)}
             onBlur={() => {
@@ -587,12 +609,12 @@ export function WhiteboardView() {
                 saveBoard({ _id: activeBoard._id, title: boardTitle, snapshot })
               }
             }}
-            className="px-3 py-1.5 rounded-xl bg-bg-elevated border border-white/[0.06] text-xs text-text-primary outline-none min-w-[140px] focus:border-accent/30 transition-colors"
+            className="px-3 py-2 rounded-xl bg-bg-elevated border border-white/[0.07] text-sm text-text-primary outline-none min-w-[200px] focus:border-accent/40 transition-colors font-medium"
           />
         </div>
         <div className="flex items-center gap-2">
           {/* Save status indicator */}
-          <div className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg bg-bg-elevated border border-white/[0.04]">
+          <div className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg bg-bg-elevated border border-white/[0.05]">
             {saveStatus === 'saved' && <><Cloud className="w-3 h-3 text-green-400" /><span className="text-green-400">Saved</span></>}
             {saveStatus === 'saving' && <><Save className="w-3 h-3 text-accent animate-pulse" /><span className="text-accent">Saving...</span></>}
             {saveStatus === 'unsaved' && <><CloudOff className="w-3 h-3 text-text-muted" /><span className="text-text-muted">Unsaved</span></>}
