@@ -18,29 +18,29 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
   {
     id: 'openai', label: 'OpenAI', icon: '⬡',
     models: [
-      { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-      { id: 'gpt-4.1', label: 'GPT-4.1' },
-      { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+      { id: 'gpt-5.4', label: 'GPT-5.4' },
+      { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano' },
       { id: 'gpt-4o', label: 'GPT-4o' },
-      { id: 'o4-mini', label: 'o4-mini' },
+      { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
     ],
   },
   {
     id: 'gemini', label: 'Gemini', icon: '✦',
     models: [
-      { id: 'gemini-2.5-flash-preview-04-17', label: '2.5 Flash' },
-      { id: 'gemini-2.5-pro-preview-03-25', label: '2.5 Pro' },
-      { id: 'gemini-2.0-flash', label: '2.0 Flash' },
-      { id: 'gemini-2.0-flash-lite', label: '2.0 Flash Lite' },
+      { id: 'gemini-3-flash-preview', label: '3 Flash (Preview)' },
+      { id: 'gemini-2.5-flash', label: '2.5 Flash' },
+      { id: 'gemini-2.5-pro', label: '2.5 Pro' },
+      { id: 'gemini-2.5-flash-lite', label: '2.5 Flash-Lite' },
     ],
   },
   {
     id: 'anthropic', label: 'Claude', icon: '◈',
     models: [
+      { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+      { id: 'claude-haiku-4-6', label: 'Claude Haiku 4.6' },
       { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-      { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-      { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-      { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet' },
     ],
   },
   {
