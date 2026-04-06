@@ -118,7 +118,7 @@ const SLASH_COMMANDS = [
   { label: 'Heading 3', icon: Heading3, command: (e: any) => e.chain().focus().toggleHeading({ level: 3 }).run() },
   { label: 'Bullet List', icon: List, command: (e: any) => e.chain().focus().toggleBulletList().run() },
   { label: 'Numbered List', icon: ListOrdered, command: (e: any) => e.chain().focus().toggleOrderedList().run() },
-  { label: 'Task List', icon: ListTodo, command: (e: any) => e.chain().focus().toggleList('taskList', 'taskItem').run() },
+  { label: 'Task List', icon: ListTodo, command: (e: any) => e.chain().focus().toggleTaskList().run() },
   { label: 'Quote', icon: Quote, command: (e: any) => e.chain().focus().toggleBlockquote().run() },
   { label: 'Code Block', icon: Braces, command: (e: any) => e.chain().focus().toggleCodeBlock().run() },
   { label: 'Divider', icon: Minus, command: (e: any) => e.chain().focus().setHorizontalRule().run() },
@@ -405,7 +405,7 @@ export function NotesView() {
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             <ToolBtn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullets"><List className="w-3.5 h-3.5" /></ToolBtn>
             <ToolBtn active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbers"><ListOrdered className="w-3.5 h-3.5" /></ToolBtn>
-            <ToolBtn active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleList('taskList', 'taskItem').run()} title="Tasks"><ListTodo className="w-3.5 h-3.5" /></ToolBtn>
+            <ToolBtn active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()} title="Tasks"><ListTodo className="w-3.5 h-3.5" /></ToolBtn>
             <ToolBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote"><Quote className="w-3.5 h-3.5" /></ToolBtn>
             <ToolBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code Block"><Braces className="w-3.5 h-3.5" /></ToolBtn>
             <div className="flex-1" />
