@@ -31,6 +31,7 @@ import backupRoutes from './routes/backup'
 import chatRoutes from './routes/chat'
 import googleRoutes from './routes/google'
 import settingsRoutes from './routes/settings'
+import focusRoutes from './routes/focus'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -76,6 +77,7 @@ app.use('/api/backup', backupRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/google', googleRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/focus', focusRoutes)
 
 // Health check
 app.get('/api/health', (_req, res) => {

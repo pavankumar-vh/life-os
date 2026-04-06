@@ -8,6 +8,8 @@ export interface IProject extends Document {
   color: string
   progress: number
   deadline: string | null
+  startedAt: string | null
+  completedAt: string | null
   tasks: { text: string; done: boolean }[]
 }
 
@@ -19,6 +21,8 @@ const ProjectSchema = new Schema<IProject>({
   color: { type: String, default: '#e8d5b7' },
   progress: { type: Number, default: 0 },
   deadline: { type: String, default: null },
+  startedAt: { type: String, default: null },
+  completedAt: { type: String, default: null },
   tasks: [{ text: { type: String }, done: { type: Boolean, default: false } }],
 }, { timestamps: true })
 

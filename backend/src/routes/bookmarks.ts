@@ -51,4 +51,23 @@ router.delete('/:id', async (req: AuthRequest, res) => {
   }
 })
 
+router.put('/:id', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const { id } = req.params
+    const updates = sanitizeBody(req.body)
+    if (isDemoUser(userId)) {
+      const existing = DEMO_BOOKMARKS.find(b => b._id === id)
+      return res.json(Object.assign({}, existing || {}, updates, { _id: id, userId }))
+    }
+    const item = await Bookmark.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    audit(userId, 'update', 'bookmarks', id, { after: item.toJSON(), changes: updates as Record<string, unknown> })
+    return res.json(item)
+  } catch (e) {
+    console.error('PUT /api/bookmarks error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
 export default router

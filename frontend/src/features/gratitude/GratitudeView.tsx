@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useGratitudeStore, type GratitudeData } from '@/store'
 import { toISODate, formatDate } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Heart, Plus, Trash2, Sparkles, Sun, Star } from 'lucide-react'
+import { Heart, Plus, Trash2, Sparkles, Sun, Star, Undo2 } from 'lucide-react'
 import { MoodIcon, MOOD_ICONS } from '@/lib/icons'
 import { DateNavigator } from '@/components/DateNavigator'
 import { toast } from '@/components/Toast'
@@ -13,6 +13,7 @@ export function GratitudeView() {
   const { entries, isLoading, fetchEntries, saveEntry, deleteEntry } = useGratitudeStore()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ items: ['', '', ''], highlight: '', mood: 4 })
+  const [pendingDelete, setPendingDelete] = useState<{ entry: GratitudeData; timer: NodeJS.Timeout } | null>(null)
 
   useEffect(() => { fetchEntries().catch(() => toast.error('Failed to load entries')) }, [fetchEntries])
 
@@ -133,7 +134,7 @@ export function GratitudeView() {
       {todayEntry && !showForm && (
         <div className="card mb-6 border-pink-400/10 bg-gradient-to-br from-bg-surface to-bg-elevated/50">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-text-muted">Today</span>
+            <span className="text-xs text-text-muted">{selectedDate === today ? 'Today' : formatDate(selectedDate)}</span>
             <span className="text-lg"><MoodIcon mood={todayEntry.mood || 3} size={20} /></span>
           </div>
           <ul className="space-y-1.5">
@@ -149,16 +150,32 @@ export function GratitudeView() {
         </div>
       )}
 
+      {/* Undo bar */}
+      <AnimatePresence>
+        {pendingDelete && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-red-soft/10 border border-red-soft/20">
+              <span className="text-xs text-red-soft">Entry will be removed</span>
+              <button onClick={() => { clearTimeout(pendingDelete.timer); setPendingDelete(null) }} className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium"><Undo2 className="w-3 h-3" /> Undo</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Past Entries */}
       <div className="space-y-2">
-        <AnimatePresence mode="popLayout">
-          {entries.filter(e => e.date !== today).map(entry => (
+        <AnimatePresence>
+          {entries.filter(e => e.date !== today && e._id !== pendingDelete?.entry._id).map(entry => (
             <motion.div key={entry._id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="card group">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-text-muted">{formatDate(entry.date)}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm"><MoodIcon mood={entry.mood || 3} size={16} /></span>
-                  <button onClick={() => { if (confirm('Delete this entry?')) deleteEntry(entry._id).catch(() => toast.error('Failed to delete')) }} className="btn-ghost p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
+                  <button onClick={() => {
+                    if (pendingDelete) { clearTimeout(pendingDelete.timer); deleteEntry(pendingDelete.entry._id).catch(() => toast.error('Failed to delete')) }
+                    const timer = setTimeout(() => { deleteEntry(entry._id).catch(() => toast.error('Failed to delete')); setPendingDelete(null) }, 3500)
+                    setPendingDelete({ entry, timer })
+                  }} className="btn-ghost p-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
                 </div>
               </div>
               <ul className="space-y-1">

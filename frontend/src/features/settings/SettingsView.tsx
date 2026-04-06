@@ -10,14 +10,26 @@ import {
 import { toast } from '@/components/Toast'
 
 const ACCENT_PRESETS = [
+  // Warm
   { name: 'Warm Sand', color: '#e8d5b7' },
+  { name: 'Amber', color: '#fb923c' },
+  { name: 'Peach', color: '#f9a8d4' },
+  { name: 'Gold', color: '#eab308' },
+  // Cool
   { name: 'Ocean Blue', color: '#60a5fa' },
+  { name: 'Cyan', color: '#22d3ee' },
+  { name: 'Teal', color: '#2dd4bf' },
+  { name: 'Sky', color: '#38bdf8' },
+  // Nature
   { name: 'Emerald', color: '#34d399' },
+  { name: 'Lime', color: '#a3e635' },
+  { name: 'Mint', color: '#6ee7b7' },
+  // Vibrant
   { name: 'Lavender', color: '#a78bfa' },
   { name: 'Rose', color: '#fb7185' },
-  { name: 'Amber', color: '#fb923c' },
-  { name: 'Cyan', color: '#22d3ee' },
-  { name: 'Lime', color: '#a3e635' },
+  { name: 'Fuchsia', color: '#e879f9' },
+  { name: 'Coral', color: '#f97316' },
+  { name: 'Crimson', color: '#ef4444' },
 ]
 
 type GoalKeys = keyof typeof DEFAULT_GOALS
@@ -161,14 +173,19 @@ export function SettingsView() {
               <Palette className="w-4 h-4 text-accent" /> Appearance
             </h3>
             <p className="text-xs text-text-secondary mb-2.5">Accent Color</p>
-            <div className="flex flex-wrap gap-2.5 mb-5">
+            <div className="flex flex-wrap gap-2 mb-3">
               {ACCENT_PRESETS.map(p => (
                 <button key={p.color} onClick={() => setAccentColor(p.color)} title={p.name}
-                  className="relative w-9 h-9 rounded-full transition-all hover:scale-110"
+                  className="relative w-8 h-8 rounded-full transition-all hover:scale-110 active:scale-95"
                   style={{ background: p.color, boxShadow: accentColor === p.color ? `0 0 0 2px #0a0a0a, 0 0 0 4px ${p.color}` : 'none' }}>
-                  {accentColor === p.color && <CheckCircle2 className="w-4 h-4 absolute inset-0 m-auto text-[#1a1a1a]/80" />}
+                  {accentColor === p.color && <CheckCircle2 className="w-3.5 h-3.5 absolute inset-0 m-auto text-[#1a1a1a]/80" />}
                 </button>
               ))}
+              <label title="Custom color" className="relative w-8 h-8 rounded-full border-2 border-dashed border-border hover:border-text-muted cursor-pointer flex items-center justify-center transition-colors hover:scale-110"
+                style={!ACCENT_PRESETS.some(p => p.color === accentColor) ? { background: accentColor, borderStyle: 'solid', borderColor: accentColor, boxShadow: `0 0 0 2px #0a0a0a, 0 0 0 4px ${accentColor}` } : {}}>
+                {ACCENT_PRESETS.some(p => p.color === accentColor) ? <Palette className="w-3.5 h-3.5 text-text-muted" /> : <CheckCircle2 className="w-3.5 h-3.5 text-[#1a1a1a]/80" />}
+                <input type="color" value={accentColor} onChange={e => setAccentColor(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+              </label>
             </div>
             <div className="flex items-center justify-between p-3 bg-bg-elevated rounded-lg">
               <div className="flex items-center gap-3">

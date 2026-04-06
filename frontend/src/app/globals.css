@@ -8,6 +8,12 @@
 /*  BASE                                                */
 /* ──────────────────────────────────────────────────── */
 @layer base {
+  :root {
+    --accent-r: 232;
+    --accent-g: 213;
+    --accent-b: 183;
+  }
+
   * {
     @apply border-border;
   }
@@ -33,7 +39,7 @@
   }
 
   ::selection {
-    background: rgba(232, 213, 183, 0.2);
+    background: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.2);
   }
 
   /* Smooth glass scrollbar */
@@ -140,10 +146,10 @@
     padding: 1px;
     background: linear-gradient(
       135deg,
-      rgba(232, 213, 183, 0.2),
+      rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.2),
       rgba(96, 165, 250, 0.1),
       rgba(167, 139, 250, 0.15),
-      rgba(232, 213, 183, 0.05)
+      rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.05)
     );
     background-size: 300% 300%;
     animation: glow-rotate 8s ease-in-out infinite;
@@ -238,9 +244,9 @@
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
            font-medium text-sm cursor-pointer
            relative overflow-hidden;
-    background: linear-gradient(135deg, rgba(232, 213, 183, 0.95), rgba(201, 168, 124, 0.9));
+    background: linear-gradient(135deg, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.95), rgba(201, 168, 124, 0.9));
     color: #0a0a0a;
-    box-shadow: 0 2px 8px -2px rgba(232, 213, 183, 0.2);
+    box-shadow: 0 2px 8px -2px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.2);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     will-change: transform;
   }
@@ -258,15 +264,15 @@
     background-position: -200% 0;
   }
   .btn:hover {
-    background: linear-gradient(135deg, rgba(232, 213, 183, 1), rgba(201, 168, 124, 1));
+    background: linear-gradient(135deg, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 1), rgba(201, 168, 124, 1));
     transform: translateY(-2px);
     box-shadow:
-      0 8px 24px -4px rgba(232, 213, 183, 0.35),
-      0 0 24px -8px rgba(232, 213, 183, 0.25);
+      0 8px 24px -4px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.35),
+      0 0 24px -8px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.25);
   }
   .btn:active {
     transform: translateY(0) scale(0.98);
-    box-shadow: 0 2px 8px -2px rgba(232, 213, 183, 0.15);
+    box-shadow: 0 2px 8px -2px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.15);
   }
 
   .btn-ghost {
@@ -309,10 +315,10 @@
     transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   }
   .input:focus {
-    border-color: rgba(232, 213, 183, 0.50);
+    border-color: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.50);
     background: rgba(255, 255, 255, 0.08);
     box-shadow:
-      0 0 0 3px rgba(232, 213, 183, 0.14),
+      0 0 0 3px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.14),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
@@ -342,14 +348,14 @@
 
   /* ─── Gradient Text ──────────────────────────────── */
   .gradient-text {
-    background: linear-gradient(135deg, #e8d5b7 0%, #c9a87c 50%, #f0dfc4 100%);
+    background: linear-gradient(135deg, rgb(var(--accent-r), var(--accent-g), var(--accent-b)) 0%, rgb(calc(var(--accent-r) * 0.87), calc(var(--accent-g) * 0.79), calc(var(--accent-b) * 0.68)) 50%, rgb(calc(var(--accent-r) * 1.03), calc(var(--accent-g) * 1.02), calc(var(--accent-b) * 1.07)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .gradient-text-vivid {
-    background: linear-gradient(135deg, #e8d5b7 0%, #60a5fa 40%, #a78bfa 70%, #e8d5b7 100%);
+    background: linear-gradient(135deg, rgb(var(--accent-r), var(--accent-g), var(--accent-b)) 0%, #60a5fa 40%, #a78bfa 70%, rgb(var(--accent-r), var(--accent-g), var(--accent-b)) 100%);
     background-size: 200% 200%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -365,7 +371,7 @@
 
   /* ─── Glow Ring — SVG progress ─────────────────── */
   .glow-ring {
-    filter: drop-shadow(0 0 6px rgba(232, 213, 183, 0.3));
+    filter: drop-shadow(0 0 6px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.3));
   }
 
   /* ─── Shimmer Skeleton ─────────────────────────── */
@@ -401,7 +407,7 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 60% at 10% 15%, rgba(232, 213, 183, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 10% 15%, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.05) 0%, transparent 60%),
     radial-gradient(ellipse 60% 70% at 85% 80%, rgba(96, 165, 250, 0.03) 0%, transparent 60%),
     radial-gradient(ellipse 50% 50% at 50% 45%, rgba(167, 139, 250, 0.025) 0%, transparent 60%);
 }
@@ -494,7 +500,7 @@
   will-change: transform;
 }
 .hover-glow:hover {
-  box-shadow: 0 0 30px -5px rgba(232, 213, 183, 0.15);
+  box-shadow: 0 0 30px -5px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.15);
 }
 
 /* tldraw wrapper — ensure it fills container and blends with theme */
@@ -602,8 +608,8 @@
 }
 
 .tiptap-editor ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
-  background: rgba(232, 213, 183, 0.8);
-  border-color: rgba(232, 213, 183, 0.8);
+  background: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.8);
+  border-color: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.8);
 }
 
 .tiptap-editor ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
@@ -622,7 +628,7 @@
 }
 
 .tiptap-editor blockquote {
-  border-left: 3px solid rgba(232, 213, 183, 0.3);
+  border-left: 3px solid rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.3);
   padding-left: 1em;
   margin-left: 0;
   color: rgba(255, 255, 255, 0.6);
@@ -647,7 +653,7 @@
   padding: 0.15em 0.4em;
   font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
   font-size: 0.88em;
-  color: rgba(232, 213, 183, 0.8);
+  color: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.8);
 }
 
 .tiptap-editor pre code {
@@ -664,14 +670,14 @@
 }
 
 .tiptap-editor mark {
-  background: rgba(232, 213, 183, 0.25);
+  background: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.25);
   color: inherit;
   border-radius: 2px;
   padding: 0.1em 0.15em;
 }
 
 .tiptap-editor a {
-  color: rgba(232, 213, 183, 0.9);
+  color: rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.9);
   text-decoration: underline;
   text-underline-offset: 2px;
 }

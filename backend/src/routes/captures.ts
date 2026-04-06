@@ -43,7 +43,8 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const updates = sanitizeBody(req.body)
     if (isDemoUser(userId)) {
       const existing = DEMO_CAPTURES.find(c => c._id === id)
-      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
+      const base = { text: '', type: 'thought' as const, processed: false, createdAt: new Date().toISOString() }
+      return res.json(Object.assign(base, existing || {}, updates, { _id: id, userId }))
     }
     const item = await Capture.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!item) return res.status(404).json({ error: 'Not found' })

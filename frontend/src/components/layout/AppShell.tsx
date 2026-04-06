@@ -84,7 +84,6 @@ export function AppShell() {
     useSettingsStore.getState().fetchSettings().then(() => {
       const { accentColor } = useSettingsStore.getState()
       if (accentColor) {
-        document.documentElement.style.setProperty('--accent-dynamic', accentColor)
         useAppStore.getState().setAccentColor(accentColor)
       }
     })

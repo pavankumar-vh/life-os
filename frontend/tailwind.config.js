@@ -19,10 +19,10 @@ module.exports = {
           secondary: '#0070E0',
         },
         accent: {
-          DEFAULT: '#e8d5b7',
-          warm: '#c9a87c',
-          muted: '#8b7355',
-          bright: '#f0dfc4',
+          DEFAULT: 'rgb(var(--accent-r) var(--accent-g) var(--accent-b) / <alpha-value>)',
+          warm: 'rgb(var(--accent-r) var(--accent-g) var(--accent-b) / 0.85)',
+          muted: 'rgb(var(--accent-r) var(--accent-g) var(--accent-b) / 0.5)',
+          bright: 'rgb(var(--accent-r) var(--accent-g) var(--accent-b) / 1)',
         },
         green: { soft: '#34d399', muted: '#2d6a4f' },
         red: { soft: '#fb7185', muted: '#9b2c2c' },
@@ -33,7 +33,7 @@ module.exports = {
         border: {
           DEFAULT: 'rgba(255,255,255,0.12)',
           strong: 'rgba(255,255,255,0.20)',
-          accent: 'rgba(232,213,183,0.22)',
+          accent: 'rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.22)',
         },
         text: {
           primary: '#F9FAFB',
@@ -65,7 +65,7 @@ module.exports = {
       boxShadow: {
         soft: '0 1px 2px rgba(0,0,0,0.4)',
         card: '0 4px 24px -4px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
-        glow: '0 0 40px rgba(232,213,183,0.06)',
+        glow: '0 0 40px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.06)',
         'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.03)',
         'glass': '0 8px 32px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
         'glass-sm': '0 2px 12px -2px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',

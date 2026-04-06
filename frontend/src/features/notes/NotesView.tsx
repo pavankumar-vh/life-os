@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNotesStore, type NoteData } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -147,6 +148,8 @@ export function NotesView() {
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const [tagInputActive, setTagInputActive] = useState(false)
   const tagInputRef = useRef<HTMLInputElement>(null)
+  const tagContainerRef = useRef<HTMLDivElement>(null)
+  const [tagDropdownPos, setTagDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const [modalInput, setModalInput] = useState('')
   const modalInputRef = useRef<HTMLInputElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -247,13 +250,15 @@ export function NotesView() {
 
   const folders = useMemo(() => ['all', ...new Set(notes.map(n => n.folder))], [notes])
   const allTags = useMemo(() => [...new Set(notes.flatMap(n => n.tags))].sort(), [notes])
+  const allTagsLower = useMemo(() => new Set(allTags.map(t => t.toLowerCase())), [allTags])
+  const editTagsLower = useMemo(() => new Set(editTags.map(t => t.toLowerCase())), [editTags])
 
   const tagSuggestions = useMemo(() => {
-    const available = allTags.filter(t => !editTags.includes(t))
+    const available = allTags.filter(t => !editTagsLower.has(t.toLowerCase()))
     if (!tagInput.trim()) return available
     const q = tagInput.trim().toLowerCase()
-    return available.filter(t => t.includes(q))
-  }, [tagInput, allTags, editTags])
+    return available.filter(t => t.toLowerCase().includes(q))
+  }, [tagInput, allTags, editTagsLower])
 
   const filtered = useMemo(() =>
     notes
@@ -271,6 +276,13 @@ export function NotesView() {
       }),
     [notes, folderFilter, tagFilter, search]
   )
+
+  const modalTagSuggestions = useMemo(() => {
+    if (modal?.type !== 'tag') return []
+    const q = modalInput.trim().toLowerCase()
+    if (!q) return allTags.slice(0, 8)
+    return allTags.filter(t => t.toLowerCase().includes(q)).slice(0, 8)
+  }, [modal, modalInput, allTags])
 
   const pinnedNotes = useMemo(() => filtered.filter(n => n.pinned), [filtered])
   const unpinnedNotes = useMemo(() => filtered.filter(n => !n.pinned), [filtered])
@@ -367,12 +379,13 @@ export function NotesView() {
   }
 
   const confirmCreateTag = () => {
-    const tag = modalInput.trim().toLowerCase()
+    const normalized = modalInput.trim().toLowerCase()
+    const tag = allTags.find(t => t.toLowerCase() === normalized) ?? normalized
     setModal(null)
     setModalInput('')
-    if (!tag) return
+    if (!normalized) return
     if (activeId) {
-      const updated = editTags.includes(tag) ? editTags : [...editTags, tag]
+      const updated = editTagsLower.has(normalized) ? editTags : [...editTags, tag]
       setEditTags(updated)
       doSave()
     } else {
@@ -391,11 +404,15 @@ export function NotesView() {
   const activateTagInput = () => {
     setTagInputActive(true)
     setShowTagSuggestions(true)
-    setTimeout(() => tagInputRef.current?.focus(), 30)
+    setTimeout(() => {
+      tagInputRef.current?.focus()
+      updateTagDropdownPos()
+    }, 30)
   }
   const addTag = (raw: string) => {
-    const tag = raw.trim().toLowerCase()
-    if (!tag || editTags.includes(tag)) { setTagInput(''); return }
+    const normalized = raw.trim().toLowerCase()
+    const tag = allTags.find(t => t.toLowerCase() === normalized) ?? normalized
+    if (!normalized || editTagsLower.has(normalized)) { setTagInput(''); return }
     const updated = [...editTags, tag]
     setEditTags(updated)
     setTagInput('')
@@ -423,10 +440,17 @@ export function NotesView() {
       removeTag(editTags[editTags.length - 1])
     }
   }
+  const updateTagDropdownPos = useCallback(() => {
+    if (tagContainerRef.current) {
+      const rect = tagContainerRef.current.getBoundingClientRect()
+      setTagDropdownPos({ top: rect.bottom + 6, left: rect.left })
+    }
+  }, [])
   const handleTagInputChange = (v: string) => {
     setTagInput(v)
     setShowTagSuggestions(true)
     setTagSuggestIdx(0)
+    updateTagDropdownPos()
   }
   const onPinToggle = () => { setEditPinned(p => !p); setTimeout(doSave, 0) }
 
@@ -576,7 +600,7 @@ export function NotesView() {
                 <span>{wordCount(editor?.getHTML() || '')} words</span>
                 <span>&middot;</span>
                 {/* Tag chips + input */}
-                <div className="flex flex-wrap items-center gap-1 relative">
+                <div ref={tagContainerRef} className="flex flex-wrap items-center gap-1 relative">
                   {editTags.map(tag => (
                     <span key={tag} className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-medium">
                       <Hash className="w-2.5 h-2.5" />{tag}
@@ -587,7 +611,7 @@ export function NotesView() {
                     <input ref={tagInputRef} type="text" value={tagInput}
                       onChange={e => handleTagInputChange(e.target.value)}
                       onKeyDown={handleTagKeyDown}
-                      onFocus={() => setShowTagSuggestions(true)}
+                      onFocus={() => { setShowTagSuggestions(true); updateTagDropdownPos() }}
                       onBlur={() => { setTimeout(() => { setShowTagSuggestions(false); if (!tagInput.trim()) setTagInputActive(false) }, 150); if (tagInput.trim()) addTag(tagInput) }}
                       className="bg-white/[0.04] border border-white/[0.08] rounded-full outline-none px-2.5 py-0.5 text-[10px] text-text-secondary placeholder:text-text-muted w-24 focus:border-accent/30 focus:bg-white/[0.07] transition-colors"
                       placeholder="Add tag..." autoFocus />
@@ -597,32 +621,33 @@ export function NotesView() {
                       <Plus className="w-2.5 h-2.5" />Add tag
                     </button>
                   )}
-                  <AnimatePresence>
-                    {showTagSuggestions && (tagSuggestions.length > 0 || (tagInput.trim() && !allTags.includes(tagInput.trim().toLowerCase()))) && (
+                  {showTagSuggestions && tagDropdownPos && (tagSuggestions.length > 0 || (tagInput.trim() && !allTagsLower.has(tagInput.trim().toLowerCase()))) && createPortal(
+                    <AnimatePresence>
                       <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
-                        className="absolute left-0 top-full mt-1.5 z-[200] w-52 max-h-[220px] overflow-y-auto rounded-xl border border-white/[0.08] py-1 shadow-2xl"
-                        style={{ background: 'rgba(22,22,24,0.98)', backdropFilter: 'blur(20px)' }}>
+                        className="fixed z-[9999] w-52 max-h-[220px] overflow-y-auto rounded-xl border border-white/[0.08] py-1 shadow-2xl"
+                        style={{ background: 'rgba(22,22,24,0.98)', backdropFilter: 'blur(20px)', top: tagDropdownPos.top, left: tagDropdownPos.left }}>
                         {tagSuggestions.length > 0 && <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider font-semibold">Existing tags</div>}
                         {tagSuggestions.map((tag, i) => (
-                          <button key={tag} onMouseDown={() => addTag(tag)} onMouseEnter={() => setTagSuggestIdx(i)}
+                          <button key={tag} onMouseDown={(e) => { e.preventDefault(); addTag(tag); }} onMouseEnter={() => setTagSuggestIdx(i)}
                             className={`w-full text-left px-3 py-2 text-[11px] flex items-center gap-2 transition-colors ${
                               i === tagSuggestIdx ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-white/[0.05]'
                             }`}>
                             <Hash className="w-3 h-3 shrink-0" />{tag}
                           </button>
                         ))}
-                        {tagInput.trim() && !allTags.includes(tagInput.trim().toLowerCase()) && (
+                        {tagInput.trim() && !allTagsLower.has(tagInput.trim().toLowerCase()) && (
                           <>
                             {tagSuggestions.length > 0 && <div className="h-px bg-white/[0.06] mx-2 my-0.5" />}
-                            <button onMouseDown={() => addTag(tagInput)}
+                            <button onMouseDown={(e) => { e.preventDefault(); addTag(tagInput); }}
                               className="w-full text-left px-3 py-2 text-[11px] flex items-center gap-2 text-accent hover:bg-accent/10 transition-colors">
                               <Plus className="w-3 h-3 shrink-0" />Create "{tagInput.trim()}"
                             </button>
                           </>
                         )}
                       </motion.div>
-                    )}
-                  </AnimatePresence>
+                    </AnimatePresence>,
+                    document.body
+                  )}
                 </div>
               </div>
               <BubbleMenu editor={editor}
@@ -685,7 +710,7 @@ export function NotesView() {
               exit={{ opacity: 0, scale: 0.92, y: 8 }}
               transition={{ type: 'spring', stiffness: 500, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-[340px] rounded-2xl border border-white/[0.08] overflow-hidden shadow-2xl"
+              className="w-full max-w-[340px] rounded-2xl border border-white/[0.08] shadow-2xl"
               style={{ background: 'rgba(28,28,30,0.97)' }}
             >
               <div className="px-5 pt-5 pb-4">
@@ -709,27 +734,41 @@ export function NotesView() {
                   </div>
                 </div>
                 {(modal.type === 'folder' || modal.type === 'tag') && (
-                  <input
-                    ref={modalInputRef}
-                    type="text"
-                    value={modalInput}
-                    onChange={e => setModalInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { modal.type === 'tag' ? confirmCreateTag() : confirmCreateFolder() } if (e.key === 'Escape') { setModal(null); setModalInput('') } }}
-                    placeholder={modal.type === 'tag' ? 'Tag name' : 'Folder name'}
-                    className="w-full mt-2 px-3.5 py-2.5 rounded-xl text-sm bg-white/[0.05] border border-white/[0.08] text-text-primary placeholder:text-text-muted outline-none focus:border-accent/40 focus:bg-white/[0.07] transition-colors"
-                    autoFocus
-                  />
+                  <div className="relative">
+                    <input
+                      ref={modalInputRef}
+                      type="text"
+                      value={modalInput}
+                      onChange={e => setModalInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { modal.type === 'tag' ? confirmCreateTag() : confirmCreateFolder() } if (e.key === 'Escape') { setModal(null); setModalInput('') } }}
+                      placeholder={modal.type === 'tag' ? 'Tag name' : 'Folder name'}
+                      className="w-full mt-2 px-3.5 py-2.5 rounded-xl text-sm bg-white/[0.05] border border-white/[0.08] text-text-primary placeholder:text-text-muted outline-none focus:border-accent/40 focus:bg-white/[0.07] transition-colors"
+                      autoFocus
+                    />
+                    {modal.type === 'tag' && modalTagSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-2 z-[250] max-h-44 overflow-y-auto rounded-xl border border-white/[0.08] py-1 shadow-2xl"
+                        style={{ background: 'rgba(22,22,24,0.98)', backdropFilter: 'blur(16px)' }}>
+                        <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider font-semibold">Existing tags</div>
+                        {modalTagSuggestions.map(tag => (
+                          <button key={tag} onMouseDown={(e) => { e.preventDefault(); setModalInput(tag); }}
+                            className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.04] hover:text-text-primary transition-colors flex items-center gap-2">
+                            <Hash className="w-3 h-3 shrink-0" />{tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="flex border-t border-white/[0.06]">
                 <button
                   onClick={() => { setModal(null); setModalInput('') }}
-                  className="flex-1 py-3 text-xs font-medium text-text-secondary hover:bg-white/[0.04] transition-colors"
+                  className="flex-1 py-3 text-xs font-medium text-text-secondary hover:bg-white/[0.04] rounded-bl-2xl transition-colors"
                 >Cancel</button>
                 <div className="w-px bg-white/[0.06]" />
                 <button
                   onClick={modal.type === 'delete' ? confirmDelete : modal.type === 'tag' ? confirmCreateTag : confirmCreateFolder}
-                  className={`flex-1 py-3 text-xs font-semibold transition-colors ${
+                  className={`flex-1 py-3 text-xs font-semibold rounded-br-2xl transition-colors ${
                     modal.type === 'delete'
                       ? 'text-red-soft hover:bg-red-soft/10'
                       : 'text-accent hover:bg-accent/10'

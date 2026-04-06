@@ -8,9 +8,12 @@ import {
   Plus, Trash2, Pencil, ChevronLeft, MoreHorizontal,
   Download, Copy, FolderPlus, Folder, FolderOpen, ArrowLeft,
   LayoutGrid, List, Search, X, Edit3, Move, ChevronRight,
+  Save, Cloud, CloudOff, Undo2,
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 import dynamic from 'next/dynamic'
+
+import '@excalidraw/excalidraw/index.css'
 
 const ExcalidrawWrapper = dynamic(
   () => import('@excalidraw/excalidraw').then(mod => {
@@ -21,6 +24,7 @@ const ExcalidrawWrapper = dynamic(
 )
 
 type ViewMode = 'grid' | 'list'
+type SaveStatus = 'saved' | 'saving' | 'unsaved'
 
 export function WhiteboardView() {
   const {
@@ -41,6 +45,8 @@ export function WhiteboardView() {
   const [renameFolderName, setRenameFolderName] = useState('')
   const [movingBoard, setMovingBoard] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ id: string; type: 'board' | 'folder'; x: number; y: number } | null>(null)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  const [pendingDelete, setPendingDelete] = useState<{ item: WhiteboardData; timer: NodeJS.Timeout } | null>(null)
   const excalidrawRef = useRef<any>(null)
   const hasLoaded = useRef(false)
 
@@ -78,9 +84,10 @@ export function WhiteboardView() {
 
   const currentBoards = useMemo(() => {
     let items = boards.filter(b => (b.folderId || null) === currentFolderId)
+    if (pendingDelete) items = items.filter(b => b._id !== pendingDelete.item._id)
     if (searchQuery) items = items.filter(b => b.title.toLowerCase().includes(searchQuery.toLowerCase()))
     return items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [boards, currentFolderId, searchQuery])
+  }, [boards, currentFolderId, searchQuery, pendingDelete])
 
   const totalInFolder = (folderId: string) => {
     return boards.filter(b => b.folderId === folderId).length +
@@ -92,24 +99,28 @@ export function WhiteboardView() {
     setBoardTitle('Untitled Board')
     setActiveBoard(board)
     setShowBoardList(false)
+    setSaveStatus('saved')
   }
 
   const openBoard = (board: WhiteboardData) => {
     setBoardTitle(board.title)
     setActiveBoard(board)
     setShowBoardList(false)
+    setSaveStatus('saved')
   }
 
-  const goBack = () => {
+  const goBack = async () => {
     if (activeBoard && excalidrawRef.current) {
+      setSaveStatus('saving')
       const elements = excalidrawRef.current.getSceneElements()
       const appState = excalidrawRef.current.getAppState()
       const files = excalidrawRef.current.getFiles()
-      saveBoard({
+      await saveBoard({
         _id: activeBoard._id,
         title: boardTitle,
         snapshot: { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files },
       })
+      setSaveStatus('saved')
     }
     excalidrawRef.current = null
     setShowBoardList(true)
@@ -166,6 +177,18 @@ export function WhiteboardView() {
     toast.success('Folder deleted')
   }
 
+  const handleDeleteBoard = (board: WhiteboardData) => {
+    if (pendingDelete) {
+      clearTimeout(pendingDelete.timer)
+      deleteBoard(pendingDelete.item._id).catch(() => toast.error('Failed to delete'))
+    }
+    const timer = setTimeout(() => {
+      deleteBoard(board._id).catch(() => toast.error('Failed to delete'))
+      setPendingDelete(null)
+    }, 3500)
+    setPendingDelete({ item: board, timer })
+  }
+
   const handleMoveBoard = async (boardId: string, targetFolderId: string | null) => {
     const board = boards.find(b => b._id === boardId)
     if (!board) return
@@ -183,19 +206,31 @@ export function WhiteboardView() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleExcalidrawChange = useCallback((elements: readonly any[], appState: any, files: any) => {
     if (!activeBoard) return
+    setSaveStatus('unsaved')
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      saveBoard({
-        _id: activeBoard._id,
-        title: boardTitle,
-        snapshot: {
-          elements: [...elements],
-          appState: { viewBackgroundColor: appState.viewBackgroundColor },
-          files,
-        },
-      })
-    }, 3000)
+    saveTimerRef.current = setTimeout(async () => {
+      setSaveStatus('saving')
+      try {
+        await saveBoard({
+          _id: activeBoard._id,
+          title: boardTitle,
+          snapshot: {
+            elements: [...elements],
+            appState: { viewBackgroundColor: appState.viewBackgroundColor },
+            files,
+          },
+        })
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('unsaved')
+      }
+    }, 2000)
   }, [activeBoard, boardTitle, saveBoard])
+
+  // Cleanup save timer
+  useEffect(() => {
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [])
 
   if (isLoading && boards.length === 0) return <ListSkeleton />
 
@@ -209,7 +244,7 @@ export function WhiteboardView() {
             <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
               <Pencil size={22} className="text-accent" /> Whiteboard
             </h1>
-            <p className="text-text-muted text-sm mt-1">Draw, sketch & organize your ideas</p>
+            <p className="text-text-muted text-xs mt-0.5">{boards.length} boards · {folders.length} folders</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowNewFolder(true)} className="btn-ghost text-xs">
@@ -311,6 +346,21 @@ export function WhiteboardView() {
           )}
         </AnimatePresence>
 
+        {/* Undo delete bar */}
+        <AnimatePresence>
+          {pendingDelete && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
+                <span className="text-xs text-red-400">"{pendingDelete.item.title}" will be deleted</span>
+                <button onClick={() => { clearTimeout(pendingDelete.timer); setPendingDelete(null) }}
+                  className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium cursor-pointer">
+                  <Undo2 className="w-3 h-3" /> Undo
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Content */}
         {currentFolders.length === 0 && currentBoards.length === 0 ? (
           <div className="card text-center py-16">
@@ -362,20 +412,34 @@ export function WhiteboardView() {
                 {currentFolders.length > 0 && <p className="text-[10px] uppercase text-text-muted tracking-wider mb-2">Boards</p>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <AnimatePresence>
-                    {currentBoards.map(board => (
+                    {currentBoards.map(board => {
+                      const hasContent = board.snapshot && (board.snapshot as any).elements?.length > 0
+                      const elementCount = hasContent ? (board.snapshot as any).elements.filter((e: any) => !e.isDeleted).length : 0
+                      return (
                       <motion.div key={board._id}
                         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                         className="card cursor-pointer hover:border-accent/20 transition-all group"
                         onClick={() => openBoard(board)}
                         onContextMenu={e => handleContextMenu(e, board._id, 'board')}>
-                        <div className="w-full h-24 rounded-lg bg-bg-elevated mb-3 flex items-center justify-center overflow-hidden">
-                          <Pencil size={24} className="text-text-muted opacity-20" />
+                        <div className="w-full h-28 rounded-xl bg-bg-elevated mb-3 flex items-center justify-center overflow-hidden border border-white/[0.03]">
+                          {hasContent ? (
+                            <div className="text-center">
+                              <Pencil size={20} className="text-accent mx-auto mb-1" />
+                              <p className="text-[10px] text-text-muted">{elementCount} elements</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <Pencil size={20} className="text-text-muted/30 mx-auto mb-1" />
+                              <p className="text-[10px] text-text-muted/50">Empty board</p>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-start justify-between">
                           <div className="min-w-0 flex-1">
                             <h3 className="text-sm font-medium text-text-primary truncate">{board.title}</h3>
                             <p className="text-[10px] text-text-muted mt-0.5">
                               {new Date(board.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              {elementCount > 0 && ` · ${elementCount} elements`}
                             </p>
                           </div>
                           <button onClick={e => { e.stopPropagation(); handleContextMenu(e, board._id, 'board') }}
@@ -384,7 +448,8 @@ export function WhiteboardView() {
                           </button>
                         </div>
                       </motion.div>
-                    ))}
+                      )
+                    })}
                   </AnimatePresence>
                 </div>
               </div>
@@ -454,7 +519,11 @@ export function WhiteboardView() {
                     <Copy size={13} /> Duplicate
                   </button>
                   <div className="border-t border-glass-border" />
-                  <button onClick={() => { deleteBoard(contextMenu.id); toast.success('Board deleted'); setContextMenu(null) }}
+                  <button onClick={() => {
+                    const b = boards.find(x => x._id === contextMenu.id)
+                    if (b) handleDeleteBoard(b)
+                    setContextMenu(null)
+                  }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
                     <Trash2 size={13} /> Delete
                   </button>
@@ -497,62 +566,77 @@ export function WhiteboardView() {
     : { elements: [], appState: { theme: 'dark' as const } }
 
   return (
-    <div className="h-full w-full relative" style={{ minHeight: 'calc(100vh - 64px)' }}>
-      <div className="absolute top-3 left-3 z-[300] flex items-center gap-2">
-        <button onClick={goBack}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-text-secondary hover:text-text-primary text-sm transition-colors backdrop-blur-sm cursor-pointer">
-          <ChevronLeft className="w-4 h-4" /> Boards
-        </button>
-        <input value={boardTitle} onChange={e => setBoardTitle(e.target.value)}
-          onBlur={() => {
-            if (activeBoard) {
-              let snapshot = activeBoard.snapshot
-              if (excalidrawRef.current) {
-                const elements = excalidrawRef.current.getSceneElements()
-                const appState = excalidrawRef.current.getAppState()
-                const files = excalidrawRef.current.getFiles()
-                snapshot = { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files }
-              }
-              saveBoard({ _id: activeBoard._id, title: boardTitle, snapshot })
-            }
-          }}
-          className="px-3 py-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-sm text-text-primary outline-none min-w-[140px] backdrop-blur-sm"
-        />
-        <div className="relative">
-          <button onClick={() => setMenuOpen(!menuOpen)}
-            className="p-2 rounded-xl bg-[rgba(20,20,20,0.9)] border border-white/[0.06] text-text-secondary hover:text-text-primary transition-colors backdrop-blur-sm cursor-pointer">
-            <MoreHorizontal className="w-4 h-4" />
+    <div className="fixed inset-0 z-40 bg-bg-primary flex flex-col">
+      {/* Top Bar */}
+      <div className="flex items-center justify-between px-3 py-2 bg-bg-solid border-b border-border z-[300] shrink-0">
+        <div className="flex items-center gap-2">
+          <button onClick={goBack}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bg-elevated border border-white/[0.06] text-text-secondary hover:text-text-primary text-xs transition-colors cursor-pointer">
+            <ChevronLeft className="w-3.5 h-3.5" /> Boards
           </button>
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                className="absolute top-full left-0 mt-2 w-44 rounded-xl bg-[rgba(20,20,20,0.95)] border border-white/[0.06] shadow-xl overflow-hidden z-50 backdrop-blur-md">
-                <button onClick={duplicateBoard}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
-                  <Copy className="w-3.5 h-3.5" /> Duplicate Board
-                </button>
-                <button onClick={exportBoard}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
-                  <Download className="w-3.5 h-3.5" /> Export JSON
-                </button>
-                <div className="border-t border-white/[0.06]" />
-                <button onClick={() => { deleteBoard(activeBoard._id); setShowBoardList(true); setActiveBoard(null); setMenuOpen(false); toast.success('Board deleted') }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
-                  <Trash2 className="w-3.5 h-3.5" /> Delete Board
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <input value={boardTitle} onChange={e => setBoardTitle(e.target.value)}
+            onBlur={() => {
+              if (activeBoard) {
+                let snapshot = activeBoard.snapshot
+                if (excalidrawRef.current) {
+                  const elements = excalidrawRef.current.getSceneElements()
+                  const appState = excalidrawRef.current.getAppState()
+                  const files = excalidrawRef.current.getFiles()
+                  snapshot = { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files }
+                }
+                saveBoard({ _id: activeBoard._id, title: boardTitle, snapshot })
+              }
+            }}
+            className="px-3 py-1.5 rounded-xl bg-bg-elevated border border-white/[0.06] text-xs text-text-primary outline-none min-w-[140px] focus:border-accent/30 transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Save status indicator */}
+          <div className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg bg-bg-elevated border border-white/[0.04]">
+            {saveStatus === 'saved' && <><Cloud className="w-3 h-3 text-green-400" /><span className="text-green-400">Saved</span></>}
+            {saveStatus === 'saving' && <><Save className="w-3 h-3 text-accent animate-pulse" /><span className="text-accent">Saving...</span></>}
+            {saveStatus === 'unsaved' && <><CloudOff className="w-3 h-3 text-text-muted" /><span className="text-text-muted">Unsaved</span></>}
+          </div>
+          {/* Menu */}
+          <div className="relative">
+            <button onClick={() => setMenuOpen(!menuOpen)}
+              className="p-2 rounded-xl bg-bg-elevated border border-white/[0.06] text-text-secondary hover:text-text-primary transition-colors cursor-pointer">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div initial={{ opacity: 0, scale: 0.95, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute top-full right-0 mt-2 w-44 rounded-xl bg-[rgba(20,20,20,0.95)] border border-white/[0.06] shadow-xl overflow-hidden z-50 backdrop-blur-md">
+                  <button onClick={duplicateBoard}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
+                    <Copy className="w-3.5 h-3.5" /> Duplicate Board
+                  </button>
+                  <button onClick={exportBoard}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-text-secondary hover:bg-white/[0.05] transition-colors cursor-pointer">
+                    <Download className="w-3.5 h-3.5" /> Export JSON
+                  </button>
+                  <div className="border-t border-white/[0.06]" />
+                  <button onClick={() => { deleteBoard(activeBoard._id); setShowBoardList(true); setActiveBoard(null); setMenuOpen(false); toast.success('Board deleted') }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Board
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      <ExcalidrawWrapper
-        key={activeBoard._id}
-        excalidrawAPI={(api: any) => { excalidrawRef.current = api }}
-        initialData={initialData}
-        onChange={handleExcalidrawChange}
-        theme="dark"
-      />
+      {/* Excalidraw Canvas */}
+      <div className="flex-1 relative">
+        <ExcalidrawWrapper
+          key={activeBoard._id}
+          excalidrawAPI={(api: any) => { excalidrawRef.current = api }}
+          initialData={initialData}
+          onChange={handleExcalidrawChange}
+          theme="dark"
+        />
+      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['@excalidraw/excalidraw'],
   async rewrites() {
     return {
       fallback: [

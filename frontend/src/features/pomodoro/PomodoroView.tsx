@@ -1,12 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { usePomodoroStore } from '@/store'
+import { useEffect, useMemo } from 'react'
+import { usePomodoroStore, useFocusSessionStore } from '@/store'
 import { motion } from 'framer-motion'
-import { Play, Pause, RotateCcw, Clock, Brain, Coffee, Zap } from 'lucide-react'
+import { Play, Pause, RotateCcw, Clock, Brain, Coffee, Zap, Trash2, CalendarDays } from 'lucide-react'
+import { toast } from '@/components/Toast'
+
+function timeAgo(d: string) {
+  const diff = Date.now() - new Date(d).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
 export function PomodoroView() {
   const { isRunning, mode, timeLeft, sessionsToday, totalFocusMinutes, startTimer, pauseTimer, resetTimer, tick, switchMode } = usePomodoroStore()
+  const { sessions, isLoading: sessionsLoading, fetchSessions, deleteSession } = useFocusSessionStore()
+
+  useEffect(() => { fetchSessions().catch(() => toast.error('Failed to load focus history')) }, [fetchSessions])
 
   useEffect(() => {
     const interval = setInterval(() => { tick() }, 1000)
@@ -18,6 +35,20 @@ export function PomodoroView() {
   const totalSeconds = mode === 'focus' ? 25 * 60 : 5 * 60
   const progress = ((totalSeconds - timeLeft) / totalSeconds) * 100
   const circumference = 2 * Math.PI * 120
+
+  // Group sessions by date
+  const grouped = useMemo(() => {
+    const groups: Record<string, typeof sessions> = {}
+    for (const s of sessions) {
+      const day = new Date(s.completedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      if (!groups[day]) groups[day] = []
+      groups[day].push(s)
+    }
+    return Object.entries(groups)
+  }, [sessions])
+
+  const allTimeFocus = useMemo(() => sessions.filter(s => s.mode === 'focus').reduce((sum, s) => sum + s.duration, 0), [sessions])
+  const allTimeSessions = useMemo(() => sessions.filter(s => s.mode === 'focus').length, [sessions])
 
   return (
     <div>
@@ -31,21 +62,26 @@ export function PomodoroView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-4 gap-3 mb-8">
         <div className="card text-center">
           <Zap className="w-4 h-4 text-accent mx-auto mb-1" />
           <p className="text-2xl font-bold text-accent">{sessionsToday}</p>
-          <p className="text-xs text-text-muted">Sessions Today</p>
+          <p className="text-xs text-text-muted">Today</p>
         </div>
         <div className="card text-center">
           <Brain className="w-4 h-4 text-green-soft mx-auto mb-1" />
           <p className="text-2xl font-bold text-green-soft">{totalFocusMinutes}m</p>
-          <p className="text-xs text-text-muted">Focus Time</p>
+          <p className="text-xs text-text-muted">Today Focus</p>
+        </div>
+        <div className="card text-center">
+          <CalendarDays className="w-4 h-4 text-blue-soft mx-auto mb-1" />
+          <p className="text-2xl font-bold text-blue-soft">{allTimeSessions}</p>
+          <p className="text-xs text-text-muted">All Sessions</p>
         </div>
         <div className="card text-center">
           <Coffee className="w-4 h-4 text-orange-soft mx-auto mb-1" />
-          <p className="text-2xl font-bold text-orange-soft">{Math.round(totalFocusMinutes / 25)}</p>
-          <p className="text-xs text-text-muted">Pomodoros</p>
+          <p className="text-2xl font-bold text-orange-soft">{allTimeFocus}m</p>
+          <p className="text-xs text-text-muted">All Focus</p>
         </div>
       </div>
 
@@ -103,20 +139,46 @@ export function PomodoroView() {
         </div>
       </div>
 
-      {/* Session History */}
-      {sessionsToday > 0 && (
-        <div className="card">
-          <h3 className="text-xs font-medium text-text-muted mb-3">Today&apos;s Sessions</h3>
-          <div className="flex gap-2 flex-wrap">
-            {Array.from({ length: sessionsToday }, (_, i) => (
-              <div key={i} className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center">
-                <Zap className="w-3.5 h-3.5 text-accent" />
+      {/* Session History — logged to DB */}
+      <div className="card">
+        <h3 className="text-xs font-medium text-text-muted mb-3 uppercase tracking-wider">Focus Log</h3>
+        {sessionsLoading ? (
+          <p className="text-xs text-text-muted py-4 text-center">Loading…</p>
+        ) : sessions.length === 0 ? (
+          <p className="text-xs text-text-muted py-4 text-center">No sessions logged yet. Complete a focus timer to log your first session.</p>
+        ) : (
+          <div className="space-y-4">
+            {grouped.map(([day, items]) => (
+              <div key={day}>
+                <p className="text-[11px] font-semibold text-text-secondary mb-1.5">{day}</p>
+                <div className="space-y-1">
+                  {items.map(s => (
+                    <div key={s._id} className="flex items-center gap-2.5 group py-1.5 px-2 rounded-lg hover:bg-bg-hover transition-colors">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                        s.mode === 'focus' ? 'bg-accent/15' : 'bg-green-soft/15'
+                      }`}>
+                        {s.mode === 'focus'
+                          ? <Brain className="w-3.5 h-3.5 text-accent" />
+                          : <Coffee className="w-3.5 h-3.5 text-green-soft" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-text-primary font-medium">
+                          {s.mode === 'focus' ? 'Focus Session' : 'Break'} · {s.duration}m
+                        </p>
+                        <p className="text-[11px] text-text-muted">{timeAgo(s.completedAt)}</p>
+                      </div>
+                      <button onClick={() => deleteSession(s._id).catch(() => toast.error('Failed to delete'))}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-text-muted hover:text-red-soft transition-all">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
-          <p className="text-xs text-text-muted mt-3">{sessionsToday} sessions · {totalFocusMinutes} minutes of deep focus</p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Tips */}
       <div className="card mt-4">

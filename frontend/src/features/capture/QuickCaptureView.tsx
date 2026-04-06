@@ -22,14 +22,14 @@ export function QuickCaptureView() {
 
   useEffect(() => { fetchCaptures().catch(() => toast.error('Failed to load captures')) }, [fetchCaptures])
 
-  const filtered = useMemo(() =>
-    items.filter(i =>
+  const filtered = useMemo(() => {
+    const valid = items.filter(i => i && i._id)
+    return valid.filter(i =>
       filter === 'all' ? true :
       filter === 'unprocessed' ? !i.processed :
       i.processed
-    ),
-    [items, filter]
-  )
+    )
+  }, [items, filter])
 
   const stats = useMemo(() => ({
     total: items.length,
@@ -120,7 +120,7 @@ export function QuickCaptureView() {
       ) : (
         <div className="space-y-1.5">
           {filtered.map((item, i) => {
-            const cfg = TYPE_CONFIG[item.type]
+            const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.thought
             return (
               <motion.div key={item._id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }}
                 className={`card group flex items-start gap-3 ${item.processed ? 'opacity-60' : ''}`}>

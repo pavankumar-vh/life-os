@@ -193,7 +193,12 @@ export const useAppStore = create<AppState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
   setAccentColor: (color) => {
-    document.documentElement.style.setProperty('--accent-dynamic', color)
+    const r = parseInt(color.slice(1, 3), 16)
+    const g = parseInt(color.slice(3, 5), 16)
+    const b = parseInt(color.slice(5, 7), 16)
+    document.documentElement.style.setProperty('--accent-r', String(r))
+    document.documentElement.style.setProperty('--accent-g', String(g))
+    document.documentElement.style.setProperty('--accent-b', String(b))
     set({ accentColor: color })
     useSettingsStore.getState().updateSettings({ accentColor: color })
   },
@@ -748,11 +753,46 @@ export const useCaptureStore = create<CaptureState>((set, get) => ({
   },
   updateCapture: async (id, updates) => {
     const data = await api(`/captures/${id}`, { method: 'PUT', body: JSON.stringify(updates) })
-    set({ items: get().items.map(i => i._id === id ? data : i) })
+    set({ items: get().items.map(i => i._id === id ? { ...i, ...data } : i) })
   },
   deleteCapture: async (id) => {
     await api(`/captures/${id}`, { method: 'DELETE' })
     set({ items: get().items.filter(i => i._id !== id) })
+  },
+}))
+
+// ─── FOCUS SESSION TYPES & STORE ────────────────────
+
+export interface FocusSessionData {
+  _id: string
+  mode: 'focus' | 'break'
+  duration: number
+  completedAt: string
+  createdAt: string
+}
+
+interface FocusSessionState {
+  sessions: FocusSessionData[]
+  isLoading: boolean
+  fetchSessions: () => Promise<void>
+  logSession: (session: Partial<FocusSessionData>) => Promise<void>
+  deleteSession: (id: string) => Promise<void>
+}
+
+export const useFocusSessionStore = create<FocusSessionState>((set, get) => ({
+  sessions: [],
+  isLoading: false,
+  fetchSessions: async () => {
+    set({ isLoading: true })
+    try { set({ sessions: await api('/focus') }) } finally { set({ isLoading: false }) }
+  },
+  logSession: async (session) => {
+    const data = await api('/focus', { method: 'POST', body: JSON.stringify(session) })
+    set({ sessions: [data, ...get().sessions] })
+  },
+  deleteSession: async (id) => {
+    await api(`/focus/${id}`, { method: 'DELETE' })
+    set({ sessions: get().sessions.filter(s => s._id !== id) })
   },
 }))
 
@@ -792,8 +832,12 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
             sessionsToday: prev.sessionsToday + 1,
             totalFocusMinutes: prev.totalFocusMinutes + 25,
           }))
+          // Log focus session to backend
+          useFocusSessionStore.getState().logSession({ mode: 'focus', duration: 25 }).catch(() => {})
         } else {
           set({ isRunning: false, mode: 'focus', timeLeft: 25 * 60 })
+          // Log break session to backend
+          useFocusSessionStore.getState().logSession({ mode: 'break', duration: 5 }).catch(() => {})
         }
       }
       return
@@ -936,6 +980,7 @@ interface BookmarkState {
   isLoading: boolean
   fetchBookmarks: () => Promise<void>
   addBookmark: (bookmark: Partial<BookmarkData>) => Promise<void>
+  updateBookmark: (id: string, bookmark: Partial<BookmarkData>) => Promise<void>
   deleteBookmark: (id: string) => Promise<void>
 }
 
@@ -949,6 +994,10 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   addBookmark: async (bookmark) => {
     const data = await api('/bookmarks', { method: 'POST', body: JSON.stringify(bookmark) })
     set({ bookmarks: [data, ...get().bookmarks] })
+  },
+  updateBookmark: async (id, bookmark) => {
+    const data = await api(`/bookmarks/${id}`, { method: 'PUT', body: JSON.stringify(bookmark) })
+    set({ bookmarks: get().bookmarks.map(b => b._id === id ? data : b) })
   },
   deleteBookmark: async (id) => {
     await api(`/bookmarks/${id}`, { method: 'DELETE' })
@@ -1011,6 +1060,8 @@ export interface ProjectData {
   color: string
   progress: number
   deadline: string | null
+  startedAt: string | null
+  completedAt: string | null
   tasks: ProjectTask[]
   createdAt: string
   updatedAt: string
@@ -1066,6 +1117,7 @@ interface FlashcardState {
   addCard: (card: Partial<FlashcardData>) => Promise<void>
   updateCard: (id: string, card: Partial<FlashcardData>) => Promise<void>
   deleteCard: (id: string) => Promise<void>
+  generateCards: (opts: { topic?: string; content?: string; deck: string; count?: number; files?: File[] }) => Promise<FlashcardData[]>
 }
 
 export const useFlashcardStore = create<FlashcardState>((set, get) => ({
@@ -1087,6 +1139,26 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
     await api(`/flashcards/${id}`, { method: 'DELETE' })
     set({ cards: get().cards.filter(c => c._id !== id) })
   },
+  generateCards: async (opts) => {
+    const formData = new FormData()
+    formData.append('deck', opts.deck)
+    if (opts.count) formData.append('count', String(opts.count))
+    if (opts.topic) formData.append('topic', opts.topic)
+    if (opts.content) formData.append('content', opts.content)
+    if (opts.files) opts.files.forEach(f => formData.append('files', f))
+    const token = localStorage.getItem('lifeos-token')
+    const res = await fetch(`${API_BASE}/api/flashcards/generate`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+    let data
+    try { data = await res.json() } catch { throw new Error('Invalid server response') }
+    if (!res.ok) throw new Error(data.error || 'Generation failed')
+    const newCards = Array.isArray(data) ? data : []
+    set({ cards: [...newCards, ...get().cards] })
+    return newCards
+  },
 }))
 
 // ─── WISHLIST TYPES & STORE ─────────────────────────
@@ -1101,6 +1173,7 @@ export interface WishlistData {
   notes: string
   completed: boolean
   createdAt: string
+  updatedAt: string
 }
 
 interface WishlistState {
