@@ -38,6 +38,7 @@ import { ChatPanel } from '@/features/chat/ChatPanel'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { motion, AnimatePresence, LazyMotion, domAnimation, MotionConfig } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
+import { DynamicFavicon } from '@/components/DynamicFavicon'
 
 const views: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -126,6 +127,7 @@ export function AppShell() {
     <LazyMotion features={domAnimation}>
     <MotionConfig reducedMotion="user" transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
     <div className="flex h-screen overflow-hidden">
+      <DynamicFavicon />
       {!focusMode && <Sidebar />}
       <main
         className={`flex-1 transition-all duration-500 ${
