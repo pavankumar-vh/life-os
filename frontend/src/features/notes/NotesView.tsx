@@ -249,9 +249,10 @@ export function NotesView() {
   const allTags = useMemo(() => [...new Set(notes.flatMap(n => n.tags))].sort(), [notes])
 
   const tagSuggestions = useMemo(() => {
-    if (!tagInput.trim()) return []
+    const available = allTags.filter(t => !editTags.includes(t))
+    if (!tagInput.trim()) return available
     const q = tagInput.trim().toLowerCase()
-    return allTags.filter(t => t.includes(q) && !editTags.includes(t))
+    return available.filter(t => t.includes(q))
   }, [tagInput, allTags, editTags])
 
   const filtered = useMemo(() =>
@@ -389,6 +390,7 @@ export function NotesView() {
   const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
   const activateTagInput = () => {
     setTagInputActive(true)
+    setShowTagSuggestions(true)
     setTimeout(() => tagInputRef.current?.focus(), 30)
   }
   const addTag = (raw: string) => {
@@ -423,7 +425,7 @@ export function NotesView() {
   }
   const handleTagInputChange = (v: string) => {
     setTagInput(v)
-    setShowTagSuggestions(v.trim().length > 0)
+    setShowTagSuggestions(true)
     setTagSuggestIdx(0)
   }
   const onPinToggle = () => { setEditPinned(p => !p); setTimeout(doSave, 0) }
@@ -527,7 +529,7 @@ export function NotesView() {
       <div className={`absolute inset-0 md:relative md:inset-auto flex-1 flex flex-col min-w-0 z-20 md:z-auto bg-bg md:bg-transparent transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:translate-x-0 ${showMobileEditor ? 'translate-x-0' : 'translate-x-full'}`}>
         {activeId && editor ? (<>
           {/* Toolbar */}
-          <div className="flex items-center gap-1 px-3 sm:px-4 py-2 border-b border-border shrink-0 overflow-x-auto no-scrollbar" style={{ background: 'rgba(255,255,255,0.01)' }}>
+          <div className="flex items-center gap-1 px-3 sm:px-4 py-2 border-b border-border shrink-0 overflow-x-auto no-scrollbar" style={{ background: 'rgba(255,255,255,0.01)', overflowY: 'visible' }}>
             <button onClick={() => setShowMobileEditor(false)} className="md:hidden p-1.5 rounded-lg hover:bg-white/[0.06] text-text-muted transition-colors mr-1"><ChevronLeft className="w-4 h-4" /></button>
             <ToolBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"><Bold className="w-3.5 h-3.5" /></ToolBtn>
             <ToolBtn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"><Italic className="w-3.5 h-3.5" /></ToolBtn>
@@ -557,42 +559,6 @@ export function NotesView() {
               <Folder className="w-3 h-3 shrink-0" />
               <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
             </div>
-            <div className="hidden sm:flex items-center gap-1 text-[11px] text-text-secondary max-w-[240px] overflow-x-auto no-scrollbar relative">
-              <Hash className="w-3 h-3 shrink-0" />
-              {editTags.map(tag => (
-                <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
-                  {tag}
-                  <button onClick={() => removeTag(tag)} className="hover:text-text-primary transition-colors"><X className="w-2.5 h-2.5" /></button>
-                </span>
-              ))}
-              {tagInputActive ? (
-                <input ref={tagInputRef} type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
-                  onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
-                  onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput); setTimeout(() => { if (!tagInput.trim()) setTagInputActive(false) }, 200) }}
-                  className="bg-transparent outline-none w-20 text-text-secondary placeholder:text-text-muted font-medium text-[11px]" placeholder="Add tag..." autoFocus />
-              ) : (
-                <button onClick={activateTagInput}
-                  className="w-5 h-5 rounded-md flex items-center justify-center text-text-muted hover:text-accent hover:bg-accent/10 transition-colors shrink-0 ml-0.5">
-                  <Plus className="w-3 h-3" />
-                </button>
-              )}
-              <AnimatePresence>
-                {showTagSuggestions && tagSuggestions.length > 0 && (
-                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
-                    className="absolute right-0 top-full mt-1 z-[100] w-44 rounded-xl border border-white/[0.08] py-1 shadow-2xl overflow-hidden"
-                    style={{ background: 'rgba(28,28,30,0.96)', backdropFilter: 'blur(16px)' }}>
-                    {tagSuggestions.map((tag, i) => (
-                      <button key={tag} onMouseDown={() => addTag(tag)} onMouseEnter={() => setTagSuggestIdx(i)}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
-                          i === tagSuggestIdx ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-white/[0.04]'
-                        }`}>
-                        <Hash className="w-3 h-3 shrink-0" />{tag}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             <ToolBtn active={editPinned} onClick={onPinToggle} title={editPinned ? 'Unpin' : 'Pin'}><Pin className="w-3.5 h-3.5" /></ToolBtn>
             <button onClick={() => handleDelete(activeId)} title="Delete" className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-red-soft hover:bg-red-soft/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -604,10 +570,60 @@ export function NotesView() {
               <textarea ref={titleRef} value={editTitle} onChange={e => onTitleChange(e.target.value)} placeholder="Title" rows={1}
                 className="w-full text-2xl sm:text-3xl lg:text-[34px] font-bold text-text-primary bg-transparent resize-none outline-none placeholder:text-text-muted leading-[1.15] tracking-tight mb-2"
                 style={{ overflow: 'hidden' }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus('start') } }} />
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-secondary mb-6 sm:mb-8 pb-5 sm:pb-6 border-b border-border/50">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-text-secondary mb-6 sm:mb-8 pb-5 sm:pb-6 border-b border-border/50">
                 <span>{activeNote ? fullDate(activeNote.updatedAt) : 'Now'}</span>
-                <span className="hidden sm:inline">&middot;</span>
-                <span className="hidden sm:inline">{wordCount(editor?.getHTML() || '')} words</span>
+                <span>&middot;</span>
+                <span>{wordCount(editor?.getHTML() || '')} words</span>
+                <span>&middot;</span>
+                {/* Tag chips + input */}
+                <div className="flex flex-wrap items-center gap-1 relative">
+                  {editTags.map(tag => (
+                    <span key={tag} className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-medium">
+                      <Hash className="w-2.5 h-2.5" />{tag}
+                      <button onClick={() => removeTag(tag)} className="hover:text-text-primary transition-colors ml-0.5"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  ))}
+                  {tagInputActive ? (
+                    <input ref={tagInputRef} type="text" value={tagInput}
+                      onChange={e => handleTagInputChange(e.target.value)}
+                      onKeyDown={handleTagKeyDown}
+                      onFocus={() => setShowTagSuggestions(true)}
+                      onBlur={() => { setTimeout(() => { setShowTagSuggestions(false); if (!tagInput.trim()) setTagInputActive(false) }, 150); if (tagInput.trim()) addTag(tagInput) }}
+                      className="bg-white/[0.04] border border-white/[0.08] rounded-full outline-none px-2.5 py-0.5 text-[10px] text-text-secondary placeholder:text-text-muted w-24 focus:border-accent/30 focus:bg-white/[0.07] transition-colors"
+                      placeholder="Add tag..." autoFocus />
+                  ) : (
+                    <button onClick={activateTagInput}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30 transition-colors">
+                      <Plus className="w-2.5 h-2.5" />Add tag
+                    </button>
+                  )}
+                  <AnimatePresence>
+                    {showTagSuggestions && (tagSuggestions.length > 0 || (tagInput.trim() && !allTags.includes(tagInput.trim().toLowerCase()))) && (
+                      <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
+                        className="absolute left-0 top-full mt-1.5 z-[200] w-52 max-h-[220px] overflow-y-auto rounded-xl border border-white/[0.08] py-1 shadow-2xl"
+                        style={{ background: 'rgba(22,22,24,0.98)', backdropFilter: 'blur(20px)' }}>
+                        {tagSuggestions.length > 0 && <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider font-semibold">Existing tags</div>}
+                        {tagSuggestions.map((tag, i) => (
+                          <button key={tag} onMouseDown={() => addTag(tag)} onMouseEnter={() => setTagSuggestIdx(i)}
+                            className={`w-full text-left px-3 py-2 text-[11px] flex items-center gap-2 transition-colors ${
+                              i === tagSuggestIdx ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-white/[0.05]'
+                            }`}>
+                            <Hash className="w-3 h-3 shrink-0" />{tag}
+                          </button>
+                        ))}
+                        {tagInput.trim() && !allTags.includes(tagInput.trim().toLowerCase()) && (
+                          <>
+                            {tagSuggestions.length > 0 && <div className="h-px bg-white/[0.06] mx-2 my-0.5" />}
+                            <button onMouseDown={() => addTag(tagInput)}
+                              className="w-full text-left px-3 py-2 text-[11px] flex items-center gap-2 text-accent hover:bg-accent/10 transition-colors">
+                              <Plus className="w-3 h-3 shrink-0" />Create "{tagInput.trim()}"
+                            </button>
+                          </>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
               <BubbleMenu editor={editor}
                 className="flex items-center gap-0.5 rounded-xl border border-white/[0.1] px-1.5 py-1 shadow-2xl bg-[rgba(28,28,30,0.96)] backdrop-blur-xl">
@@ -639,43 +655,6 @@ export function NotesView() {
           </div>
           <div className="sm:hidden flex items-center gap-2 px-4 py-2 border-t border-border text-[11px]">
             <div className="flex items-center gap-1 text-text-secondary flex-1"><Folder className="w-3 h-3" /><input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none flex-1 text-text-secondary placeholder:text-text-muted" placeholder="Folder" /></div>
-            <div className="w-px h-3 bg-border" />
-            <div className="flex items-center gap-1 text-text-secondary flex-1 overflow-x-auto no-scrollbar relative">
-              <Hash className="w-3 h-3 shrink-0" />
-              {editTags.map(tag => (
-                <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
-                  {tag}
-                  <button onClick={() => removeTag(tag)} className="hover:text-text-primary"><X className="w-2.5 h-2.5" /></button>
-                </span>
-              ))}
-              {tagInputActive ? (
-                <input type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
-                  onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
-                  onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput); setTimeout(() => { if (!tagInput.trim()) setTagInputActive(false) }, 200) }}
-                  className="bg-transparent outline-none min-w-[40px] flex-1 text-text-secondary placeholder:text-text-muted text-[11px]" placeholder="Add tag..." autoFocus />
-              ) : (
-                <button onClick={activateTagInput}
-                  className="w-5 h-5 rounded-md flex items-center justify-center text-text-muted hover:text-accent hover:bg-accent/10 transition-colors shrink-0 ml-0.5">
-                  <Plus className="w-3 h-3" />
-                </button>
-              )}
-              <AnimatePresence>
-                {showTagSuggestions && tagSuggestions.length > 0 && (
-                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
-                    className="absolute left-0 bottom-full mb-1 z-[100] w-44 rounded-xl border border-white/[0.08] py-1 shadow-2xl overflow-hidden"
-                    style={{ background: 'rgba(28,28,30,0.96)', backdropFilter: 'blur(16px)' }}>
-                    {tagSuggestions.map((tag, i) => (
-                      <button key={tag} onMouseDown={() => addTag(tag)} onMouseEnter={() => setTagSuggestIdx(i)}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
-                          i === tagSuggestIdx ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-white/[0.04]'
-                        }`}>
-                        <Hash className="w-3 h-3 shrink-0" />{tag}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
         </>) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
