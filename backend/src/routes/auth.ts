@@ -14,15 +14,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-const DEMO_USER = {
-  _id: 'demo-user-001',
-  email: 'demo@lifeos.dev',
-  name: 'Volt',
-  xp: 420,
-  level: 5,
-}
-const DEMO_PASSWORD = 'demo123'
-
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req, res) => {
   try {
@@ -33,11 +24,6 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     const sanitizedEmail = email.trim().toLowerCase()
-
-    if (sanitizedEmail === DEMO_USER.email && password === DEMO_PASSWORD) {
-      const token = signToken({ userId: DEMO_USER._id, email: DEMO_USER.email })
-      return res.json({ token, user: DEMO_USER })
-    }
 
     const user = await User.findOne({ email: sanitizedEmail })
     if (!user) {
@@ -100,10 +86,6 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
 
-    if (userId === 'demo-user-001') {
-      return res.json(DEMO_USER)
-    }
-
     const user = await User.findById(userId).select('-password -googleTokens -settings.aiKeys')
     if (!user) {
       return res.status(404).json({ error: 'User not found' })
@@ -124,3 +106,4 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
 })
 
 export default router
+
