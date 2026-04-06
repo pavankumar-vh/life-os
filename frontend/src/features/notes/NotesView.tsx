@@ -11,7 +11,8 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
@@ -455,7 +456,7 @@ export function NotesView() {
                 <span className="hidden sm:inline">&middot;</span>
                 <span className="hidden sm:inline">{wordCount(editor?.getHTML() || '')} words</span>
               </div>
-              <BubbleMenu editor={editor} tippyOptions={{ duration: 150, placement: 'top' }}
+              <BubbleMenu editor={editor}
                 className="flex items-center gap-0.5 rounded-xl border border-white/[0.1] px-1.5 py-1 shadow-2xl bg-[rgba(28,28,30,0.96)] backdrop-blur-xl">
                 <ToolBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="w-3.5 h-3.5" /></ToolBtn>
                 <ToolBtn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="w-3.5 h-3.5" /></ToolBtn>
