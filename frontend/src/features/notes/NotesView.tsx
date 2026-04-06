@@ -140,6 +140,9 @@ export function NotesView() {
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
+  const [modal, setModal] = useState<{ type: 'folder' | 'delete'; deleteId?: string } | null>(null)
+  const [modalInput, setModalInput] = useState('')
+  const modalInputRef = useRef<HTMLInputElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -307,10 +310,16 @@ export function NotesView() {
     }, 100)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this note?')) return
-    await deleteNote(id).catch(() => toast.error('Failed to delete note'))
+  const handleDelete = (id: string) => {
     setMenuOpen(null)
+    setModal({ type: 'delete', deleteId: id })
+  }
+
+  const confirmDelete = async () => {
+    const id = modal?.deleteId
+    setModal(null)
+    if (!id) return
+    await deleteNote(id).catch(() => toast.error('Failed to delete note'))
     if (activeId === id) { setActiveId(null); setShowMobileEditor(false); editor?.commands.clearContent() }
   }
 
@@ -321,7 +330,15 @@ export function NotesView() {
   }
 
   const createFolder = () => {
-    const name = prompt('New folder name:')?.trim()
+    setModalInput('')
+    setModal({ type: 'folder' })
+    setTimeout(() => modalInputRef.current?.focus(), 100)
+  }
+
+  const confirmCreateFolder = () => {
+    const name = modalInput.trim()
+    setModal(null)
+    setModalInput('')
     if (!name) return
     saveNote({ title: '', content: '', folder: name, tags: [], pinned: false }).then(() => {
       setFolderFilter(name)
@@ -502,6 +519,76 @@ export function NotesView() {
         )}
       </div>
       {menuOpen && <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />}
+
+      {/* Modal */}
+      <AnimatePresence>
+        {modal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+            onClick={() => { setModal(null); setModalInput('') }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 8 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-[340px] rounded-2xl border border-white/[0.08] overflow-hidden shadow-2xl"
+              style={{ background: 'rgba(28,28,30,0.97)' }}
+            >
+              <div className="px-5 pt-5 pb-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                    modal.type === 'delete' ? 'bg-red-soft/15' : 'bg-accent/15'
+                  }`}>
+                    {modal.type === 'delete'
+                      ? <Trash2 className="w-4 h-4 text-red-soft" />
+                      : <FolderPlus className="w-4 h-4 text-accent" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-primary">
+                      {modal.type === 'delete' ? 'Delete Note' : 'New Folder'}
+                    </h3>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      {modal.type === 'delete' ? 'This action cannot be undone.' : 'Create a folder to organize your notes.'}
+                    </p>
+                  </div>
+                </div>
+                {modal.type === 'folder' && (
+                  <input
+                    ref={modalInputRef}
+                    type="text"
+                    value={modalInput}
+                    onChange={e => setModalInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') confirmCreateFolder(); if (e.key === 'Escape') { setModal(null); setModalInput('') } }}
+                    placeholder="Folder name"
+                    className="w-full mt-2 px-3.5 py-2.5 rounded-xl text-sm bg-white/[0.05] border border-white/[0.08] text-text-primary placeholder:text-text-muted outline-none focus:border-accent/40 focus:bg-white/[0.07] transition-colors"
+                    autoFocus
+                  />
+                )}
+              </div>
+              <div className="flex border-t border-white/[0.06]">
+                <button
+                  onClick={() => { setModal(null); setModalInput('') }}
+                  className="flex-1 py-3 text-xs font-medium text-text-secondary hover:bg-white/[0.04] transition-colors"
+                >Cancel</button>
+                <div className="w-px bg-white/[0.06]" />
+                <button
+                  onClick={modal.type === 'delete' ? confirmDelete : confirmCreateFolder}
+                  className={`flex-1 py-3 text-xs font-semibold transition-colors ${
+                    modal.type === 'delete'
+                      ? 'text-red-soft hover:bg-red-soft/10'
+                      : 'text-accent hover:bg-accent/10'
+                  }`}
+                >{modal.type === 'delete' ? 'Delete' : 'Create'}</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
