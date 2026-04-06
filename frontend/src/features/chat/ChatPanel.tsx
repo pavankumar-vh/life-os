@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useChatStore, useSettingsStore } from '@/store'
+import { useChatStore, useSettingsStore, useAppStore } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Trash2, User, Sparkles, X, ArrowDown, Settings, ChevronDown, Zap, RotateCcw } from 'lucide-react'
 
@@ -18,27 +18,39 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
   {
     id: 'openai', label: 'OpenAI', icon: '⬡',
     models: [
-      { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-      { id: 'gpt-4o', label: 'GPT-4o' },
       { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+      { id: 'gpt-4.1', label: 'GPT-4.1' },
       { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+      { id: 'gpt-4o', label: 'GPT-4o' },
+      { id: 'o4-mini', label: 'o4-mini' },
     ],
   },
   {
     id: 'gemini', label: 'Gemini', icon: '✦',
     models: [
+      { id: 'gemini-2.5-flash-preview-04-17', label: '2.5 Flash' },
+      { id: 'gemini-2.5-pro-preview-03-25', label: '2.5 Pro' },
       { id: 'gemini-2.0-flash', label: '2.0 Flash' },
       { id: 'gemini-2.0-flash-lite', label: '2.0 Flash Lite' },
-      { id: 'gemini-1.5-flash', label: '1.5 Flash' },
-      { id: 'gemini-1.5-pro', label: '1.5 Pro' },
     ],
   },
   {
     id: 'anthropic', label: 'Claude', icon: '◈',
     models: [
-      { id: 'claude-sonnet-4-20250514', label: 'Sonnet 4' },
-      { id: 'claude-3-5-haiku-20241022', label: '3.5 Haiku' },
-      { id: 'claude-3-5-sonnet-20241022', label: '3.5 Sonnet' },
+      { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+      { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+      { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+      { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet' },
+    ],
+  },
+  {
+    id: 'groq', label: 'Groq', icon: '⚡',
+    models: [
+      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
+      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B' },
+      { id: 'gemma2-9b-it', label: 'Gemma 2 9B' },
+      { id: 'mistral-saba-24b', label: 'Mistral Saba 24B' },
+      { id: 'qwen-qwq-32b', label: 'QwQ 32B' },
     ],
   },
 ]
@@ -60,7 +72,6 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const [showConfig, setShowConfig] = useState(false)
   const [provider, setProvider] = useState(getStoredProvider)
   const [model, setModel] = useState(() => getStoredModel(getStoredProvider()))
-  const [apiKeyInput, setApiKeyInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -111,22 +122,12 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
     setProvider(pid)
     useSettingsStore.getState().updateSettings({ aiProvider: pid })
     setModel(getStoredModel(pid))
-    setApiKeyInput('')
   }
 
   const handleModelChange = (mid: string) => {
     setModel(mid)
     const s = useSettingsStore.getState()
     useSettingsStore.getState().updateSettings({ aiModels: { ...s.aiModels, [provider]: mid } })
-  }
-
-  const handleSaveKey = () => {
-    if (apiKeyInput.trim()) {
-      const s = useSettingsStore.getState()
-      useSettingsStore.getState().updateSettings({ aiKeys: { ...s.aiKeys, [provider]: apiKeyInput.trim() } })
-      setApiKeyInput('')
-      setShowConfig(false)
-    }
   }
 
   const escapeHtml = (str: string) =>
@@ -277,38 +278,17 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
                       ))}
                     </div>
 
-                    {/* API Key */}
-                    {!hasKey ? (
-                      <div className="space-y-2">
-                        <div className="flex gap-1.5">
-                          <input
-                            type="password"
-                            value={apiKeyInput}
-                            onChange={e => setApiKeyInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
-                            placeholder={provider === 'openai' ? 'sk-...' : provider === 'gemini' ? 'AIza...' : 'sk-ant-...'}
-                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-bg-elevated/60 border border-border/20 text-[11px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/40 font-mono transition-colors"
-                          />
-                          <button onClick={handleSaveKey} disabled={!apiKeyInput.trim()}
-                            className="px-3 py-1.5 rounded-lg bg-accent text-[#1a1a1a] text-xs font-semibold hover:bg-accent-warm transition-colors disabled:opacity-30">
-                            Save
-                          </button>
-                        </div>
-                        <p className="text-[11px] text-text-muted">
-                          {provider === 'openai' && <>Get key → <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">platform.openai.com</a></>}
-                          {provider === 'gemini' && <>Get key → <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">aistudio.google.com</a></>}
-                          {provider === 'anthropic' && <>Get key → <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">console.anthropic.com</a></>}
-                        </p>
-                      </div>
-                    ) : (
+                    {/* Key status — no entry here, use Settings */}
+                    {hasKey ? (
                       <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-green-soft/5 border border-green-soft/8">
                         <Zap className="w-3 h-3 text-green-soft" />
                         <span className="flex-1 text-xs text-green-soft font-medium">Connected</span>
                         <span className="text-[11px] text-text-muted font-mono">...{getStoredKey(provider).slice(-5)}</span>
-                        <button onClick={() => { const s = useSettingsStore.getState(); const keys = { ...s.aiKeys }; delete keys[provider]; s.updateSettings({ aiKeys: keys }); setApiKeyInput('') }}
-                          className="text-text-muted hover:text-red-soft p-0.5 transition-colors">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-accent/5 border border-accent/10 text-xs text-accent">
+                        <Settings className="w-3 h-3" />
+                        Add key in Settings → General → AI Assistant
                       </div>
                     )}
                   </div>
@@ -467,7 +447,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             <div className="shrink-0 px-4 pb-4 pt-2">
               {!hasKey ? (
                 <button
-                  onClick={() => setShowConfig(true)}
+                  onClick={() => { onClose(); useAppStore.getState().setActiveView('settings') }}
                   className="w-full py-3 rounded-2xl text-[11px] font-medium flex items-center justify-center gap-2 transition-all"
                   style={{
                     background: 'linear-gradient(135deg, rgba(232,213,183,0.08), rgba(232,213,183,0.03))',
@@ -476,7 +456,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
                   }}
                 >
                   <Settings className="w-3.5 h-3.5" />
-                  Add {currentProvider.label} API Key to chat
+                  Add {currentProvider.label} API Key in Settings
                 </button>
               ) : (
                 <div className="relative">

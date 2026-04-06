@@ -61,7 +61,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid message' })
     }
 
-    const ALLOWED_PROVIDERS = ['openai', 'gemini', 'anthropic']
+    const ALLOWED_PROVIDERS = ['openai', 'gemini', 'anthropic', 'groq']
     if (typeof provider !== 'string' || !ALLOWED_PROVIDERS.includes(provider)) {
       return res.status(400).json({ error: 'Invalid provider' })
     }
@@ -113,8 +113,16 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: claudeModel, max_tokens: 1500, system: systemContent, messages: [...historyMessages, { role: 'user', content: message }], stream: true }),
       })
+    } else if (provider === 'groq') {
+      // Groq uses OpenAI-compatible API
+      const groqModel = model || 'llama-3.3-70b-versatile'
+      providerResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ model: groqModel, messages: [{ role: 'system', content: systemContent }, ...historyMessages, { role: 'user', content: message }], stream: true, max_tokens: 1500, temperature: 0.7 }),
+      })
     } else {
-      const openaiModel = model || 'gpt-4o-mini'
+      const openaiModel = model || 'gpt-4.1-mini'
       providerResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
@@ -154,7 +162,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
         for (const rawLine of lines) {
           const line = rawLine.trim()
 
-          if (provider === 'openai' && line.startsWith('data: ')) {
+          if ((provider === 'openai' || provider === 'groq') && line.startsWith('data: ')) {
             const data = line.slice(6)
             if (data === '[DONE]') continue
             try {

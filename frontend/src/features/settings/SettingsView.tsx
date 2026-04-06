@@ -5,7 +5,7 @@ import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalSt
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Download, Upload, Shield, Database, CheckCircle2, AlertTriangle, HardDrive, RefreshCw, Cloud, Package, ArrowRightLeft, Unlock,
-  Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints
+  Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints, X
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 
@@ -39,6 +39,93 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     <button onClick={onToggle} className={`w-11 h-6 rounded-full transition-colors relative ${on ? 'bg-accent' : 'bg-white/10'}`}>
       <motion.div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow" animate={{ left: on ? 22 : 2 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
     </button>
+  )
+}
+
+const AI_PROVIDERS = [
+  { id: 'openai',    label: 'OpenAI',          icon: '⬡', placeholder: 'sk-proj-...', link: 'https://platform.openai.com/api-keys',          linkLabel: 'platform.openai.com' },
+  { id: 'gemini',    label: 'Gemini',           icon: '✦', placeholder: 'AIzaSy...',  link: 'https://aistudio.google.com/apikey',             linkLabel: 'aistudio.google.com' },
+  { id: 'anthropic', label: 'Claude',           icon: '◈', placeholder: 'sk-ant-...', link: 'https://console.anthropic.com/settings/keys',    linkLabel: 'console.anthropic.com' },
+  { id: 'groq',      label: 'Groq',             icon: '⚡', placeholder: 'gsk_...',    link: 'https://console.groq.com/keys',                  linkLabel: 'console.groq.com' },
+]
+
+function AiKeysSection() {
+  const aiKeys = useSettingsStore(s => s.aiKeys)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [inputVal, setInputVal] = useState('')
+
+  const save = (id: string) => {
+    const val = inputVal.trim()
+    if (!val) return
+    const s = useSettingsStore.getState()
+    s.updateSettings({ aiKeys: { ...s.aiKeys, [id]: val } })
+    setEditingId(null)
+    setInputVal('')
+  }
+  const remove = (id: string) => {
+    const s = useSettingsStore.getState()
+    const keys = { ...s.aiKeys }
+    delete keys[id]
+    s.updateSettings({ aiKeys: keys })
+  }
+
+  return (
+    <div className="space-y-2">
+      {AI_PROVIDERS.map(prov => {
+        const storedKey = (aiKeys as Record<string,string>)[prov.id] || ''
+        const isEditing = editingId === prov.id
+        return (
+          <div key={prov.id} className="p-3 bg-bg-elevated rounded-xl space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="text-base leading-none shrink-0">{prov.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-text-primary">{prov.label}</p>
+                {storedKey ? (
+                  <p className="text-xs text-green-soft font-mono">Connected · ...{storedKey.slice(-6)}</p>
+                ) : (
+                  <p className="text-xs text-text-muted">
+                    Not set ·{' '}
+                    <a href={prov.link} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{prov.linkLabel}</a>
+                  </p>
+                )}
+              </div>
+              {storedKey ? (
+                <button onClick={() => remove(prov.id)}
+                  className="p-1.5 rounded-lg text-text-muted hover:text-red-soft hover:bg-red-soft/10 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button onClick={() => { setEditingId(prov.id); setInputVal('') }}
+                  className="px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors flex items-center gap-1 shrink-0">
+                  <Key className="w-3 h-3" /> Add Key
+                </button>
+              )}
+            </div>
+            {isEditing && (
+              <div className="flex gap-1.5">
+                <input
+                  autoFocus
+                  type="password"
+                  value={inputVal}
+                  onChange={e => setInputVal(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') save(prov.id); if (e.key === 'Escape') setEditingId(null) }}
+                  placeholder={prov.placeholder}
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-accent/30 text-xs text-text-primary placeholder:text-text-muted font-mono outline-none focus:border-accent/60 transition-colors"
+                />
+                <button onClick={() => save(prov.id)} disabled={!inputVal.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-accent text-[#1a1a1a] text-xs font-semibold hover:bg-accent/90 transition-colors disabled:opacity-30">
+                  Save
+                </button>
+                <button onClick={() => setEditingId(null)}
+                  className="px-2.5 py-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/[0.05] transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -204,37 +291,8 @@ export function SettingsView() {
             <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
               <Bot className="w-4 h-4 text-accent" /> AI Assistant
             </h3>
-            <p className="text-xs text-text-muted mb-4">API keys are stored securely in your account. Switch providers in the chat panel.</p>
-            {[
-              { id: 'openai', label: 'OpenAI', link: 'https://platform.openai.com/api-keys', linkLabel: 'platform.openai.com' },
-              { id: 'gemini', label: 'Google Gemini', link: 'https://aistudio.google.com/apikey', linkLabel: 'aistudio.google.com' },
-              { id: 'anthropic', label: 'Anthropic Claude', link: 'https://console.anthropic.com/settings/keys', linkLabel: 'console.anthropic.com' },
-            ].map(prov => {
-              const storedKey = settingsAiKeys[prov.id] || ''
-              return (
-                <div key={prov.id} className="flex items-center gap-3 p-3 bg-bg-elevated rounded-lg mb-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-text-primary">{prov.label}</p>
-                    {storedKey ? (
-                      <p className="text-xs text-green-soft">Connected · ...{storedKey.slice(-4)}</p>
-                    ) : (
-                      <p className="text-xs text-text-muted truncate">
-                        Not set · <a href={prov.link} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{prov.linkLabel}</a>
-                      </p>
-                    )}
-                  </div>
-                  {storedKey ? (
-                    <button onClick={() => { const s = useSettingsStore.getState(); const keys = { ...s.aiKeys }; delete keys[prov.id]; s.updateSettings({ aiKeys: keys }) }}
-                      className="text-text-muted hover:text-red-soft p-1.5 rounded-lg hover:bg-red-soft/10 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                  ) : (
-                    <button onClick={() => { const k = prompt(`Enter your ${prov.label} API key:`); if (k?.trim()) { const s = useSettingsStore.getState(); s.updateSettings({ aiKeys: { ...s.aiKeys, [prov.id]: k.trim() } }) } }}
-                      className="px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors flex items-center gap-1 shrink-0">
-                      <Key className="w-3 h-3" /> Add Key
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+            <p className="text-xs text-text-muted mb-4">API keys are encrypted and stored securely. Set provider &amp; model in the chat panel.</p>
+            <AiKeysSection />
           </div>
 
           {/* Keyboard Shortcuts */}
