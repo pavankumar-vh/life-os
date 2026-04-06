@@ -35,6 +35,8 @@ export interface IUser extends Document {
     aiKeys: Record<string, EncryptedField | string>  // encrypted
     lastBackup: string | null
   }
+  passwordResetToken?: string
+  passwordResetExpires?: Date
   createdAt: Date
 }
 
@@ -66,6 +68,8 @@ const UserSchema = new Schema<IUser>({
       lastBackup: null,
     },
   },
+  passwordResetToken: { type: String, select: false },
+  passwordResetExpires: { type: Date, select: false },
 }, { timestamps: true })
 
 export const User = mongoose.model<IUser>('User', UserSchema)
