@@ -38,21 +38,28 @@ export function AuthScreen() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
   const [forgotLoading, setForgotLoading] = useState(false)
   const { login, register, isLoading } = useAuthStore()
 
-  const reset = () => { setError(''); setForgotSent(false); setPassword(''); setName('') }
+  const reset = () => { setError(''); setForgotSent(false); setPassword(''); setConfirm(''); setName('') }
   const switchMode = (m: Mode) => { setMode(m); reset() }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     try {
-      if (mode === 'login') await login(email, password)
-      else await register(name, email, password)
+      if (mode === 'register') {
+        if (password !== confirm) { setError('Passwords do not match'); return }
+        if (password.length < 8) { setError('Password must be at least 8 characters'); return }
+        await register(name, email, password)
+      } else {
+        await login(email, password)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     }
@@ -284,11 +291,13 @@ export function AuthScreen() {
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                       placeholder="Email address" required className="input w-full" autoComplete="email" />
 
-                    <div>
+                    <div className="space-y-2.5">
+                      {/* Password */}
                       <div className="relative">
                         <input type={showPass ? 'text' : 'password'} value={password}
                           onChange={e => setPassword(e.target.value)}
-                          placeholder="Password" required minLength={mode === 'register' ? 8 : 6}
+                          placeholder={mode === 'register' ? 'Password (min 8 chars)' : 'Password'}
+                          required minLength={mode === 'register' ? 8 : 6}
                           className="input w-full !pr-10" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
                         <button type="button" onClick={() => setShowPass(!showPass)}
                           className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted/50 hover:text-text-muted transition-colors">
@@ -296,8 +305,40 @@ export function AuthScreen() {
                         </button>
                       </div>
                       {mode === 'register' && <PasswordStrength password={password} />}
+
+                      {/* Confirm password — register only */}
+                      <AnimatePresence>
+                        {mode === 'register' && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                            <div className="relative">
+                              <input type={showConfirm ? 'text' : 'password'} value={confirm}
+                                onChange={e => setConfirm(e.target.value)}
+                                placeholder="Confirm password"
+                                required={mode === 'register'}
+                                className={`input w-full !pr-10 transition-colors ${
+                                  confirm && password !== confirm ? '!border-red-500/40 !focus:border-red-500/60' : ''
+                                }`}
+                                autoComplete="new-password" />
+                              <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted/50 hover:text-text-muted transition-colors">
+                                {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
+                              </button>
+                              {/* Match indicator */}
+                              {confirm && (
+                                <div className="absolute right-9 top-1/2 -translate-y-1/2">
+                                  {password === confirm
+                                    ? <span className="text-green-400 text-[10px] font-medium">✓</span>
+                                    : <span className="text-red-400 text-[10px]">✗</span>}
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Forgot link — login only */}
                       {mode === 'login' && (
-                        <div className="flex justify-end mt-1.5">
+                        <div className="flex justify-end">
                           <button type="button" onClick={() => switchMode('forgot')}
                             className="text-[11px] text-text-muted/50 hover:text-accent transition-colors cursor-pointer">
                             Forgot password?
