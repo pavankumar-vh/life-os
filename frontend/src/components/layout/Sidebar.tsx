@@ -7,9 +7,11 @@ import {
   Apple, CheckSquare, Target, ChevronLeft,
   LogOut, Search, Calendar, Settings,
   Scale, Moon, FileText, Clock, Inbox, BarChart3,
-  DollarSign, BookMarked, Droplets, LinkIcon, Heart, FolderKanban, Brain, Gift, Zap, PenTool, Shield
+  DollarSign, BookMarked, Droplets, LinkIcon, Heart, FolderKanban, Brain, Gift, Zap, PenTool, Shield,
+  ChevronUp, ChevronDown
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRef, useState, useCallback, useEffect } from 'react'
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, shortcut: '\u2318\u0031' },
@@ -42,6 +44,35 @@ const navItems = [
 export function Sidebar() {
   const { activeView, setActiveView, sidebarCollapsed, toggleSidebar, setCommandPaletteOpen } = useAppStore()
   const { user, logout } = useAuthStore()
+  const navRef = useRef<HTMLElement>(null)
+  const [canScrollUp, setCanScrollUp] = useState(false)
+  const [canScrollDown, setCanScrollDown] = useState(false)
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const checkScroll = useCallback(() => {
+    const el = navRef.current
+    if (!el) return
+    setCanScrollUp(el.scrollTop > 4)
+    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
+  }, [])
+
+  useEffect(() => {
+    checkScroll()
+    window.addEventListener('resize', checkScroll)
+    return () => window.removeEventListener('resize', checkScroll)
+  }, [checkScroll])
+
+  const startScroll = (dir: 'up' | 'down') => {
+    const el = navRef.current
+    if (!el) return
+    el.scrollBy({ top: dir === 'down' ? 60 : -60, behavior: 'smooth' })
+    scrollIntervalRef.current = setInterval(() => {
+      el.scrollBy({ top: dir === 'down' ? 40 : -40, behavior: 'smooth' })
+    }, 200)
+  }
+  const stopScroll = () => {
+    if (scrollIntervalRef.current) { clearInterval(scrollIntervalRef.current); scrollIntervalRef.current = null }
+  }
 
   return (
     <aside
@@ -125,51 +156,87 @@ export function Sidebar() {
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 px-3 overflow-y-auto no-scrollbar">
-        <div className="space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = activeView === item.id
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-xl group relative',
-                  'text-[13px] transition-all duration-200',
-                  sidebarCollapsed && 'justify-center px-2',
-                  isActive
-                    ? 'text-text-primary font-medium bg-[rgba(232,213,183,0.08)]'
-                    : 'text-text-secondary hover:bg-[rgba(255,255,255,0.05)] hover:translate-x-0.5'
-                )}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="sidebar-active"
-                    className="absolute left-0.5 inset-y-0 my-auto w-[3px] h-4 rounded-full"
-                    style={{
-                      background: 'linear-gradient(180deg, #e8d5b7, #c9a87c)',
-                      boxShadow: '0 0 8px rgba(232, 213, 183, 0.4)',
-                    }}
-                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                  />
-                )}
-                <item.icon className={cn(
-                  'w-[18px] h-[18px] shrink-0 transition-colors duration-200',
-                  isActive ? 'text-accent' : 'group-hover:text-text-primary'
-                )} />
-                {!sidebarCollapsed && (
-                  <>
-                    <span className="flex-1 text-left transition-colors duration-200 group-hover:text-text-primary">{item.label}</span>
-                    <span className="text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 text-text-muted">
-                      {item.shortcut}
-                    </span>
-                  </>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </nav>
+      <div className="flex-1 relative flex flex-col overflow-hidden">
+        {/* Scroll up button */}
+        <AnimatePresence>
+          {canScrollUp && (
+            <motion.button
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onMouseDown={() => startScroll('up')} onMouseUp={stopScroll} onMouseLeave={stopScroll}
+              onTouchStart={() => startScroll('up')} onTouchEnd={stopScroll}
+              className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center h-7 cursor-pointer"
+              style={{ background: 'linear-gradient(to bottom, rgba(10,10,10,0.9) 0%, transparent 100%)' }}
+            >
+              <ChevronUp className="w-3.5 h-3.5 text-text-muted/60" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <nav
+          ref={navRef}
+          className="flex-1 px-3 overflow-y-auto no-scrollbar"
+          onScroll={checkScroll}
+        >
+          <div className="space-y-0.5 pt-1">
+            {navItems.map((item) => {
+              const isActive = activeView === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveView(item.id)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2 rounded-xl group relative',
+                    'text-[13px] transition-all duration-200',
+                    sidebarCollapsed && 'justify-center px-2',
+                    isActive
+                      ? 'text-text-primary font-medium bg-[rgba(232,213,183,0.08)]'
+                      : 'text-text-secondary hover:bg-[rgba(255,255,255,0.05)] hover:translate-x-0.5'
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active"
+                      className="absolute left-0.5 inset-y-0 my-auto w-[3px] h-4 rounded-full"
+                      style={{
+                        background: 'linear-gradient(180deg, #e8d5b7, #c9a87c)',
+                        boxShadow: '0 0 8px rgba(232, 213, 183, 0.4)',
+                      }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    />
+                  )}
+                  <item.icon className={cn(
+                    'w-[18px] h-[18px] shrink-0 transition-colors duration-200',
+                    isActive ? 'text-accent' : 'group-hover:text-text-primary'
+                  )} />
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="flex-1 text-left transition-colors duration-200 group-hover:text-text-primary">{item.label}</span>
+                      <span className="text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 text-text-muted">
+                        {item.shortcut}
+                      </span>
+                    </>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+
+        {/* Scroll down button */}
+        <AnimatePresence>
+          {canScrollDown && (
+            <motion.button
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onMouseDown={() => startScroll('down')} onMouseUp={stopScroll} onMouseLeave={stopScroll}
+              onTouchStart={() => startScroll('down')} onTouchEnd={stopScroll}
+              className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center h-7 cursor-pointer"
+              style={{ background: 'linear-gradient(to top, rgba(10,10,10,0.9) 0%, transparent 100%)' }}
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted/60" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* User / Logout */}
       <div className="p-3" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
