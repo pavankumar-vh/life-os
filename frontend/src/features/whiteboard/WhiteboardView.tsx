@@ -237,7 +237,7 @@ export function WhiteboardView() {
   // ════════════════ BOARD LIST / DRIVE VIEW ════════════════
   if (showBoardList || !activeBoard) {
     return (
-      <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="max-w-5xl mx-auto px-6 md:px-10 py-8 space-y-6 animate-in fade-in duration-300">
         {/* ── Header + Search in one bar ───────────────────────── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">

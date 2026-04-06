@@ -152,9 +152,9 @@ export function AppShell() {
       <CommandPalette />
       <QuickAddBar open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
 
-      {/* Floating AI Chat Button */}
+      {/* Floating AI Chat Button — hidden on whiteboard to avoid Excalidraw overlap */}
       <AnimatePresence>
-        {!chatOpen && (
+        {!chatOpen && activeView !== 'whiteboard' && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -175,7 +175,9 @@ export function AppShell() {
         )}
       </AnimatePresence>
 
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      {activeView !== 'whiteboard' && (
+        <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      )}
       <ToastContainer />
     </div>
     </MotionConfig>
