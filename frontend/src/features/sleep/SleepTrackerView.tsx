@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Trash2, X, Moon, Sun, TrendingUp, Clock, Star, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ListSkeleton } from '@/components/Skeletons'
 import { DateNavigator } from '@/components/DateNavigator'
+import { DatePicker } from '@/components/DatePicker'
 import { toast } from '@/components/Toast'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -138,8 +139,8 @@ export function SleepTrackerView() {
 
           {chartData.length > 1 ? (<>
           {/* Hours Area Chart */}
-          <div className="h-[200px] mb-2">
-            <ResponsiveContainer key={chartRange} width="100%" height="100%">
+          <div className="h-[200px] mb-2" key={chartRange}>
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
@@ -151,6 +152,7 @@ export function SleepTrackerView() {
                 <XAxis
                   dataKey="date" stroke="rgba(255,255,255,0.15)" fontSize={10}
                   tickLine={false} axisLine={false}
+                  interval="preserveStartEnd"
                   tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return v } }}
                 />
                 <YAxis
@@ -203,8 +205,8 @@ export function SleepTrackerView() {
           </div>
 
           {/* Quality Bar Chart */}
-          <div className="h-[60px]">
-            <ResponsiveContainer key={`q-${chartRange}`} width="100%" height="100%">
+          <div className="h-[60px]" key={`q-${chartRange}`}>
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
                 <XAxis dataKey="date" hide />
                 <YAxis domain={[0, 5]} hide />
@@ -253,6 +255,9 @@ export function SleepTrackerView() {
                 <h3 className="text-sm font-medium">Log Sleep</h3>
                 <button onClick={() => { setBedtime('23:00'); setWaketime('07:00'); setQuality(3); setNotes(''); setShowAdd(false) }} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
               </div>
+              <div className="mb-3">
+                <DatePicker value={selectedDate} onChange={setSelectedDate} label="Date" />
+              </div>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div><label className="text-xs text-text-secondary uppercase block mb-1">Bedtime</label>
                   <input type="time" value={bedtime} onChange={e => setBedtime(e.target.value)} className="input text-xs" /></div>
@@ -285,27 +290,59 @@ export function SleepTrackerView() {
         <div className="text-center py-16 card"><p className="text-sm text-text-muted">No sleep data yet</p></div>
       ) : (
         <div className="space-y-1.5">
-          {logs.map(log => (
-            <div key={log._id} className="card group flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-soft/10 flex items-center justify-center shrink-0">
-                <Moon className="w-4 h-4 text-blue-soft" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-medium">{formatDate(log.date)}</p>
-                  <span className={`text-xs font-medium ${QUALITY_COLORS[log.quality]}`}>{QUALITY_LABELS[log.quality]}</span>
+          {logs.filter(l => l.date === selectedDate).length > 0 ? (
+            logs.filter(l => l.date === selectedDate).map(log => (
+              <div key={log._id} className="card group flex items-center gap-3 border-accent/20">
+                <div className="w-10 h-10 rounded-lg bg-blue-soft/10 flex items-center justify-center shrink-0">
+                  <Moon className="w-4 h-4 text-blue-soft" />
                 </div>
-                <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted">
-                  <span>{log.bedtime} → {log.waketime}</span>
-                  <span className="text-accent font-medium">{log.hours}h</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-medium">{formatDate(log.date)}</p>
+                    <span className={`text-xs font-medium ${QUALITY_COLORS[log.quality]}`}>{QUALITY_LABELS[log.quality]}</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted">
+                    <span>{log.bedtime} → {log.waketime}</span>
+                    <span className="text-accent font-medium">{log.hours}h</span>
+                  </div>
+                  {log.notes && <p className="text-xs text-text-muted mt-0.5">{log.notes}</p>}
                 </div>
-                {log.notes && <p className="text-xs text-text-muted mt-0.5">{log.notes}</p>}
-              </div>
-              <button onClick={() => { if (confirm('Delete this sleep log?')) deleteLog(log._id).catch(() => toast.error('Failed to delete')) }} className="text-text-muted hover:text-red-soft md:opacity-0 md:group-hover:opacity-100 transition-all">
-                <Trash2 className="w-3.5 h-3.5" />
+                <button onClick={() => { if (confirm('Delete this sleep log?')) deleteLog(log._id).catch(() => toast.error('Failed to delete')) }} className="text-text-muted hover:text-red-soft md:opacity-0 md:group-hover:opacity-100 transition-all">
+                  <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-          ))}
+          ))
+          ) : (
+            <div className="card text-center py-6 text-text-muted text-xs">No sleep log for {formatDate(selectedDate)}</div>
+          )}
+
+          {/* Recent logs */}
+          {logs.some(l => l.date !== selectedDate) && (
+            <>
+              <p className="text-[10px] uppercase text-text-muted tracking-wider mt-4 mb-2">Recent Logs</p>
+              {logs.filter(l => l.date !== selectedDate).slice(0, 7).map(log => (
+                <div key={log._id} className="card group flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-soft/10 flex items-center justify-center shrink-0">
+                    <Moon className="w-4 h-4 text-blue-soft" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium">{formatDate(log.date)}</p>
+                      <span className={`text-xs font-medium ${QUALITY_COLORS[log.quality]}`}>{QUALITY_LABELS[log.quality]}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted">
+                      <span>{log.bedtime} → {log.waketime}</span>
+                      <span className="text-accent font-medium">{log.hours}h</span>
+                    </div>
+                    {log.notes && <p className="text-xs text-text-muted mt-0.5">{log.notes}</p>}
+                  </div>
+                  <button onClick={() => { if (confirm('Delete this sleep log?')) deleteLog(log._id).catch(() => toast.error('Failed to delete')) }} className="text-text-muted hover:text-red-soft md:opacity-0 md:group-hover:opacity-100 transition-all">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

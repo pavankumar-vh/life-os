@@ -417,9 +417,9 @@ export function BodyTrackerView() {
               ))}
             </div>
           </div>
-          <div className="h-[280px]">
+          <div className="h-[280px]" key={chartRange}>
             {chartData.length > 1 ? (
-              <ResponsiveContainer key={chartRange} width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
@@ -435,6 +435,7 @@ export function BodyTrackerView() {
                   <XAxis
                     dataKey="date" stroke="rgba(255,255,255,0.15)" fontSize={10}
                     tickLine={false} axisLine={false}
+                    interval="preserveStartEnd"
                     tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return v } }}
                   />
                   <YAxis
