@@ -14,11 +14,14 @@ interface DateNavigatorProps {
 export function DateNavigator({ value, onChange, disableFuture = true }: DateNavigatorProps) {
   const today = toISODate()
   const [showCal, setShowCal] = useState(false)
+  const [calView, setCalView] = useState<'days' | 'months' | 'years'>('days')
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(value + 'T12:00:00')
     return { year: d.getFullYear(), month: d.getMonth() }
   })
   const ref = useRef<HTMLDivElement>(null)
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const yearRangeStart = calMonth.year - 4
 
   // Close on outside click
   useEffect(() => {
@@ -93,7 +96,7 @@ export function DateNavigator({ value, onChange, disableFuture = true }: DateNav
         <ChevronLeft className="w-3.5 h-3.5" />
       </button>
 
-      <button onClick={() => setShowCal(!showCal)}
+      <button onClick={() => { setShowCal(!showCal); setCalView('days') }}
         className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors">
         <Calendar className="w-3 h-3" />
         {displayLabel}
@@ -121,17 +124,70 @@ export function DateNavigator({ value, onChange, disableFuture = true }: DateNav
             transition={{ duration: 0.15 }}
             className="absolute top-full left-0 mt-2 z-50 w-[260px] rounded-xl bg-[rgba(18,18,18,0.98)] border border-white/[0.08] shadow-xl backdrop-blur-xl p-3"
           >
-            {/* Month nav */}
+            {/* Header */}
             <div className="flex items-center justify-between mb-2">
-              <button onClick={() => navMonth(-1)} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover">
+              <button onClick={() => {
+                if (calView === 'days') navMonth(-1)
+                else if (calView === 'months') setCalMonth(p => ({ ...p, year: p.year - 1 }))
+                else setCalMonth(p => ({ ...p, year: p.year - 9 }))
+              }} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover">
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-medium text-text-primary">{monthLabel}</span>
-              <button onClick={() => navMonth(1)} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover">
+              <button onClick={() => setCalView(v => v === 'days' ? 'months' : v === 'months' ? 'years' : 'years')}
+                className="text-xs font-medium text-text-primary hover:text-accent transition-colors px-1.5 py-0.5 rounded-md hover:bg-bg-hover">
+                {calView === 'years'
+                  ? `${yearRangeStart} – ${yearRangeStart + 8}`
+                  : calView === 'months'
+                  ? `${calMonth.year}`
+                  : monthLabel}
+              </button>
+              <button onClick={() => {
+                if (calView === 'days') navMonth(1)
+                else if (calView === 'months') setCalMonth(p => ({ ...p, year: p.year + 1 }))
+                else setCalMonth(p => ({ ...p, year: p.year + 9 }))
+              }} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover">
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
+            <AnimatePresence mode="wait">
+            {/* Year picker */}
+            {calView === 'years' && (
+              <motion.div key="years" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
+              <div className="grid grid-cols-3 gap-1.5">
+                {Array.from({ length: 9 }, (_, i) => yearRangeStart + i).map(y => (
+                  <button key={y} onClick={() => { setCalMonth(p => ({ ...p, year: y })); setCalView('months') }}
+                    className={`py-2 rounded-lg text-[11px] font-medium transition-all ${
+                      y === new Date().getFullYear() ? 'ring-1 ring-accent/50 text-accent' :
+                      'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                    }`}>{y}</button>
+                ))}
+              </div>
+              </motion.div>
+            )}
+
+            {/* Month picker */}
+            {calView === 'months' && (
+              <motion.div key="months" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
+              <div className="grid grid-cols-3 gap-1.5">
+                {MONTHS.map((m, i) => {
+                  const isCurrent = calMonth.year === new Date().getFullYear() && i === new Date().getMonth()
+                  return (
+                    <button key={m} onClick={() => { setCalMonth(p => ({ ...p, month: i })); setCalView('days') }}
+                      className={`py-2 rounded-lg text-[11px] font-medium transition-all ${
+                        isCurrent ? 'ring-1 ring-accent/50 text-accent' :
+                        i === calMonth.month ? 'bg-accent/15 text-accent' :
+                        'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                      }`}>{m}</button>
+                  )
+                })}
+              </div>
+              </motion.div>
+            )}
+
+            {/* Day picker */}
+            {calView === 'days' && (
+              <motion.div key="days" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
             {/* Day headers */}
             <div className="grid grid-cols-7 gap-0.5 mb-1">
               {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
@@ -164,6 +220,8 @@ export function DateNavigator({ value, onChange, disableFuture = true }: DateNav
                 )
               })}
             </div>
+            </motion.div>)}
+            </AnimatePresence>
 
             {/* Quick actions */}
             <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/[0.06]">

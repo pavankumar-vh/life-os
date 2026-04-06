@@ -86,6 +86,9 @@ export function JournalView() {
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
   const [editDate, setEditDate] = useState(toISODate())
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
+  const [calView, setCalView] = useState<'days' | 'months' | 'years'>('days')
+  const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const yearRangeStart = calMonth.year - 4
   const contentRef = useRef<HTMLTextAreaElement>(null)
   const today = toISODate()
   const timeOfDay = useMemo(() => getTimeOfDay(), [])
@@ -511,14 +514,64 @@ export function JournalView() {
           {/* Calendar Date Picker */}
           <div className="card !p-3">
             <div className="flex items-center justify-between mb-2">
-              <button onClick={() => setCalMonth(p => { const m = p.month - 1; return m < 0 ? { year: p.year - 1, month: 11 } : { ...p, month: m } })}
+              <button onClick={() => {
+                if (calView === 'days') setCalMonth(p => { const m = p.month - 1; return m < 0 ? { year: p.year - 1, month: 11 } : { ...p, month: m } })
+                else if (calView === 'months') setCalMonth(p => ({ ...p, year: p.year - 1 }))
+                else setCalMonth(p => ({ ...p, year: p.year - 9 }))
+              }}
                 className="text-text-muted hover:text-text-primary p-0.5"><ChevronUp className="w-3 h-3 rotate-[-90deg]" /></button>
-              <p className="text-[11px] font-medium text-text-primary">
-                {new Date(calMonth.year, calMonth.month).toLocaleString('default', { month: 'long', year: 'numeric' })}
-              </p>
-              <button onClick={() => setCalMonth(p => { const m = p.month + 1; return m > 11 ? { year: p.year + 1, month: 0 } : { ...p, month: m } })}
+              <button onClick={() => setCalView(v => v === 'days' ? 'months' : v === 'months' ? 'years' : 'years')}
+                className="text-[11px] font-medium text-text-primary hover:text-accent transition-colors px-1 py-0.5 rounded-md hover:bg-bg-hover cursor-pointer">
+                {calView === 'years' ? `${yearRangeStart} – ${yearRangeStart + 8}` :
+                 calView === 'months' ? `${calMonth.year}` :
+                 new Date(calMonth.year, calMonth.month).toLocaleString('default', { month: 'long', year: 'numeric' })}
+              </button>
+              <button onClick={() => {
+                if (calView === 'days') setCalMonth(p => { const m = p.month + 1; return m > 11 ? { year: p.year + 1, month: 0 } : { ...p, month: m } })
+                else if (calView === 'months') setCalMonth(p => ({ ...p, year: p.year + 1 }))
+                else setCalMonth(p => ({ ...p, year: p.year + 9 }))
+              }}
                 className="text-text-muted hover:text-text-primary p-0.5"><ChevronUp className="w-3 h-3 rotate-90" /></button>
             </div>
+
+            <AnimatePresence mode="wait">
+            {/* Year picker */}
+            {calView === 'years' && (
+              <motion.div key="years" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
+              <div className="grid grid-cols-3 gap-1">
+                {Array.from({ length: 9 }, (_, i) => yearRangeStart + i).map(y => (
+                  <button key={y} onClick={() => { setCalMonth(p => ({ ...p, year: y })); setCalView('months') }}
+                    className={`py-1.5 rounded-md text-[11px] font-medium transition-all ${
+                      y === new Date().getFullYear() ? 'ring-1 ring-accent/50 text-accent' :
+                      'text-text-muted hover:bg-bg-hover hover:text-text-primary'
+                    }`}>{y}</button>
+                ))}
+              </div>
+              </motion.div>
+            )}
+
+            {/* Month picker */}
+            {calView === 'months' && (
+              <motion.div key="months" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
+              <div className="grid grid-cols-3 gap-1">
+                {MONTHS_SHORT.map((m, i) => {
+                  const isCurrent = calMonth.year === new Date().getFullYear() && i === new Date().getMonth()
+                  return (
+                    <button key={m} onClick={() => { setCalMonth(p => ({ ...p, month: i })); setCalView('days') }}
+                      className={`py-1.5 rounded-md text-[11px] font-medium transition-all ${
+                        isCurrent ? 'ring-1 ring-accent/50 text-accent' :
+                        i === calMonth.month ? 'bg-accent/15 text-accent' :
+                        'text-text-muted hover:bg-bg-hover hover:text-text-primary'
+                      }`}>{m}</button>
+                  )
+                })}
+              </div>
+              </motion.div>
+            )}
+
+            {/* Day picker */}
+            {calView === 'days' && (
+              <motion.div key="days" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
             <div className="grid grid-cols-7 gap-[2px]">
               {['S','M','T','W','T','F','S'].map((d, i) => (
                 <div key={i} className="h-5 flex items-center justify-center">
@@ -549,6 +602,8 @@ export function JournalView() {
                 )
               })}
             </div>
+            </motion.div>)}
+            </AnimatePresence>
             {dateFilter && (
               <button onClick={() => setDateFilter(null)} className="w-full mt-2 text-xs text-accent hover:text-accent/80 py-1">
                 Clear date filter

@@ -626,7 +626,9 @@ export const useBodyTrackerStore = create<BodyTrackerState>((set, get) => ({
   },
   addLog: async (log) => {
     const data = await api('/body', { method: 'POST', body: JSON.stringify(log) })
-    set({ logs: [data, ...get().logs] })
+    // Backend upserts by date — remove any existing entry for the same date to avoid duplicates
+    const filtered = get().logs.filter(l => l.date !== data.date)
+    set({ logs: [data, ...filtered] })
   },
   deleteLog: async (id) => {
     await api(`/body/${id}`, { method: 'DELETE' })

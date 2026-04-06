@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Trash2, X, ListChecks, Search, Calendar, Flag, Edit3, Check, Clock, AlertTriangle, Target } from 'lucide-react'
 import { ListSkeleton } from '@/components/Skeletons'
 import { toast } from '@/components/Toast'
+import { DatePicker } from '@/components/DatePicker'
 
 const PRIORITIES = [
   { value: 'low', label: 'Low', color: 'text-text-muted', bg: 'bg-bg-elevated' },
@@ -166,8 +167,7 @@ export function TasksView() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-text-secondary uppercase block mb-1">Due Date</label>
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input text-xs w-full" />
+                  <DatePicker value={dueDate} onChange={setDueDate} label="Due Date" placeholder="Set due date" />
                 </div>
                 <div>
                   <label className="text-xs text-text-secondary uppercase block mb-1">Goal</label>

@@ -8,6 +8,7 @@ import { DollarSign, Plus, Trash2, TrendingUp, PieChart, Filter, UtensilsCrossed
 import { ListSkeleton } from '@/components/Skeletons'
 import { DateNavigator } from '@/components/DateNavigator'
 import { toast } from '@/components/Toast'
+import { DatePicker } from '@/components/DatePicker'
 
 const CATEGORIES = [
   { id: 'food', label: 'Food', icon: UtensilsCrossed, color: 'text-orange-400' },
@@ -122,8 +123,7 @@ export function ExpenseTrackerView() {
                   <input type="number" step="0.01" className="input w-full" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-text-secondary block mb-1">Date</label>
-                  <input type="date" className="input w-full" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+                  <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} label="Date" />
                 </div>
               </div>
               <div>

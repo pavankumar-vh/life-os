@@ -104,8 +104,9 @@ export function BodyTrackerView() {
     return allChartData.filter(d => new Date(d.date).getTime() >= cutoff)
   }, [allChartData, chartRange])
   const avgWeight = useMemo(() => {
-    if (!chartData.length) return 0
-    return chartData.reduce((s, d) => s + (d.weight ?? 0), 0) / chartData.length
+    const withWeight = chartData.filter(d => d.weight != null && d.weight > 0)
+    if (!withWeight.length) return 0
+    return withWeight.reduce((s, d) => s + d.weight!, 0) / withWeight.length
   }, [chartData])
   const hasBodyFat = useMemo(() => chartData.some(d => d.bodyFat), [chartData])
 
@@ -119,6 +120,9 @@ export function BodyTrackerView() {
     const d = new Date(date + 'T12:00:00')
     return { year: d.getFullYear(), month: d.getMonth() }
   })
+  const [calView, setCalView] = useState<'days' | 'months' | 'years'>('days')
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const yearRangeStart = calMonth.year - 4
 
   const loggedDates = useMemo(() => new Set(logs.map(l => l.date)), [logs])
   const logByDate = useMemo(() => {
@@ -289,10 +293,61 @@ export function BodyTrackerView() {
               className="text-[10px] text-accent hover:text-accent-warm transition-colors cursor-pointer">Today</button>
           </div>
           <div className="flex items-center justify-between mb-3">
-            <button onClick={() => navMonth(-1)} className="p-1 rounded-lg hover:bg-glass-strong transition-colors"><ChevronLeft size={16} className="text-text-muted" /></button>
-            <span className="text-xs font-medium text-text-primary">{calMonthLabel}</span>
-            <button onClick={() => navMonth(1)} className="p-1 rounded-lg hover:bg-glass-strong transition-colors"><ChevronRight size={16} className="text-text-muted" /></button>
+            <button onClick={() => {
+              if (calView === 'days') navMonth(-1)
+              else if (calView === 'months') setCalMonth(p => ({ ...p, year: p.year - 1 }))
+              else setCalMonth(p => ({ ...p, year: p.year - 9 }))
+            }} className="p-1 rounded-lg hover:bg-glass-strong transition-colors"><ChevronLeft size={16} className="text-text-muted" /></button>
+            <button onClick={() => setCalView(v => v === 'days' ? 'months' : v === 'months' ? 'years' : 'years')}
+              className="text-xs font-medium text-text-primary hover:text-accent transition-colors px-1.5 py-0.5 rounded-lg hover:bg-glass-strong cursor-pointer">
+              {calView === 'years' ? `${yearRangeStart} – ${yearRangeStart + 8}` :
+               calView === 'months' ? `${calMonth.year}` : calMonthLabel}
+            </button>
+            <button onClick={() => {
+              if (calView === 'days') navMonth(1)
+              else if (calView === 'months') setCalMonth(p => ({ ...p, year: p.year + 1 }))
+              else setCalMonth(p => ({ ...p, year: p.year + 9 }))
+            }} className="p-1 rounded-lg hover:bg-glass-strong transition-colors"><ChevronRight size={16} className="text-text-muted" /></button>
           </div>
+
+          <AnimatePresence mode="wait">
+          {/* Year picker */}
+          {calView === 'years' && (
+            <motion.div key="years" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
+            <div className="grid grid-cols-3 gap-1.5">
+              {Array.from({ length: 9 }, (_, i) => yearRangeStart + i).map(y => (
+                <button key={y} onClick={() => { setCalMonth(p => ({ ...p, year: y })); setCalView('months') }}
+                  className={`py-2 rounded-lg text-xs font-medium transition-all ${
+                    y === new Date().getFullYear() ? 'ring-1 ring-accent/40 text-accent' :
+                    'text-text-secondary hover:bg-glass-strong'
+                  }`}>{y}</button>
+              ))}
+            </div>
+            </motion.div>
+          )}
+
+          {/* Month picker */}
+          {calView === 'months' && (
+            <motion.div key="months" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
+            <div className="grid grid-cols-3 gap-1.5">
+              {MONTHS.map((m, i) => {
+                const isCurrent = calMonth.year === new Date().getFullYear() && i === new Date().getMonth()
+                return (
+                  <button key={m} onClick={() => { setCalMonth(p => ({ ...p, month: i })); setCalView('days') }}
+                    className={`py-2 rounded-lg text-xs font-medium transition-all ${
+                      isCurrent ? 'ring-1 ring-accent/40 text-accent' :
+                      i === calMonth.month ? 'bg-accent/15 text-accent' :
+                      'text-text-secondary hover:bg-glass-strong'
+                    }`}>{m}</button>
+                )
+              })}
+            </div>
+            </motion.div>
+          )}
+
+          {/* Day picker */}
+          {calView === 'days' && (
+            <motion.div key="days" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
           <div className="grid grid-cols-7 gap-1 mb-1">
             {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
               <div key={d} className="text-center text-[10px] text-text-muted py-1">{d}</div>
@@ -317,6 +372,8 @@ export function BodyTrackerView() {
               )
             })}
           </div>
+          </motion.div>)}
+          </AnimatePresence>
 
           {/* Selected day detail */}
           {selectedDayLog && (

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FolderKanban, Plus, Trash2, CheckCircle2, Circle, ChevronDown } from 'lucide-react'
 import { ListSkeleton } from '@/components/Skeletons'
 import { toast } from '@/components/Toast'
+import { DatePicker } from '@/components/DatePicker'
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-soft/15 text-green-soft',
@@ -81,8 +82,7 @@ export function ProjectsView() {
               <input className="input w-full" placeholder="Description (optional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-text-secondary block mb-1">Deadline</label>
-                  <input type="date" className="input w-full" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+                  <DatePicker value={form.deadline} onChange={v => setForm(f => ({ ...f, deadline: v }))} label="Deadline" placeholder="Set deadline" />
                 </div>
                 <div>
                   <label className="text-xs text-text-secondary block mb-1">Color</label>

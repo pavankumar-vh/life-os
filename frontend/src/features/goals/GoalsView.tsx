@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ListSkeleton } from '@/components/Skeletons'
 import { Plus, Trash2, X, Target, TrendingUp, Pause, Play, CheckCircle2, Edit3, Flag, Clock, Trophy, BarChart3 } from 'lucide-react'
 import { toast } from '@/components/Toast'
+import { DatePicker } from '@/components/DatePicker'
 
 const CATEGORIES = ['Health', 'Fitness', 'Career', 'Finance', 'Learning', 'Personal', 'Other']
 
@@ -162,7 +163,7 @@ export function GoalsView() {
       {/* Add Form */}
       <AnimatePresence>
         {showAdd && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-6">
             <div className="card border-accent/30">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium flex items-center gap-2">
@@ -189,8 +190,7 @@ export function GoalsView() {
                   <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="books, km, etc." className="input text-xs w-full" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-text-secondary uppercase block mb-1">Deadline</label>
-                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="input text-xs w-full" />
+                  <DatePicker value={deadline} onChange={setDeadline} label="Deadline" placeholder="Pick deadline" />
                 </div>
               </div>
               <button onClick={handleAdd} className="btn w-full">Create Goal</button>
