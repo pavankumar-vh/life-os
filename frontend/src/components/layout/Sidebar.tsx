@@ -7,7 +7,7 @@ import {
   Apple, CheckSquare, Target, ChevronLeft,
   LogOut, Search, Calendar, Settings,
   Scale, Moon, FileText, Clock, Inbox, BarChart3,
-  DollarSign, BookMarked, Droplets, LinkIcon, Heart, FolderKanban, Brain, Gift, Zap, PenTool
+  DollarSign, BookMarked, Droplets, LinkIcon, Heart, FolderKanban, Brain, Gift, Zap, PenTool, Shield
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -35,6 +35,7 @@ const navItems = [
   { id: 'flashcards', label: 'Flashcards', icon: Brain },
   { id: 'whiteboard', label: 'Whiteboard', icon: PenTool },
   { id: 'wishlist', label: 'Wishlist', icon: Gift },
+  { id: 'vault', label: 'Vault', icon: Shield },
   { id: 'settings', label: 'Settings', icon: Settings, shortcut: '\u2318\u0039' },
 ]
 

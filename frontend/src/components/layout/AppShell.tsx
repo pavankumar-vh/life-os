@@ -31,6 +31,7 @@ import { GratitudeView } from '@/features/gratitude/GratitudeView'
 import { ProjectsView } from '@/features/projects/ProjectsView'
 import { FlashcardsView } from '@/features/flashcards/FlashcardsView'
 import { WishlistView } from '@/features/wishlist/WishlistView'
+import { VaultView } from '@/features/vault/VaultView'
 import dynamic from 'next/dynamic'
 const WhiteboardView = dynamic(() => import('@/features/whiteboard/WhiteboardView').then(m => m.WhiteboardView), { ssr: false })
 import { ChatPanel } from '@/features/chat/ChatPanel'
@@ -63,6 +64,7 @@ const views: Record<string, React.ComponentType> = {
   flashcards: FlashcardsView,
   whiteboard: WhiteboardView,
   wishlist: WishlistView,
+  vault: VaultView,
 }
 
 export function AppShell() {
@@ -132,7 +134,7 @@ export function AppShell() {
         style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
       >
         {/* Notes & Whiteboard get full-bleed layout; everything else stays centered */}
-        {activeView === 'notes' || activeView === 'whiteboard' ? (
+        {activeView === 'notes' || activeView === 'whiteboard' || activeView === 'vault' ? (
           <div key={activeView} className="h-full">
             <ActiveView />
           </div>
