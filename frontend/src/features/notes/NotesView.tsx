@@ -166,6 +166,7 @@ export function NotesView() {
   const closeSlash = () => { setSlashOpen(false); setSlashFilter(''); setSlashIndex(0) }
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
