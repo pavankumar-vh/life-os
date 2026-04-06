@@ -1220,7 +1220,10 @@ interface ChatState {
   messages: ChatMessageData[]
   isLoading: boolean
   isStreaming: boolean
+  hasMore: boolean
+  isLoadingMore: boolean
   fetchMessages: () => Promise<void>
+  loadMore: () => Promise<void>
   sendMessage: (content: string) => Promise<void>
   clearChat: () => Promise<void>
 }
@@ -1229,14 +1232,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
   isStreaming: false,
+  hasMore: false,
+  isLoadingMore: false,
 
   fetchMessages: async () => {
     set({ isLoading: true })
     try {
       const data = await api('/chat')
-      set({ messages: data })
+      // Support both old array shape and new {messages, hasMore} shape
+      if (Array.isArray(data)) {
+        set({ messages: data, hasMore: false })
+      } else {
+        set({ messages: data.messages ?? [], hasMore: data.hasMore ?? false })
+      }
     } finally {
       set({ isLoading: false })
+    }
+  },
+
+  loadMore: async () => {
+    const { messages, isLoadingMore, hasMore } = get()
+    if (isLoadingMore || !hasMore || messages.length === 0) return
+    set({ isLoadingMore: true })
+    try {
+      const oldestId = messages[0]._id
+      const token = localStorage.getItem('lifeos-token')
+      const res = await fetch(`${API_BASE}/api/chat?before=${oldestId}&limit=50`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      const older: ChatMessageData[] = Array.isArray(data) ? data : (data.messages ?? [])
+      const newHasMore: boolean = Array.isArray(data) ? false : (data.hasMore ?? false)
+      set({ messages: [...older, ...get().messages], hasMore: newHasMore })
+    } finally {
+      set({ isLoadingMore: false })
     }
   },
 

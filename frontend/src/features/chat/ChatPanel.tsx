@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore, useSettingsStore, useAppStore } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Trash2, User, Sparkles, X, ArrowDown, Settings, ChevronDown, Zap, RotateCcw } from 'lucide-react'
+import { Send, Trash2, User, Sparkles, X, ArrowDown, Settings, ChevronDown, Zap, RotateCcw, History } from 'lucide-react'
 
 const SUGGESTIONS = [
   { text: 'How has my mood been this week?', icon: '🧠' },
@@ -66,7 +66,7 @@ function getStoredKey(provider: string): string {
 }
 
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { messages, isLoading, isStreaming, fetchMessages, sendMessage, clearChat } = useChatStore()
+  const { messages, isLoading, isStreaming, hasMore, isLoadingMore, fetchMessages, loadMore, sendMessage, clearChat } = useChatStore()
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
@@ -75,6 +75,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const topAnchorRef = useRef<HTMLDivElement>(null)
 
   const currentProvider = PROVIDERS.find(p => p.id === provider) || PROVIDERS[0]
   const hasKey = !!getStoredKey(provider)
@@ -90,6 +91,19 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
+
+  const handleLoadMore = useCallback(async () => {
+    const container = scrollContainerRef.current
+    const prevScrollHeight = container?.scrollHeight ?? 0
+    await loadMore()
+    // Restore scroll position so older messages appear above current view
+    requestAnimationFrame(() => {
+      if (container) {
+        const newScrollHeight = container.scrollHeight
+        container.scrollTop = newScrollHeight - prevScrollHeight
+      }
+    })
+  }, [loadMore])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
@@ -363,42 +377,86 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
               ) : (
                 /* Chat Messages */
                 <>
-                  {messages.map((msg, idx) => (
-                    <motion.div
-                      key={msg._id}
-                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.2, delay: idx > messages.length - 3 ? 0.05 : 0 }}
-                      className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : ''}`}
-                    >
-                      {msg.role === 'assistant' && (
-                        <div className="w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center mt-1" style={{ background: 'linear-gradient(135deg, rgba(232,213,183,0.12), rgba(232,213,183,0.04))', border: '1px solid rgba(232,213,183,0.08)' }}>
-                          <Sparkles className="w-3 h-3 text-accent" />
-                        </div>
-                      )}
-                      <div
-                        className={`max-w-[82%] text-[12.5px] leading-[1.65] ${
-                          msg.role === 'user'
-                            ? 'bg-accent text-[#1a1a1a] rounded-2xl rounded-br-md px-3.5 py-2.5'
-                            : 'text-text-secondary'
-                        }`}
+                  {/* Load Earlier Button */}
+                  {hasMore && (
+                    <div className="flex justify-center pb-2" ref={topAnchorRef}>
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={isLoadingMore}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] text-text-muted hover:text-accent transition-colors"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
                       >
-                        {msg.role === 'assistant' ? (
-                          <div
-                            className="[&_pre]:my-2 [&_code]:break-words"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content || '') }}
-                          />
+                        {isLoadingMore ? (
+                          <div className="w-3 h-3 border border-accent/30 border-t-accent rounded-full animate-spin" />
                         ) : (
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                          <History className="w-3 h-3" />
                         )}
+                        {isLoadingMore ? 'Loading...' : 'Load earlier messages'}
+                      </button>
+                    </div>
+                  )}
+
+                  {messages.map((msg, idx) => {
+                    // Date separator between messages on different days
+                    const showDate = idx === 0 || (() => {
+                      const prev = new Date(messages[idx - 1].createdAt)
+                      const curr = new Date(msg.createdAt)
+                      return prev.toDateString() !== curr.toDateString()
+                    })()
+                    const dateLabel = (() => {
+                      const d = new Date(msg.createdAt)
+                      const today = new Date()
+                      const yesterday = new Date(); yesterday.setDate(today.getDate() - 1)
+                      if (d.toDateString() === today.toDateString()) return 'Today'
+                      if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+                      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined })
+                    })()
+
+                    return (
+                      <div key={msg._id}>
+                        {showDate && (
+                          <div className="flex items-center gap-2 py-2">
+                            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                            <span className="text-[10px] text-text-muted px-2 font-medium">{dateLabel}</span>
+                            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                          </div>
+                        )}
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ duration: 0.2, delay: idx > messages.length - 3 ? 0.05 : 0 }}
+                          className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : ''}`}
+                        >
+                          {msg.role === 'assistant' && (
+                            <div className="w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center mt-1" style={{ background: 'linear-gradient(135deg, rgba(232,213,183,0.12), rgba(232,213,183,0.04))', border: '1px solid rgba(232,213,183,0.08)' }}>
+                              <Sparkles className="w-3 h-3 text-accent" />
+                            </div>
+                          )}
+                          <div
+                            className={`max-w-[82%] text-[12.5px] leading-[1.65] ${
+                              msg.role === 'user'
+                                ? 'bg-accent text-[#1a1a1a] rounded-2xl rounded-br-md px-3.5 py-2.5'
+                                : 'text-text-secondary'
+                            }`}
+                          >
+                            {msg.role === 'assistant' ? (
+                              <div
+                                className="[&_pre]:my-2 [&_code]:break-words"
+                                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content || '') }}
+                              />
+                            ) : (
+                              <p className="whitespace-pre-wrap">{msg.content}</p>
+                            )}
+                          </div>
+                          {msg.role === 'user' && (
+                            <div className="w-6 h-6 rounded-lg bg-accent/15 flex-shrink-0 flex items-center justify-center mt-1">
+                              <User className="w-3 h-3 text-accent" />
+                            </div>
+                          )}
+                        </motion.div>
                       </div>
-                      {msg.role === 'user' && (
-                        <div className="w-6 h-6 rounded-lg bg-accent/15 flex-shrink-0 flex items-center justify-center mt-1">
-                          <User className="w-3 h-3 text-accent" />
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
+                    )
+                  })}
 
                   {/* Streaming indicator */}
                   {isStreaming && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content && (

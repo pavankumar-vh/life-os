@@ -38,13 +38,30 @@ GUIDELINES:
 - Never fabricate data — only reference what's in the context below
 - When the user asks about progress, compare against their own historical baseline, not generic standards`
 
-// GET /api/chat — get chat history
+// GET /api/chat — get chat history (supports ?before=<id> for pagination)
 router.get('/', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
-    if (isDemoUser(userId)) return res.json([])
-    const messages = await ChatMessage.find({ userId }).sort({ createdAt: -1 }).limit(50).lean()
-    return res.json(messages.reverse())
+    if (isDemoUser(userId)) return res.json({ messages: [], hasMore: false })
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100)
+    const before = req.query.before as string | undefined
+
+    const query: Record<string, unknown> = { userId }
+    if (before) {
+      const pivot = await ChatMessage.findById(before).lean()
+      if (pivot) query.createdAt = { $lt: (pivot as any).createdAt }
+    }
+
+    const messages = await ChatMessage.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .lean()
+
+    const hasMore = messages.length > limit
+    const page = (hasMore ? messages.slice(0, limit) : messages).reverse()
+
+    return res.json({ messages: page, hasMore })
   } catch (e) {
     console.error('GET /api/chat error:', e)
     return res.status(500).json({ error: 'Server error' })
