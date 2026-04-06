@@ -59,7 +59,7 @@ export function Sidebar() {
       }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between px-3 py-4">
+      <div className="flex items-center justify-between px-4 py-5">
         <AnimatePresence>
           {!sidebarCollapsed && (
             <motion.div
@@ -67,41 +67,23 @@ export function Sidebar() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-center gap-3"
+              className="flex items-center gap-2.5"
             >
-              {/* Logo image mark */}
               <motion.div
-                className="w-9 h-9 rounded-xl overflow-hidden shrink-0 relative"
+                className="w-8 h-8 rounded-xl flex items-center justify-center"
                 style={{
-                  boxShadow: '0 0 20px -4px rgba(232, 213, 183, 0.25), 0 0 0 1px rgba(232,213,183,0.1)',
+                  background: 'linear-gradient(135deg, rgba(232, 213, 183, 0.15), rgba(232, 213, 183, 0.05))',
+                  border: '1px solid rgba(232, 213, 183, 0.1)',
+                  boxShadow: '0 0 16px -4px rgba(232, 213, 183, 0.15)',
                 }}
-                whileHover={{ scale: 1.06 }}
+                whileHover={{ scale: 1.05 }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icon-512.png" alt="LifeOS" className="w-full h-full object-cover" />
+                <Zap className="w-4 h-4 text-accent" />
               </motion.div>
-              <div>
-                <span className="font-bold text-[15px] gradient-text tracking-tight block leading-tight">LifeOS</span>
-                <span className="text-[10px] text-text-muted tracking-widest uppercase leading-none">your command center</span>
-              </div>
+              <span className="font-semibold text-[15px] gradient-text tracking-tight">LifeOS</span>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Collapsed: show icon only */}
-        {sidebarCollapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="w-9 h-9 rounded-xl overflow-hidden mx-auto"
-            style={{ boxShadow: '0 0 16px -4px rgba(232,213,183,0.2)' }}
-            whileHover={{ scale: 1.06 }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-512.png" alt="LifeOS" className="w-full h-full object-cover" />
-          </motion.div>
-        )}
-
         <motion.button
           onClick={toggleSidebar}
           className="p-1.5 rounded-lg transition-colors text-text-muted hover:text-text-primary shrink-0"
