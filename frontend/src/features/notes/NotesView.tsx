@@ -145,6 +145,8 @@ export function NotesView() {
   const [modal, setModal] = useState<{ type: 'folder' | 'delete' | 'tag'; deleteId?: string } | null>(null)
   const [tagSuggestIdx, setTagSuggestIdx] = useState(0)
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+  const [tagInputActive, setTagInputActive] = useState(false)
+  const tagInputRef = useRef<HTMLInputElement>(null)
   const [modalInput, setModalInput] = useState('')
   const modalInputRef = useRef<HTMLInputElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -385,6 +387,10 @@ export function NotesView() {
 
   const onTitleChange = (v: string) => { setEditTitle(v); doSave() }
   const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
+  const activateTagInput = () => {
+    setTagInputActive(true)
+    setTimeout(() => tagInputRef.current?.focus(), 30)
+  }
   const addTag = (raw: string) => {
     const tag = raw.trim().toLowerCase()
     if (!tag || editTags.includes(tag)) { setTagInput(''); return }
@@ -551,7 +557,7 @@ export function NotesView() {
               <Folder className="w-3 h-3 shrink-0" />
               <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
             </div>
-            <div className="hidden sm:flex items-center gap-1 text-[11px] text-text-secondary max-w-[200px] overflow-x-auto no-scrollbar relative">
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-text-secondary max-w-[240px] overflow-x-auto no-scrollbar relative">
               <Hash className="w-3 h-3 shrink-0" />
               {editTags.map(tag => (
                 <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
@@ -559,10 +565,17 @@ export function NotesView() {
                   <button onClick={() => removeTag(tag)} className="hover:text-text-primary transition-colors"><X className="w-2.5 h-2.5" /></button>
                 </span>
               ))}
-              <input type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
-                onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
-                onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput) }}
-                className="bg-transparent outline-none min-w-[50px] w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder={editTags.length ? '+' : 'Tags...'} />
+              {tagInputActive ? (
+                <input ref={tagInputRef} type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
+                  onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
+                  onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput); setTimeout(() => { if (!tagInput.trim()) setTagInputActive(false) }, 200) }}
+                  className="bg-transparent outline-none w-20 text-text-secondary placeholder:text-text-muted font-medium text-[11px]" placeholder="Add tag..." autoFocus />
+              ) : (
+                <button onClick={activateTagInput}
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-text-muted hover:text-accent hover:bg-accent/10 transition-colors shrink-0 ml-0.5">
+                  <Plus className="w-3 h-3" />
+                </button>
+              )}
               <AnimatePresence>
                 {showTagSuggestions && tagSuggestions.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
@@ -627,7 +640,7 @@ export function NotesView() {
           <div className="sm:hidden flex items-center gap-2 px-4 py-2 border-t border-border text-[11px]">
             <div className="flex items-center gap-1 text-text-secondary flex-1"><Folder className="w-3 h-3" /><input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none flex-1 text-text-secondary placeholder:text-text-muted" placeholder="Folder" /></div>
             <div className="w-px h-3 bg-border" />
-            <div className="flex items-center gap-1 text-text-secondary flex-1 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 text-text-secondary flex-1 overflow-x-auto no-scrollbar relative">
               <Hash className="w-3 h-3 shrink-0" />
               {editTags.map(tag => (
                 <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
@@ -635,10 +648,17 @@ export function NotesView() {
                   <button onClick={() => removeTag(tag)} className="hover:text-text-primary"><X className="w-2.5 h-2.5" /></button>
                 </span>
               ))}
-              <input type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
-                onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
-                onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput) }}
-                className="bg-transparent outline-none min-w-[40px] flex-1 text-text-secondary placeholder:text-text-muted" placeholder={editTags.length ? '+' : 'Tags...'} />
+              {tagInputActive ? (
+                <input type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
+                  onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
+                  onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput); setTimeout(() => { if (!tagInput.trim()) setTagInputActive(false) }, 200) }}
+                  className="bg-transparent outline-none min-w-[40px] flex-1 text-text-secondary placeholder:text-text-muted text-[11px]" placeholder="Add tag..." autoFocus />
+              ) : (
+                <button onClick={activateTagInput}
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-text-muted hover:text-accent hover:bg-accent/10 transition-colors shrink-0 ml-0.5">
+                  <Plus className="w-3 h-3" />
+                </button>
+              )}
               <AnimatePresence>
                 {showTagSuggestions && tagSuggestions.length > 0 && (
                   <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
