@@ -119,7 +119,7 @@ export function SleepTrackerView() {
       )}
 
       {/* Sleep Chart */}
-      {chartData.length > 1 && (
+      {logs.length > 1 && (
         <div className="card mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[10px] uppercase text-text-muted tracking-wider flex items-center gap-1.5">
@@ -136,9 +136,10 @@ export function SleepTrackerView() {
             </div>
           </div>
 
+          {chartData.length > 1 ? (<>
           {/* Hours Area Chart */}
           <div className="h-[200px] mb-2">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer key={chartRange} width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
@@ -203,7 +204,7 @@ export function SleepTrackerView() {
 
           {/* Quality Bar Chart */}
           <div className="h-[60px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer key={`q-${chartRange}`} width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
                 <XAxis dataKey="date" hide />
                 <YAxis domain={[0, 5]} hide />
@@ -235,6 +236,11 @@ export function SleepTrackerView() {
               <span className="text-[10px] text-text-muted">Avg</span>
             </div>
           </div>
+          </>) : (
+            <div className="text-center py-8 text-text-muted text-xs">
+              Not enough data for this range. Try a wider range.
+            </div>
+          )}
         </div>
       )}
 
