@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useNotesStore, type NoteData } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, Trash2, Search, Pin, Folder, FolderPlus, ChevronLeft, X,
+  Plus, Trash2, Search, Pin, Folder, FolderPlus, ChevronLeft, X, Tag,
   MoreHorizontal, PinOff, Clock, Hash, Check, Loader2, FileText,
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Highlighter,
   List, ListOrdered, ListTodo, Heading1, Heading2, Heading3, Quote, Minus, Braces
@@ -142,7 +142,9 @@ export function NotesView() {
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
-  const [modal, setModal] = useState<{ type: 'folder' | 'delete'; deleteId?: string } | null>(null)
+  const [modal, setModal] = useState<{ type: 'folder' | 'delete' | 'tag'; deleteId?: string } | null>(null)
+  const [tagSuggestIdx, setTagSuggestIdx] = useState(0)
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const [modalInput, setModalInput] = useState('')
   const modalInputRef = useRef<HTMLInputElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -243,6 +245,12 @@ export function NotesView() {
 
   const folders = useMemo(() => ['all', ...new Set(notes.map(n => n.folder))], [notes])
   const allTags = useMemo(() => [...new Set(notes.flatMap(n => n.tags))].sort(), [notes])
+
+  const tagSuggestions = useMemo(() => {
+    if (!tagInput.trim()) return []
+    const q = tagInput.trim().toLowerCase()
+    return allTags.filter(t => t.includes(q) && !editTags.includes(t))
+  }, [tagInput, allTags, editTags])
 
   const filtered = useMemo(() =>
     notes
@@ -355,6 +363,26 @@ export function NotesView() {
     })
   }
 
+  const confirmCreateTag = () => {
+    const tag = modalInput.trim().toLowerCase()
+    setModal(null)
+    setModalInput('')
+    if (!tag) return
+    if (activeId) {
+      const updated = editTags.includes(tag) ? editTags : [...editTags, tag]
+      setEditTags(updated)
+      doSave()
+    } else {
+      saveNote({ title: '', content: '', folder: folderFilter === 'all' ? 'General' : folderFilter, tags: [tag], pinned: false }).then(() => {
+        setTimeout(() => {
+          const newest = useNotesStore.getState().notes[0]
+          if (newest) { selectNote(newest); setTimeout(() => titleRef.current?.focus(), 50) }
+        }, 100)
+      })
+    }
+    setTagFilter(tag)
+  }
+
   const onTitleChange = (v: string) => { setEditTitle(v); doSave() }
   const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
   const addTag = (raw: string) => {
@@ -363,6 +391,8 @@ export function NotesView() {
     const updated = [...editTags, tag]
     setEditTags(updated)
     setTagInput('')
+    setShowTagSuggestions(false)
+    setTagSuggestIdx(0)
     doSave()
   }
   const removeTag = (tag: string) => {
@@ -371,6 +401,12 @@ export function NotesView() {
     doSave()
   }
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showTagSuggestions && tagSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setTagSuggestIdx(i => (i + 1) % tagSuggestions.length); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setTagSuggestIdx(i => (i - 1 + tagSuggestions.length) % tagSuggestions.length); return }
+      if (e.key === 'Enter') { e.preventDefault(); addTag(tagSuggestions[tagSuggestIdx]); return }
+      if (e.key === 'Escape') { e.preventDefault(); setShowTagSuggestions(false); return }
+    }
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault()
       addTag(tagInput)
@@ -378,6 +414,11 @@ export function NotesView() {
     if (e.key === 'Backspace' && !tagInput && editTags.length > 0) {
       removeTag(editTags[editTags.length - 1])
     }
+  }
+  const handleTagInputChange = (v: string) => {
+    setTagInput(v)
+    setShowTagSuggestions(v.trim().length > 0)
+    setTagSuggestIdx(0)
   }
   const onPinToggle = () => { setEditPinned(p => !p); setTimeout(doSave, 0) }
 
@@ -437,6 +478,18 @@ export function NotesView() {
                 <Hash className="w-2 h-2" />{tag}
               </button>
             ))}
+            <button onClick={() => { setModalInput(''); setModal({ type: 'tag' }); setTimeout(() => modalInputRef.current?.focus(), 100) }}
+              title="New Tag" className="px-2 py-0.5 text-[10px] rounded-full whitespace-nowrap transition-colors flex items-center gap-1 font-medium text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30">
+              <Tag className="w-2 h-2" />New
+            </button>
+          </div>
+        )}
+        {allTags.length === 0 && (
+          <div className="flex gap-1 px-4 py-1.5 shrink-0">
+            <button onClick={() => { setModalInput(''); setModal({ type: 'tag' }); setTimeout(() => modalInputRef.current?.focus(), 100) }}
+              className="px-2 py-0.5 text-[10px] rounded-full whitespace-nowrap transition-colors flex items-center gap-1 font-medium text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30">
+              <Tag className="w-2 h-2" />Create Tag
+            </button>
           </div>
         )}
         <div className="h-px bg-border shrink-0" />
@@ -498,7 +551,7 @@ export function NotesView() {
               <Folder className="w-3 h-3 shrink-0" />
               <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
             </div>
-            <div className="hidden sm:flex items-center gap-1 text-[11px] text-text-secondary max-w-[200px] overflow-x-auto no-scrollbar">
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-text-secondary max-w-[200px] overflow-x-auto no-scrollbar relative">
               <Hash className="w-3 h-3 shrink-0" />
               {editTags.map(tag => (
                 <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
@@ -506,9 +559,26 @@ export function NotesView() {
                   <button onClick={() => removeTag(tag)} className="hover:text-text-primary transition-colors"><X className="w-2.5 h-2.5" /></button>
                 </span>
               ))}
-              <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown}
-                onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+              <input type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
+                onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
+                onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput) }}
                 className="bg-transparent outline-none min-w-[50px] w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder={editTags.length ? '+' : 'Tags...'} />
+              <AnimatePresence>
+                {showTagSuggestions && tagSuggestions.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-full mt-1 z-[100] w-44 rounded-xl border border-white/[0.08] py-1 shadow-2xl overflow-hidden"
+                    style={{ background: 'rgba(28,28,30,0.96)', backdropFilter: 'blur(16px)' }}>
+                    {tagSuggestions.map((tag, i) => (
+                      <button key={tag} onMouseDown={() => addTag(tag)} onMouseEnter={() => setTagSuggestIdx(i)}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
+                          i === tagSuggestIdx ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-white/[0.04]'
+                        }`}>
+                        <Hash className="w-3 h-3 shrink-0" />{tag}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             <ToolBtn active={editPinned} onClick={onPinToggle} title={editPinned ? 'Unpin' : 'Pin'}><Pin className="w-3.5 h-3.5" /></ToolBtn>
@@ -565,9 +635,26 @@ export function NotesView() {
                   <button onClick={() => removeTag(tag)} className="hover:text-text-primary"><X className="w-2.5 h-2.5" /></button>
                 </span>
               ))}
-              <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown}
-                onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+              <input type="text" value={tagInput} onChange={e => handleTagInputChange(e.target.value)} onKeyDown={handleTagKeyDown}
+                onFocus={() => { if (tagInput.trim()) setShowTagSuggestions(true) }}
+                onBlur={() => { setTimeout(() => setShowTagSuggestions(false), 150); if (tagInput.trim()) addTag(tagInput) }}
                 className="bg-transparent outline-none min-w-[40px] flex-1 text-text-secondary placeholder:text-text-muted" placeholder={editTags.length ? '+' : 'Tags...'} />
+              <AnimatePresence>
+                {showTagSuggestions && tagSuggestions.length > 0 && (
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
+                    className="absolute left-0 bottom-full mb-1 z-[100] w-44 rounded-xl border border-white/[0.08] py-1 shadow-2xl overflow-hidden"
+                    style={{ background: 'rgba(28,28,30,0.96)', backdropFilter: 'blur(16px)' }}>
+                    {tagSuggestions.map((tag, i) => (
+                      <button key={tag} onMouseDown={() => addTag(tag)} onMouseEnter={() => setTagSuggestIdx(i)}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
+                          i === tagSuggestIdx ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-white/[0.04]'
+                        }`}>
+                        <Hash className="w-3 h-3 shrink-0" />{tag}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </>) : (
@@ -609,25 +696,27 @@ export function NotesView() {
                   }`}>
                     {modal.type === 'delete'
                       ? <Trash2 className="w-4 h-4 text-red-soft" />
+                      : modal.type === 'tag'
+                      ? <Tag className="w-4 h-4 text-accent" />
                       : <FolderPlus className="w-4 h-4 text-accent" />}
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-text-primary">
-                      {modal.type === 'delete' ? 'Delete Note' : 'New Folder'}
+                      {modal.type === 'delete' ? 'Delete Note' : modal.type === 'tag' ? 'New Tag' : 'New Folder'}
                     </h3>
                     <p className="text-xs text-text-muted mt-0.5">
-                      {modal.type === 'delete' ? 'This action cannot be undone.' : 'Create a folder to organize your notes.'}
+                      {modal.type === 'delete' ? 'This action cannot be undone.' : modal.type === 'tag' ? 'Create a tag to categorize your notes.' : 'Create a folder to organize your notes.'}
                     </p>
                   </div>
                 </div>
-                {modal.type === 'folder' && (
+                {(modal.type === 'folder' || modal.type === 'tag') && (
                   <input
                     ref={modalInputRef}
                     type="text"
                     value={modalInput}
                     onChange={e => setModalInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') confirmCreateFolder(); if (e.key === 'Escape') { setModal(null); setModalInput('') } }}
-                    placeholder="Folder name"
+                    onKeyDown={e => { if (e.key === 'Enter') { modal.type === 'tag' ? confirmCreateTag() : confirmCreateFolder() } if (e.key === 'Escape') { setModal(null); setModalInput('') } }}
+                    placeholder={modal.type === 'tag' ? 'Tag name' : 'Folder name'}
                     className="w-full mt-2 px-3.5 py-2.5 rounded-xl text-sm bg-white/[0.05] border border-white/[0.08] text-text-primary placeholder:text-text-muted outline-none focus:border-accent/40 focus:bg-white/[0.07] transition-colors"
                     autoFocus
                   />
@@ -640,7 +729,7 @@ export function NotesView() {
                 >Cancel</button>
                 <div className="w-px bg-white/[0.06]" />
                 <button
-                  onClick={modal.type === 'delete' ? confirmDelete : confirmCreateFolder}
+                  onClick={modal.type === 'delete' ? confirmDelete : modal.type === 'tag' ? confirmCreateTag : confirmCreateFolder}
                   className={`flex-1 py-3 text-xs font-semibold transition-colors ${
                     modal.type === 'delete'
                       ? 'text-red-soft hover:bg-red-soft/10'
