@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useNotesStore, type NoteData } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, Trash2, Search, Pin, Folder, FolderPlus, ChevronLeft,
+  Plus, Trash2, Search, Pin, Folder, FolderPlus, ChevronLeft, X,
   MoreHorizontal, PinOff, Clock, Hash, Check, Loader2, FileText,
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Highlighter,
   List, ListOrdered, ListTodo, Heading1, Heading2, Heading3, Quote, Minus, Braces
@@ -129,10 +129,12 @@ export function NotesView() {
   const { notes, isLoading, fetchNotes, saveNote, deleteNote } = useNotesStore()
   const [search, setSearch] = useState('')
   const [folderFilter, setFolderFilter] = useState('all')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editFolder, setEditFolder] = useState('General')
-  const [editTags, setEditTags] = useState('')
+  const [editTags, setEditTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
   const [editPinned, setEditPinned] = useState(false)
   const [showMobileEditor, setShowMobileEditor] = useState(false)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
@@ -150,7 +152,7 @@ export function NotesView() {
   const activeIdRef = useRef<string | null>(null)
   const editTitleRef = useRef('')
   const editFolderRef = useRef('General')
-  const editTagsRef = useRef('')
+  const editTagsRef = useRef<string[]>([])
   const editPinnedRef = useRef(false)
 
   activeIdRef.current = activeId
@@ -240,10 +242,12 @@ export function NotesView() {
   }, [folderFilter])
 
   const folders = useMemo(() => ['all', ...new Set(notes.map(n => n.folder))], [notes])
+  const allTags = useMemo(() => [...new Set(notes.flatMap(n => n.tags))].sort(), [notes])
 
   const filtered = useMemo(() =>
     notes
       .filter(n => folderFilter === 'all' || n.folder === folderFilter)
+      .filter(n => !tagFilter || n.tags.includes(tagFilter))
       .filter(n => {
         if (!search) return true
         const s = search.toLowerCase()
@@ -254,7 +258,7 @@ export function NotesView() {
         if (!a.pinned && b.pinned) return 1
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       }),
-    [notes, folderFilter, search]
+    [notes, folderFilter, tagFilter, search]
   )
 
   const pinnedNotes = useMemo(() => filtered.filter(n => n.pinned), [filtered])
@@ -269,6 +273,7 @@ export function NotesView() {
       const title = editTitleRef.current
       const folder = editFolderRef.current
       const tags = editTagsRef.current
+      const tagsList = tags
       const pinned = editPinnedRef.current
       const id = activeIdRef.current
       if (!title.trim() && !content.trim()) { setSaveStatus('idle'); return }
@@ -277,7 +282,7 @@ export function NotesView() {
         title: title || 'Untitled',
         content,
         folder,
-        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: tagsList,
         pinned,
       }).catch(() => { setSaveStatus('idle'); toast.error('Failed to save note') })
       setSaveStatus('saved')
@@ -291,7 +296,8 @@ export function NotesView() {
     setActiveId(note._id)
     setEditTitle(note.title)
     setEditFolder(note.folder)
-    setEditTags(note.tags.join(', '))
+    setEditTags(note.tags || [])
+    setTagInput('')
     setEditPinned(note.pinned)
     setShowMobileEditor(true)
     if (editor) {
@@ -351,7 +357,28 @@ export function NotesView() {
 
   const onTitleChange = (v: string) => { setEditTitle(v); doSave() }
   const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
-  const onTagsChange = (v: string) => { setEditTags(v); doSave() }
+  const addTag = (raw: string) => {
+    const tag = raw.trim().toLowerCase()
+    if (!tag || editTags.includes(tag)) { setTagInput(''); return }
+    const updated = [...editTags, tag]
+    setEditTags(updated)
+    setTagInput('')
+    doSave()
+  }
+  const removeTag = (tag: string) => {
+    const updated = editTags.filter(t => t !== tag)
+    setEditTags(updated)
+    doSave()
+  }
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+      e.preventDefault()
+      addTag(tagInput)
+    }
+    if (e.key === 'Backspace' && !tagInput && editTags.length > 0) {
+      removeTag(editTags[editTags.length - 1])
+    }
+  }
   const onPinToggle = () => { setEditPinned(p => !p); setTimeout(doSave, 0) }
 
   useEffect(() => {
@@ -395,6 +422,23 @@ export function NotesView() {
             <FolderPlus className="w-2.5 h-2.5" />New
           </button>
         </div>
+        {allTags.length > 0 && (
+          <div className="flex gap-1 px-4 py-1.5 overflow-x-auto no-scrollbar shrink-0">
+            {tagFilter && (
+              <button onClick={() => setTagFilter(null)} className="px-2 py-0.5 text-[10px] rounded-full whitespace-nowrap transition-colors flex items-center gap-1 font-medium bg-accent/15 text-accent">
+                <X className="w-2.5 h-2.5" />Clear
+              </button>
+            )}
+            {allTags.map(tag => (
+              <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                className={`px-2 py-0.5 text-[10px] rounded-full whitespace-nowrap transition-colors flex items-center gap-1 font-medium ${
+                  tagFilter === tag ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary bg-white/[0.03] hover:bg-white/[0.06]'
+                }`}>
+                <Hash className="w-2 h-2" />{tag}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="h-px bg-border shrink-0" />
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {isLoading ? <div className="flex items-center justify-center py-20"><Loader2 className="w-4 h-4 text-text-muted animate-spin" /></div>
@@ -454,9 +498,17 @@ export function NotesView() {
               <Folder className="w-3 h-3 shrink-0" />
               <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
             </div>
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-text-secondary">
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-text-secondary max-w-[200px] overflow-x-auto no-scrollbar">
               <Hash className="w-3 h-3 shrink-0" />
-              <input type="text" value={editTags} onChange={e => onTagsChange(e.target.value)} className="bg-transparent outline-none w-20 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Tags..." />
+              {editTags.map(tag => (
+                <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
+                  {tag}
+                  <button onClick={() => removeTag(tag)} className="hover:text-text-primary transition-colors"><X className="w-2.5 h-2.5" /></button>
+                </span>
+              ))}
+              <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown}
+                onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+                className="bg-transparent outline-none min-w-[50px] w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder={editTags.length ? '+' : 'Tags...'} />
             </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             <ToolBtn active={editPinned} onClick={onPinToggle} title={editPinned ? 'Unpin' : 'Pin'}><Pin className="w-3.5 h-3.5" /></ToolBtn>
@@ -505,7 +557,18 @@ export function NotesView() {
           <div className="sm:hidden flex items-center gap-2 px-4 py-2 border-t border-border text-[11px]">
             <div className="flex items-center gap-1 text-text-secondary flex-1"><Folder className="w-3 h-3" /><input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none flex-1 text-text-secondary placeholder:text-text-muted" placeholder="Folder" /></div>
             <div className="w-px h-3 bg-border" />
-            <div className="flex items-center gap-1 text-text-secondary flex-1"><Hash className="w-3 h-3" /><input type="text" value={editTags} onChange={e => onTagsChange(e.target.value)} className="bg-transparent outline-none flex-1 text-text-secondary placeholder:text-text-muted" placeholder="Tags..." /></div>
+            <div className="flex items-center gap-1 text-text-secondary flex-1 overflow-x-auto no-scrollbar">
+              <Hash className="w-3 h-3 shrink-0" />
+              {editTags.map(tag => (
+                <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-medium whitespace-nowrap shrink-0">
+                  {tag}
+                  <button onClick={() => removeTag(tag)} className="hover:text-text-primary"><X className="w-2.5 h-2.5" /></button>
+                </span>
+              ))}
+              <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown}
+                onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+                className="bg-transparent outline-none min-w-[40px] flex-1 text-text-secondary placeholder:text-text-muted" placeholder={editTags.length ? '+' : 'Tags...'} />
+            </div>
           </div>
         </>) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
