@@ -279,7 +279,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   getAiConfig: () => {
     const s = get()
-    const provider = s.aiProvider || 'openai'
+    const ALLOWED = ['openai', 'gemini', 'anthropic', 'groq']
+    const provider = ALLOWED.includes(s.aiProvider) ? s.aiProvider : 'openai'
     const model = s.aiModels[provider] || ''
     const apiKey = s.aiKeys[provider] || ''
     return { provider, model, apiKey }
