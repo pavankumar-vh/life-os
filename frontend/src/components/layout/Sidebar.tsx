@@ -7,8 +7,7 @@ import {
   Apple, CheckSquare, Target, ChevronLeft,
   LogOut, Search, Calendar, Settings,
   Scale, Moon, FileText, Clock, Inbox, BarChart3,
-  DollarSign, BookMarked, Droplets, LinkIcon, Heart, FolderKanban, Brain, Gift, Zap, PenTool, Shield,
-  ChevronUp, ChevronDown
+  DollarSign, BookMarked, Droplets, LinkIcon, Heart, FolderKanban, Brain, Gift, Zap, PenTool, Shield
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRef, useState, useCallback, useEffect } from 'react'
@@ -44,34 +43,95 @@ const navItems = [
 export function Sidebar() {
   const { activeView, setActiveView, sidebarCollapsed, toggleSidebar, setCommandPaletteOpen } = useAppStore()
   const { user, logout } = useAuthStore()
-  const navRef = useRef<HTMLElement>(null)
-  const [canScrollUp, setCanScrollUp] = useState(false)
-  const [canScrollDown, setCanScrollDown] = useState(false)
-  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const checkScroll = useCallback(() => {
-    const el = navRef.current
-    if (!el) return
-    setCanScrollUp(el.scrollTop > 4)
-    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
+  const navRef        = useRef<HTMLElement>(null)
+  const trackRef      = useRef<HTMLDivElement>(null)
+  const isDragging    = useRef(false)
+  const dragStartY    = useRef(0)
+  const dragStartTop  = useRef(0)
+
+  const [thumbTop, setThumbTop]       = useState(0)
+  const [thumbHeight, setThumbHeight] = useState(0)
+  const [showBar, setShowBar]         = useState(false)
+  const hideTimer                     = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Recompute thumb size/position from nav scroll state
+  const syncThumb = useCallback(() => {
+    const nav = navRef.current
+    const track = trackRef.current
+    if (!nav || !track) return
+
+    const { scrollTop, scrollHeight, clientHeight } = nav
+    if (scrollHeight <= clientHeight) { setThumbHeight(0); return }
+
+    const trackH = track.clientHeight
+    const ratio  = clientHeight / scrollHeight
+    const h      = Math.max(28, trackH * ratio)
+    const top    = (scrollTop / (scrollHeight - clientHeight)) * (trackH - h)
+    setThumbHeight(h)
+    setThumbTop(top)
   }, [])
 
-  useEffect(() => {
-    checkScroll()
-    window.addEventListener('resize', checkScroll)
-    return () => window.removeEventListener('resize', checkScroll)
-  }, [checkScroll])
+  // Show scrollbar briefly on scroll, then fade out after 1.8s idle
+  const onScroll = useCallback(() => {
+    syncThumb()
+    setShowBar(true)
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    hideTimer.current = setTimeout(() => setShowBar(false), 1800)
+  }, [syncThumb])
 
-  const startScroll = (dir: 'up' | 'down') => {
-    const el = navRef.current
-    if (!el) return
-    el.scrollBy({ top: dir === 'down' ? 60 : -60, behavior: 'smooth' })
-    scrollIntervalRef.current = setInterval(() => {
-      el.scrollBy({ top: dir === 'down' ? 40 : -40, behavior: 'smooth' })
-    }, 200)
+  useEffect(() => {
+    syncThumb()
+    const nav = navRef.current
+    if (nav) nav.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', syncThumb)
+    return () => {
+      if (nav) nav.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', syncThumb)
+    }
+  }, [syncThumb, onScroll])
+
+  // Drag handlers
+  const onThumbMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current  = true
+    dragStartY.current  = e.clientY
+    dragStartTop.current = thumbTop
+    setShowBar(true)
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return
+      const nav   = navRef.current
+      const track = trackRef.current
+      if (!nav || !track) return
+      const dy       = ev.clientY - dragStartY.current
+      const trackH   = track.clientHeight
+      const maxTop   = trackH - thumbHeight
+      const newTop   = Math.max(0, Math.min(dragStartTop.current + dy, maxTop))
+      const ratio    = newTop / maxTop
+      nav.scrollTop  = ratio * (nav.scrollHeight - nav.clientHeight)
+    }
+    const onUp = () => {
+      isDragging.current = false
+      hideTimer.current = setTimeout(() => setShowBar(false), 1800)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
   }
-  const stopScroll = () => {
-    if (scrollIntervalRef.current) { clearInterval(scrollIntervalRef.current); scrollIntervalRef.current = null }
+
+  // Click on track (not thumb) → jump scroll
+  const onTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const track = trackRef.current
+    const nav   = navRef.current
+    if (!track || !nav) return
+    const rect   = track.getBoundingClientRect()
+    const clickY = e.clientY - rect.top - thumbHeight / 2
+    const maxTop = track.clientHeight - thumbHeight
+    const ratio  = Math.max(0, Math.min(clickY, maxTop)) / maxTop
+    nav.scrollTop = ratio * (nav.scrollHeight - nav.clientHeight)
   }
 
   return (
@@ -155,29 +215,16 @@ export function Sidebar() {
         </motion.button>
       </div>
 
-      {/* Nav Items */}
-      <div className="flex-1 relative flex flex-col overflow-hidden">
-        {/* Scroll up button */}
-        <AnimatePresence>
-          {canScrollUp && (
-            <motion.button
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onMouseDown={() => startScroll('up')} onMouseUp={stopScroll} onMouseLeave={stopScroll}
-              onTouchStart={() => startScroll('up')} onTouchEnd={stopScroll}
-              className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center h-7 cursor-pointer"
-              style={{ background: 'linear-gradient(to bottom, rgba(10,10,10,0.9) 0%, transparent 100%)' }}
-            >
-              <ChevronUp className="w-3.5 h-3.5 text-text-muted/60" />
-            </motion.button>
-          )}
-        </AnimatePresence>
-
+      {/* Nav Items + custom scrollbar */}
+      <div className="flex-1 relative overflow-hidden flex">
+        {/* Scrollable nav list */}
         <nav
           ref={navRef}
           className="flex-1 px-3 overflow-y-auto no-scrollbar"
-          onScroll={checkScroll}
+          onMouseEnter={() => { syncThumb(); setShowBar(true); if (hideTimer.current) clearTimeout(hideTimer.current) }}
+          onMouseLeave={() => { if (!isDragging.current) { hideTimer.current = setTimeout(() => setShowBar(false), 600) } }}
         >
-          <div className="space-y-0.5 pt-1">
+          <div className="space-y-0.5 pb-2">
             {navItems.map((item) => {
               const isActive = activeView === item.id
               return (
@@ -198,8 +245,8 @@ export function Sidebar() {
                       layoutId="sidebar-active"
                       className="absolute left-0.5 inset-y-0 my-auto w-[3px] h-4 rounded-full"
                       style={{
-                        background: 'linear-gradient(180deg, #e8d5b7, #c9a87c)',
-                        boxShadow: '0 0 8px rgba(232, 213, 183, 0.4)',
+                        background: 'linear-gradient(180deg, rgba(var(--accent-r),var(--accent-g),var(--accent-b),1), rgba(var(--accent-r),var(--accent-g),var(--accent-b),0.6))',
+                        boxShadow: '0 0 8px rgba(var(--accent-r),var(--accent-g),var(--accent-b),0.4)',
                       }}
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
@@ -222,20 +269,29 @@ export function Sidebar() {
           </div>
         </nav>
 
-        {/* Scroll down button */}
-        <AnimatePresence>
-          {canScrollDown && (
-            <motion.button
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onMouseDown={() => startScroll('down')} onMouseUp={stopScroll} onMouseLeave={stopScroll}
-              onTouchStart={() => startScroll('down')} onTouchEnd={stopScroll}
-              className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center h-7 cursor-pointer"
-              style={{ background: 'linear-gradient(to top, rgba(10,10,10,0.9) 0%, transparent 100%)' }}
-            >
-              <ChevronDown className="w-3.5 h-3.5 text-text-muted/60" />
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {/* Custom scrollbar track — shown when hovering or scrolling */}
+        <div
+          ref={trackRef}
+          onClick={onTrackClick}
+          className="absolute right-1 top-1 bottom-1 w-[5px] rounded-full cursor-pointer transition-opacity duration-300"
+          style={{
+            opacity: showBar && thumbHeight > 0 ? 1 : 0,
+            background: 'rgba(255,255,255,0.05)',
+            pointerEvents: showBar && thumbHeight > 0 ? 'auto' : 'none',
+          }}
+        >
+          {/* Thumb */}
+          <motion.div
+            onMouseDown={onThumbMouseDown}
+            className="absolute left-0 right-0 rounded-full cursor-grab active:cursor-grabbing"
+            style={{
+              top: thumbTop,
+              height: thumbHeight,
+              background: `rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.5)`,
+              boxShadow: `0 0 6px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.2)`,
+            }}
+          />
+        </div>
       </div>
 
       {/* User / Logout */}

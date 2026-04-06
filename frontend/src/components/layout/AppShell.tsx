@@ -163,8 +163,8 @@ export function AppShell() {
             onClick={toggleChat}
             className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-accent/20 md:bottom-8 md:right-8 group"
             style={{
-              background: 'linear-gradient(135deg, rgba(232, 213, 183, 0.9), rgba(201, 168, 124, 0.9))',
-              boxShadow: '0 4px 24px -4px rgba(232, 213, 183, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset',
+              background: 'linear-gradient(135deg, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.92), rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.70))',
+              boxShadow: '0 4px 24px -4px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.45), 0 0 0 1px rgba(255,255,255,0.1) inset',
             }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.92 }}
