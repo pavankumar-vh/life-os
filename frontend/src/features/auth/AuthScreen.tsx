@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store'
 import { getApiBaseUrl } from '@/lib/api'
+import { toast } from '@/components/Toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, ArrowRight, Eye, EyeOff, Mail, CheckCircle, Sparkles, Shield, Cpu } from 'lucide-react'
 
@@ -259,7 +260,8 @@ export function AuthScreen() {
                   </div>
 
                   {/* Google OAuth */}
-                  <motion.button onClick={() => { window.location.href = `${API_URL}/api/google/auth` }}
+                  <motion.button 
+                    onClick={() => { toast.error("Google Sign In is coming soon! Please use Email/Password, then connect Google in Settings.") }}
                     className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl mb-4 text-sm text-text-primary transition-all cursor-pointer"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
                     whileHover={{ background: 'rgba(255,255,255,0.085)' }} whileTap={{ scale: 0.99 }}>
