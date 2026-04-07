@@ -95,7 +95,8 @@ export function AuthScreen() {
       } else {
         toast.error('Failed to initialize Google Login')
       }
-    } catch {
+    } catch (e) {
+      console.error(e)
       toast.error('Network error starting Google Login')
     }
   }
@@ -274,7 +275,7 @@ export function AuthScreen() {
                   </div>
 
                   {/* Google OAuth */}
-                  <motion.button onClick={handleGoogleLogin}
+                  <motion.button type="button" onClick={handleGoogleLogin}
                     className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl mb-4 text-sm text-text-primary transition-all cursor-pointer"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
                     whileHover={{ background: 'rgba(255,255,255,0.085)' }} whileTap={{ scale: 0.99 }}>
