@@ -383,11 +383,18 @@ export function AuthScreen() {
           </div>
 
           {/* Subtext */}
-          <p className="text-center text-[11px] mt-5" style={{ color: 'rgba(255,255,255,0.2)' }}>
-            {mode === 'register'
-              ? 'By creating an account you agree to our terms of service'
-              : 'Welcome back to your command center'}
-          </p>
+          <div className="flex flex-col items-center mt-5 gap-3">
+            <p className="text-center text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              {mode === 'register'
+                ? 'By creating an account you agree to our terms of service'
+                : 'Welcome back to your command center'}
+            </p>
+            <div className="flex items-center gap-4 text-[10px] text-text-muted/60">
+              <a href="/privacy" className="hover:text-accent transition-colors" target="_blank">Privacy Policy</a>
+              <span className="w-1 h-1 rounded-full bg-white/10" />
+              <a href="/terms" className="hover:text-accent transition-colors" target="_blank">Terms of Service</a>
+            </div>
+          </div>
         </motion.div>
       </div>
     </div>
