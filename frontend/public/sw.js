@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifeos-v2'
+const CACHE_NAME = 'lifeos-v3'
 const STATIC_ASSETS = ['/manifest.json']
 
 self.addEventListener('install', (event) => {
@@ -20,18 +20,34 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event
   if (request.method !== 'GET') return
-  // Never cache page navigations or Next.js chunks during dev
-  if (request.mode === 'navigate' || request.url.includes('/_next/')) return
-  if (request.url.includes('/api/')) {
-    // Network-first for API calls
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const clone = res.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-          return res
-        })
-        .catch(() => caches.match(request))
-    )
+
+  const url = new URL(request.url)
+
+  // Never intercept:
+  //  - page navigations
+  //  - /api/ routes (backend calls)
+  //  - Next.js internal chunks
+  //  - cross-origin requests (e.g. Railway backend at a different hostname)
+  if (
+    request.mode === 'navigate' ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/_next/') ||
+    url.hostname !== self.location.hostname
+  ) {
+    return
   }
+
+  // Cache-first for static assets (manifest, icons, etc.)
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached
+      return fetch(request).then((res) => {
+        // Only cache valid same-origin non-opaque responses
+        if (res.ok && res.type === 'basic') {
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, res.clone()))
+        }
+        return res
+      })
+    })
+  )
 })
