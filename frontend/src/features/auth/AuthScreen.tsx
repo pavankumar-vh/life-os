@@ -86,6 +86,20 @@ export function AuthScreen() {
     }
   }
 
+  const handleGoogleLogin = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/google/url`)
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        toast.error('Failed to initialize Google Login')
+      }
+    } catch {
+      toast.error('Network error starting Google Login')
+    }
+  }
+
   return (
     <div className="min-h-screen flex overflow-hidden" style={{ background: '#070709' }}>
 
@@ -260,8 +274,7 @@ export function AuthScreen() {
                   </div>
 
                   {/* Google OAuth */}
-                  <motion.button 
-                    onClick={() => { toast.error("Google Sign In is coming soon! Please use Email/Password, then connect Google in Settings.") }}
+                  <motion.button onClick={handleGoogleLogin}
                     className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl mb-4 text-sm text-text-primary transition-all cursor-pointer"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
                     whileHover={{ background: 'rgba(255,255,255,0.085)' }} whileTap={{ scale: 0.99 }}>
