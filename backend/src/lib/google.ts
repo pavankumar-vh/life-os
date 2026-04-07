@@ -11,8 +11,9 @@ const SCOPES = [
   'https://www.googleapis.com/auth/fitness.body.read',
 ]
 
-export function getOAuth2Client(): Auth.OAuth2Client {
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+export function getOAuth2Client(customRedirectUri?: string): Auth.OAuth2Client {
+  const redirectUri = customRedirectUri 
+    || process.env.GOOGLE_REDIRECT_URI
     || (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/api/google/callback` : undefined)
 
   return new google.auth.OAuth2(
@@ -22,8 +23,8 @@ export function getOAuth2Client(): Auth.OAuth2Client {
   )
 }
 
-export function getAuthUrl(state?: string): string {
-  const client = getOAuth2Client()
+export function getAuthUrl(state?: string, customRedirectUri?: string): string {
+  const client = getOAuth2Client(customRedirectUri)
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',

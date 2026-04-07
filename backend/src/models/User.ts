@@ -48,7 +48,7 @@ const EncryptedFieldSchema = {
 
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password: { type: String, required: true, minlength: 6 },
+  password: { type: String, required: false, minlength: 6 },
   name: { type: String, required: true, trim: true },
   xp: { type: Number, default: 0 },
   level: { type: Number, default: 1 },

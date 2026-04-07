@@ -3,8 +3,10 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import rateLimit from 'express-rate-limit'
 import { User } from '../models/User'
-import { signToken, authMiddleware, AuthRequest } from '../lib/auth'
+import { authMiddleware, AuthRequest, signToken } from '../lib/auth'
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../lib/mailer'
+import { getAuthUrl, getOAuth2Client } from '../lib/google'
+import { google } from 'googleapis'
 
 const router = Router()
 
@@ -171,6 +173,64 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Auth me error:', error)
     return res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// GET /api/auth/google/url
+router.get('/google/url', (req, res) => {
+  try {
+    const customUri = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/auth/google/callback` : undefined
+    const url = getAuthUrl('login', customUri)
+    return res.json({ url })
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to generate Google URL' })
+  }
+})
+
+// POST /api/auth/google/callback
+router.post('/google/callback', async (req, res) => {
+  try {
+    const { code, state } = req.body
+    if (!code) return res.status(400).json({ error: 'Code required' })
+    if (state !== 'login') return res.status(400).json({ error: 'Invalid state' })
+
+    const customUri = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/auth/google/callback` : undefined
+    const client = getOAuth2Client(customUri)
+    const { tokens } = await client.getToken(code)
+    client.setCredentials(tokens)
+    
+    // Get user info from Google
+    const oauth2 = google.oauth2({ version: 'v2', auth: client })
+    const userInfo = await oauth2.userinfo.get()
+
+    if (!userInfo.data.email) {
+      return res.status(400).json({ error: 'Email not provided by Google' })
+    }
+
+    let user = await User.findOne({ email: userInfo.data.email })
+    if (!user) {
+      // Register new user without password
+      user = new User({
+        email: userInfo.data.email,
+        name: userInfo.data.name || userInfo.data.email.split('@')[0],
+      })
+      await user.save()
+    }
+
+    const token = signToken({ userId: user._id.toString(), email: user.email })
+    return res.json({
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        xp: user.xp,
+        level: user.level,
+      }
+    })
+  } catch (error: any) {
+    console.error('Google login error:', error)
+    return res.status(500).json({ error: 'Failed to complete Google Sign In' })
   }
 })
 
