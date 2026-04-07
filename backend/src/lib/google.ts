@@ -11,20 +11,29 @@ const SCOPES = [
   'https://www.googleapis.com/auth/fitness.body.read',
 ]
 
-export function getOAuth2Client(customRedirectUri?: string): Auth.OAuth2Client {
-  const redirectUri = customRedirectUri 
-    || process.env.GOOGLE_REDIRECT_URI
-    || (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/api/google/callback` : undefined)
-
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri
+// Single canonical redirect URI for ALL Google OAuth flows.
+// Only ONE URI needs to be registered in Google Cloud Console:
+//   - Local:  http://localhost:3000/auth/google/callback
+//   - Prod:   https://life-os.pavankumarvh.me/auth/google/callback
+export function getRedirectUri(): string {
+  return (
+    process.env.GOOGLE_REDIRECT_URI ||
+    (process.env.FRONTEND_URL
+      ? `${process.env.FRONTEND_URL}/auth/google/callback`
+      : 'http://localhost:3000/auth/google/callback')
   )
 }
 
-export function getAuthUrl(state?: string, customRedirectUri?: string): string {
-  const client = getOAuth2Client(customRedirectUri)
+export function getOAuth2Client(): Auth.OAuth2Client {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    getRedirectUri()
+  )
+}
+
+export function getAuthUrl(state?: string): string {
+  const client = getOAuth2Client()
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',

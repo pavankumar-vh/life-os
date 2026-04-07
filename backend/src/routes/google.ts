@@ -16,8 +16,8 @@ router.get('/auth-url', (req: AuthRequest, res: Response) => {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     return res.status(400).json({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' })
   }
-  const state = req.user!.userId
-  const url = getAuthUrl(state)
+  // state='connect' tells the unified /auth/google/callback page this is a connect flow
+  const url = getAuthUrl(`connect:${req.user!.userId}`)
   return res.json({ url })
 })
 

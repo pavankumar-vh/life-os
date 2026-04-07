@@ -179,8 +179,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
 // GET /api/auth/google/url
 router.get('/google/url', (req, res) => {
   try {
-    const customUri = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/auth/google/callback` : undefined
-    const url = getAuthUrl('login', customUri)
+    const url = getAuthUrl('login')
     return res.json({ url })
   } catch (error) {
     return res.status(500).json({ error: 'Failed to generate Google URL' })
@@ -194,8 +193,7 @@ router.post('/google/callback', async (req, res) => {
     if (!code) return res.status(400).json({ error: 'Code required' })
     if (state !== 'login') return res.status(400).json({ error: 'Invalid state' })
 
-    const customUri = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/auth/google/callback` : undefined
-    const client = getOAuth2Client(customUri)
+    const client = getOAuth2Client()
     const { tokens } = await client.getToken(code)
     client.setCredentials(tokens)
     

@@ -5,6 +5,9 @@ import { getApiBaseUrl } from '@/lib/api'
 import { useAuthStore } from '@/store'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
+// Unified Google OAuth callback — handles both:
+//   state='login'           → sign in / register via Google
+//   state='connect:<userId>'→ connect Google to existing account (from Settings)
 export default function AuthGoogleCallbackPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('Authenticating with Google...')
@@ -14,48 +17,96 @@ export default function AuthGoogleCallbackPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
-    const state = params.get('state')
+    const state = params.get('state') ?? ''
     const error = params.get('error')
+    const apiBase = getApiBaseUrl()
 
     if (error) {
       setStatus('error')
       setMessage(`Google auth failed: ${error}`)
-      setTimeout(() => { window.location.href = '/' }, 2000)
+      setTimeout(() => { window.location.href = '/' }, 2500)
       return
     }
 
-    if (!code || state !== 'login') {
+    if (!code) {
       setStatus('error')
-      setMessage('Invalid authorization payload')
-      setTimeout(() => { window.location.href = '/' }, 2000)
+      setMessage('No authorization code received')
+      setTimeout(() => { window.location.href = '/' }, 2500)
       return
     }
 
-    const apiBase = getApiBaseUrl()
-    fetch(`${apiBase}/api/auth/google/callback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, state }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.token) {
-          setStatus('success')
-          setMessage('Successfully logged in! Redirecting...')
-          setToken(data.token)
-          setUser(data.user)
-          setTimeout(() => { window.location.href = '/' }, 1000)
-        } else {
+    // ── LOGIN FLOW ──────────────────────────────────────────────
+    if (state === 'login') {
+      fetch(`${apiBase}/api/auth/google/callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, state }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.token) {
+            setStatus('success')
+            setMessage('Signed in! Redirecting...')
+            setToken(data.token)
+            setUser(data.user)
+            setTimeout(() => { window.location.href = '/' }, 1000)
+          } else {
+            setStatus('error')
+            setMessage(data.error || 'Failed to sign in')
+            setTimeout(() => { window.location.href = '/' }, 2500)
+          }
+        })
+        .catch(() => {
           setStatus('error')
-          setMessage(data.error || 'Failed to log in')
+          setMessage('Network error during sign in')
           setTimeout(() => { window.location.href = '/' }, 2500)
-        }
-      })
-      .catch(() => {
+        })
+      return
+    }
+
+    // ── CONNECT FLOW (from Settings) ─────────────────────────────
+    if (state.startsWith('connect:')) {
+      setMessage('Connecting Google account...')
+      const token = localStorage.getItem('lifeos-token')
+      if (!token) {
         setStatus('error')
-        setMessage('Network error during authentication')
+        setMessage('Not logged in — please log in first')
         setTimeout(() => { window.location.href = '/' }, 2500)
+        return
+      }
+
+      fetch(`${apiBase}/api/google/callback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code, state }),
       })
+        .then(r => r.json())
+        .then(data => {
+          if (data.connected) {
+            setStatus('success')
+            setMessage('Google account connected! Redirecting...')
+            setTimeout(() => { window.location.href = '/?tab=settings&stab=google' }, 1500)
+          } else {
+            setStatus('error')
+            setMessage(data.error || 'Failed to connect')
+            setTimeout(() => { window.location.href = '/' }, 2500)
+          }
+        })
+        .catch(() => {
+          setStatus('error')
+          setMessage('Failed to connect Google account')
+          setTimeout(() => { window.location.href = '/' }, 2500)
+        })
+      return
+    }
+
+    // Unknown state
+    setStatus('error')
+    setMessage('Invalid authorization state')
+    setTimeout(() => { window.location.href = '/' }, 2500)
   }, [setToken, setUser])
 
   return (
@@ -86,7 +137,7 @@ export default function AuthGoogleCallbackPage() {
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
-          <span className="text-sm text-white/50">Google Sign In</span>
+          <span className="text-sm text-white/50">Google</span>
         </div>
 
         <p className={`text-sm font-medium ${
@@ -94,8 +145,16 @@ export default function AuthGoogleCallbackPage() {
           status === 'error' ? 'text-red-400' :
           'text-white/70'
         }`}>{message}</p>
-        
+
         {status === 'loading' && <p className="text-xs text-white/30 mt-2">Please wait...</p>}
+        {status === 'error' && (
+          <button
+            onClick={() => { window.location.href = '/' }}
+            className="mt-4 text-xs text-white/40 hover:text-white/70 underline transition-colors"
+          >
+            Back to home
+          </button>
+        )}
       </div>
     </div>
   )
