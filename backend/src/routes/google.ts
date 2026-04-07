@@ -4,6 +4,7 @@ import { User } from '../models/User'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { getOAuth2Client, getAuthUrl, getAuthedClient } from '../lib/google'
 import { encrypt, decrypt, isEncrypted } from '../lib/crypto'
+import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
@@ -42,6 +43,10 @@ router.post('/callback', async (req: AuthRequest, res: Response) => {
       },
     })
 
+    audit(req.user!.userId, 'create', 'google_oauth', req.user!.userId, {
+      after: { connected: true, scopes: ['calendar', 'drive', 'fitness'] },
+    })
+    console.log(`[Google] User ${req.user!.userId} connected Google account`)
     return res.json({ connected: true })
   } catch (error) {
     console.error('Google callback error:', error)
@@ -67,6 +72,10 @@ router.post('/disconnect', async (req: AuthRequest, res: Response) => {
   try {
     if (!isDemoUser(req.user!.userId)) {
       await User.findByIdAndUpdate(req.user!.userId, { $unset: { googleTokens: 1 } })
+      audit(req.user!.userId, 'delete', 'google_oauth', req.user!.userId, {
+        before: { connected: true },
+      })
+      console.log(`[Google] User ${req.user!.userId} disconnected Google account`)
     }
     return res.json({ disconnected: true })
   } catch (error) {
@@ -172,12 +181,16 @@ router.post('/calendar/events', async (req: AuthRequest, res: Response) => {
       },
     })
 
-    return res.json({
+    const created = {
       id: event.data.id,
       title: event.data.summary,
       start: event.data.start?.dateTime || event.data.start?.date,
       end: event.data.end?.dateTime || event.data.end?.date,
+    }
+    audit(req.user!.userId, 'create', 'google_calendar_event', event.data.id || 'unknown', {
+      after: created,
     })
+    return res.json(created)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     if (msg === 'Google not connected') return res.status(400).json({ error: msg })
@@ -219,11 +232,13 @@ router.post('/drive/backup', async (req: AuthRequest, res: Response) => {
     const { Gratitude } = await import('../models/Gratitude')
     const { WishlistItem } = await import('../models/WishlistItem')
     const { Whiteboard } = await import('../models/Whiteboard')
+    const { VaultFile } = await import('../models/VaultFile')
+    const { Photo } = await import('../models/Photo')
 
     const q = { userId }
     const data = {
       exportedAt: new Date().toISOString(),
-      version: '1.0',
+      version: '2.0',
       habits: await Habit.find(q).lean(),
       tasks: await Task.find(q).lean(),
       goals: await Goal.find(q).lean(),
@@ -243,6 +258,8 @@ router.post('/drive/backup', async (req: AuthRequest, res: Response) => {
       gratitude: await Gratitude.find(q).lean(),
       wishlist: await WishlistItem.find(q).lean(),
       whiteboards: await Whiteboard.find(q).lean(),
+      vault: await VaultFile.find(q).lean(),
+      photos: await Photo.find(q).lean(),
     }
 
     const fileName = `lifeos-backup-${new Date().toISOString().split('T')[0]}.json`
@@ -283,7 +300,7 @@ router.post('/drive/backup', async (req: AuthRequest, res: Response) => {
       fields: 'id,name,webViewLink,size',
     })
 
-    return res.json({
+    const result = {
       success: true,
       file: {
         id: file.data.id,
@@ -291,7 +308,12 @@ router.post('/drive/backup', async (req: AuthRequest, res: Response) => {
         link: file.data.webViewLink,
         size: file.data.size,
       },
+    }
+    audit(userId, 'create', 'google_drive_backup', file.data.id || 'unknown', {
+      after: { fileName, folderId, size: file.data.size },
     })
+    console.log(`[Google Drive] Backup created for user ${userId}: ${fileName}`)
+    return res.json(result)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     if (msg === 'Google not connected') return res.status(400).json({ error: msg })

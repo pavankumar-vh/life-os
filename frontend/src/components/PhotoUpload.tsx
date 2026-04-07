@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { getApiBaseUrl } from '@/lib/api'
 import { ImagePlus, X, Loader2, AlertCircle } from 'lucide-react'
 
 interface UploadedPhoto {
@@ -35,7 +36,7 @@ export function PhotoUpload({
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
   const effectiveMax = single ? 1 : maxPhotos
 
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {

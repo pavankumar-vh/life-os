@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useAuthStore } from '@/store'
+import { getApiBaseUrl } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, ArrowRight, Eye, EyeOff, Mail, CheckCircle, Sparkles, Shield, Cpu } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+const API_URL = getApiBaseUrl()
 
 type Mode = 'login' | 'register' | 'forgot'
 

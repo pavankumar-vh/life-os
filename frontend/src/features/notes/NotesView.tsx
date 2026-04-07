@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 import { PhotoUpload } from '@/components/PhotoUpload'
+import { getApiBaseUrl } from '@/lib/api'
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -174,7 +175,7 @@ export function NotesView() {
   editPinnedRef.current = editPinned
   editPhotosRef.current = editPhotos
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
   // uploadImageInline is defined after useEditor below
   const uploadImageInlineRef = useRef<(file: File) => Promise<void>>(async () => {})
 

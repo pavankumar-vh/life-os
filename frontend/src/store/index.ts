@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { toISODate } from '@/lib/utils'
+import { getApiBaseUrl } from '@/lib/api'
 
-const API_BASE = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
+const API_BASE = typeof window !== 'undefined' ? '' : getApiBaseUrl()
 
 // ─── TYPES ─────────────────────────────────────────
 

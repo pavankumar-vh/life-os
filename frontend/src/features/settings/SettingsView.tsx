@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSettingsStore, DEFAULT_GOALS } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Download, Upload, Shield, Database, CheckCircle2, AlertTriangle, HardDrive, RefreshCw, Cloud, Package, ArrowRightLeft, Unlock,
-  Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints, X
+  Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints, X, ExternalLink, FileJson2
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
+import { getApiBaseUrl } from '@/lib/api'
 
 const ACCENT_PRESETS = [
   // Warm
@@ -142,15 +143,83 @@ export function SettingsView() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
-  const apiBase = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
+  const [driveBackups, setDriveBackups] = useState<Array<{ id: string; name: string; createdAt: string; size?: string; link?: string }> | null>(null)
+  const [backupsLoading, setBackupsLoading] = useState(false)
+  const apiBase = getApiBaseUrl()
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
+
+  const checkGoogleStatus = useCallback(async () => {
+    if (!authToken) return
+    try {
+      const r = await fetch(`${apiBase}/api/google/status`, { headers: { Authorization: `Bearer ${authToken}` } })
+      const d = await r.json()
+      setGoogleConnected(d.connected)
+    } catch {}
+  }, [authToken, apiBase])
 
   // Check Google connection status
   useEffect(() => {
-    if (!authToken) return
-    fetch(`${apiBase}/api/google/status`, { headers: { Authorization: `Bearer ${authToken}` } })
-      .then(r => r.json()).then(d => setGoogleConnected(d.connected)).catch(() => {})
-  }, [authToken, apiBase])
+    checkGoogleStatus()
+  }, [checkGoogleStatus])
+
+  // Load Drive backups when connected
+  const fetchDriveBackups = useCallback(async () => {
+    if (!authToken || !googleConnected) return
+    setBackupsLoading(true)
+    try {
+      const r = await fetch(`${apiBase}/api/google/drive/backups`, { headers: { Authorization: `Bearer ${authToken}` } })
+      const d = await r.json()
+      setDriveBackups(Array.isArray(d) ? d : [])
+    } catch {
+      setDriveBackups([])
+    } finally {
+      setBackupsLoading(false)
+    }
+  }, [authToken, apiBase, googleConnected])
+
+  useEffect(() => {
+    if (googleConnected) fetchDriveBackups()
+  }, [googleConnected, fetchDriveBackups])
+
+  // Google OAuth via popup
+  const handleGoogleConnect = useCallback(async () => {
+    setGoogleLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/google/auth-url`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      const { url, error } = await res.json()
+      if (error) { toast.error(error); setGoogleLoading(false); return }
+      if (!url) { toast.error('Failed to get auth URL'); setGoogleLoading(false); return }
+
+      // Open OAuth in popup window
+      const width = 500, height = 640
+      const left = window.screen.width / 2 - width / 2
+      const top = window.screen.height / 2 - height / 2
+      const popup = window.open(url, 'google-oauth', `width=${width},height=${height},left=${left},top=${top},toolbar=0,menubar=0`)
+
+      // Poll for popup close and check status
+      const interval = setInterval(async () => {
+        if (!popup || popup.closed) {
+          clearInterval(interval)
+          setGoogleLoading(false)
+          // Check if connection succeeded
+          await checkGoogleStatus()
+          // Give state time to update, then show feedback
+          setTimeout(async () => {
+            const r = await fetch(`${apiBase}/api/google/status`, { headers: { Authorization: `Bearer ${authToken}` } })
+            const d = await r.json()
+            if (d.connected) {
+              toast.success('Google account connected!')
+            }
+          }, 300)
+        }
+      }, 500)
+    } catch {
+      toast.error('Failed to start Google OAuth')
+      setGoogleLoading(false)
+    }
+  }, [apiBase, authToken, checkGoogleStatus])
 
   // Goals from settings store
   const settingsGoals = useSettingsStore(s => s.goals)
@@ -414,60 +483,70 @@ export function SettingsView() {
             <p className="text-xs text-text-muted mb-4">
               Connect your Google account to sync calendar events, backup to Drive, and import fitness data.
             </p>
-            {!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-              <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                <p className="text-xs text-orange-400 font-medium">Google OAuth not configured</p>
-                <p className="text-xs text-text-muted mt-1">Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in your environment variables.</p>
-              </div>
-            ) : googleConnected ? (
-              <div className="flex items-center justify-between p-3 bg-green-soft/5 border border-green-soft/10 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-soft" />
-                  <span className="text-xs text-green-soft font-medium">Google account connected</span>
+            {googleConnected ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-green-soft/5 border border-green-soft/10 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-soft" />
+                    <span className="text-xs text-green-soft font-medium">Google account connected</span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setGoogleLoading(true)
+                      try {
+                        await fetch(`${apiBase}/api/google/disconnect`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${authToken}` },
+                        })
+                        setGoogleConnected(false)
+                        setDriveBackups(null)
+                        toast.success('Google account disconnected')
+                      } catch { toast.error('Failed to disconnect') }
+                      setGoogleLoading(false)
+                    }}
+                    disabled={googleLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors"
+                  >
+                    <Unlink className="w-3 h-3" /> Disconnect
+                  </button>
                 </div>
-                <button
-                  onClick={async () => {
-                    setGoogleLoading(true)
-                    try {
-                      await fetch(`${apiBase}/api/google/disconnect`, {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${authToken}` },
-                      })
-                      setGoogleConnected(false)
-                      toast.success('Google account disconnected')
-                    } catch { toast.error('Failed to disconnect') }
-                    setGoogleLoading(false)
-                  }}
-                  disabled={googleLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors"
-                >
-                  <Unlink className="w-3 h-3" /> Disconnect
-                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { icon: Calendar, label: 'Calendar', desc: 'Events synced' },
+                    { icon: CloudUpload, label: 'Drive', desc: 'Backup ready' },
+                    { icon: Footprints, label: 'Fitness', desc: 'Steps & calories' },
+                  ].map(s => (
+                    <div key={s.label} className="flex flex-col items-center gap-1 p-2.5 bg-bg-elevated rounded-lg">
+                      <s.icon className="w-4 h-4 text-accent" />
+                      <p className="text-xs font-medium">{s.label}</p>
+                      <p className="text-[11px] text-green-soft">{s.desc}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <button
-                onClick={async () => {
-                  setGoogleLoading(true)
-                  try {
-                    const res = await fetch(`${apiBase}/api/google/auth-url`, {
-                      headers: { Authorization: `Bearer ${authToken}` },
-                    })
-                    const { url, error } = await res.json()
-                    if (error) { toast.error(error); return }
-                    if (url) window.location.href = url
-                  } catch { toast.error('Failed to start Google OAuth') }
-                  setGoogleLoading(false)
-                }}
+                onClick={handleGoogleConnect}
                 disabled={googleLoading}
-                className="flex items-center gap-3 p-4 bg-bg-elevated rounded-xl hover:bg-bg-hover transition-all w-full text-left group"
+                className="flex items-center gap-3 p-4 bg-bg-elevated rounded-xl hover:bg-bg-hover transition-all w-full text-left group border border-border hover:border-accent/30"
               >
                 <div className="w-10 h-10 rounded-lg bg-blue-soft/10 flex items-center justify-center">
-                  {googleLoading ? <Loader2 className="w-5 h-5 text-blue-soft animate-spin" /> : <Link2 className="w-5 h-5 text-blue-soft" />}
+                  {googleLoading ? <Loader2 className="w-5 h-5 text-blue-soft animate-spin" /> : (
+                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                  )}
                 </div>
-                <div>
-                  <p className="text-sm font-medium group-hover:text-blue-soft transition-colors">Connect Google Account</p>
-                  <p className="text-xs text-text-muted">Calendar, Drive, Fitness</p>
+                <div className="flex-1">
+                  <p className="text-sm font-medium group-hover:text-accent transition-colors">
+                    {googleLoading ? 'Opening Google sign-in...' : 'Sign in with Google'}
+                  </p>
+                  <p className="text-xs text-text-muted">Calendar · Drive · Fitness — opens a popup</p>
                 </div>
+                <ExternalLink className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
               </button>
             )}
           </div>
@@ -491,33 +570,68 @@ export function SettingsView() {
             </h3>
             <p className="text-xs text-text-muted mb-3">Back up all your LifeOS data to Google Drive.</p>
             {googleConnected ? (
-              <button
-                onClick={async () => {
-                  setDriveBackupLoading(true)
-                  try {
-                    const res = await fetch(`${apiBase}/api/google/drive/backup`, {
-                      method: 'POST',
-                      headers: { Authorization: `Bearer ${authToken}` },
-                    })
-                    const data = await res.json()
-                    if (data.error) { toast.error(data.error); return }
-                    toast.success(`Backup saved to Google Drive: ${data.file.name}`)
-                  } catch { toast.error('Backup failed') }
-                  setDriveBackupLoading(false)
-                }}
-                disabled={driveBackupLoading}
-                className="flex items-center gap-3 p-4 bg-bg-elevated rounded-xl hover:bg-bg-hover transition-all w-full text-left group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  {driveBackupLoading ? <Loader2 className="w-5 h-5 text-accent animate-spin" /> : <CloudUpload className="w-5 h-5 text-accent" />}
-                </div>
-                <div>
-                  <p className="text-sm font-medium group-hover:text-accent transition-colors">
-                    {driveBackupLoading ? 'Backing up...' : 'Backup to Google Drive'}
-                  </p>
-                  <p className="text-xs text-text-muted">Saves to &quot;LifeOS Backups&quot; folder</p>
-                </div>
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    setDriveBackupLoading(true)
+                    try {
+                      const res = await fetch(`${apiBase}/api/google/drive/backup`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${authToken}` },
+                      })
+                      const data = await res.json()
+                      if (data.error) { toast.error(data.error); return }
+                      toast.success(`Backup saved: ${data.file.name}`)
+                      // Refresh backup list
+                      fetchDriveBackups()
+                    } catch { toast.error('Backup failed') }
+                    setDriveBackupLoading(false)
+                  }}
+                  disabled={driveBackupLoading}
+                  className="flex items-center gap-3 p-4 bg-bg-elevated rounded-xl hover:bg-bg-hover transition-all w-full text-left group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    {driveBackupLoading ? <Loader2 className="w-5 h-5 text-accent animate-spin" /> : <CloudUpload className="w-5 h-5 text-accent" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium group-hover:text-accent transition-colors">
+                      {driveBackupLoading ? 'Backing up...' : 'Backup Now'}
+                    </p>
+                    <p className="text-xs text-text-muted">Saves to "LifeOS Backups" folder in Drive</p>
+                  </div>
+                </button>
+
+                {/* Previous Backups */}
+                {driveBackups !== null && (
+                  <div>
+                    <p className="text-xs font-medium text-text-secondary mb-2">
+                      {backupsLoading ? 'Loading backups...' : `${driveBackups.length} backup${driveBackups.length !== 1 ? 's' : ''} in Drive`}
+                    </p>
+                    {driveBackups.length > 0 && (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {driveBackups.map(b => (
+                          <div key={b.id} className="flex items-center gap-2 p-2.5 bg-bg-elevated rounded-lg">
+                            <FileJson2 className="w-4 h-4 text-accent shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-text-primary truncate">{b.name}</p>
+                              <p className="text-[11px] text-text-muted">
+                                {new Date(b.createdAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {b.size ? ` · ${Math.round(parseInt(b.size) / 1024)} KB` : ''}
+                              </p>
+                            </div>
+                            {b.link && (
+                              <a href={b.link} target="_blank" rel="noopener noreferrer"
+                                className="p-1 rounded hover:bg-bg-hover transition-colors text-text-muted hover:text-accent">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="p-3 bg-bg-elevated rounded-lg">
                 <p className="text-xs text-text-muted">Connect Google to enable Drive backups.</p>

@@ -14,7 +14,7 @@ function getClient() {
 
 const FROM_EMAIL = process.env.MAILJET_FROM_EMAIL || 'noreply@lifeos.app'
 const FROM_NAME  = process.env.MAILJET_FROM_NAME  || 'LifeOS'
-const APP_URL    = process.env.FRONTEND_URL        || 'http://localhost:3000'
+const APP_URL    = process.env.FRONTEND_URL        || process.env.APP_URL || 'https://example.com'
 
 // ─── Welcome Email ────────────────────────────────────────────────────────────
 export async function sendWelcomeEmail(to: string, name: string) {

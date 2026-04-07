@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from '@/components/Toast'
+import { getApiBaseUrl } from '@/lib/api'
 import {
   Shield, Upload, FolderPlus, Star, StarOff, Trash2, Download,
   Search, Grid, List, File, FileImage, FileText, FileVideo,
@@ -68,7 +69,7 @@ function FileIcon({ type, className = 'w-5 h-5' }: { type: FileType; className?:
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export function VaultView() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
   const [files, setFiles] = useState<VaultFile[]>([])
   const [folders, setFolders] = useState<string[]>(['Root'])
   const [isLoading, setIsLoading] = useState(true)
@@ -115,9 +116,6 @@ export function VaultView() {
   useEffect(() => { load() }, [load])
 
   const uploadFile = useCallback(async (file: File) => {
-    if (!process.env.NEXT_PUBLIC_API_URL && apiBase === 'http://localhost:4000') {
-      // fine, local
-    }
     const form = new FormData()
     form.append('file', file)
     form.append('folder', activeFolder)

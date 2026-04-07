@@ -39,6 +39,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { motion, AnimatePresence, LazyMotion, domAnimation, MotionConfig } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import { DynamicFavicon } from '@/components/DynamicFavicon'
+import { getApiBaseUrl } from '@/lib/api'
 
 const views: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -110,7 +111,7 @@ export function AppShell() {
   // Auto-fetch user on mount
   useEffect(() => {
     if (token && !user) {
-      const apiBase = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000')
+      const apiBase = getApiBaseUrl()
       fetch(`${apiBase}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then((data) => { if (data._id) useAuthStore.getState().setUser(data) })

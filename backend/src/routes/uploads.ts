@@ -3,6 +3,7 @@ import multer from 'multer'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { uploadToB2, deleteFromB2 } from '../lib/b2'
 import { Photo } from '../models/Photo'
+import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
@@ -57,6 +58,9 @@ router.post('/photo', upload.single('photo'), async (req: AuthRequest, res: Resp
       mimeType: req.file.mimetype,
     })
 
+    audit(req.user!.userId, 'create', 'photos', photo._id, {
+      after: { filename: req.file.originalname, context, sizeBytes: req.file.size },
+    })
     return res.status(201).json({
       id: photo._id,
       url,
@@ -110,7 +114,9 @@ router.delete('/photo/:id', async (req: AuthRequest, res: Response) => {
     // Delete from B2 first, then remove record
     await deleteFromB2(photo.key)
     await Photo.deleteOne({ _id: photo._id })
-
+    audit(req.user!.userId, 'delete', 'photos', req.params.id, {
+      before: { filename: photo.filename, context: photo.context, sizeBytes: photo.sizeBytes },
+    })
     return res.json({ deleted: true })
   } catch (error) {
     console.error('Delete photo error:', error)

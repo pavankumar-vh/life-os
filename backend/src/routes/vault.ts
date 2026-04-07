@@ -3,6 +3,7 @@ import multer from 'multer'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { uploadToB2, deleteFromB2 } from '../lib/b2'
 import { VaultFile, detectFileType } from '../models/VaultFile'
+import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
@@ -76,6 +77,9 @@ router.post('/upload', upload.single('file'), async (req: AuthRequest, res: Resp
       starred: false,
     })
 
+    audit(req.user!.userId, 'create', 'vault', vaultFile._id, {
+      after: { name: displayName, folder, mimeType: req.file.mimetype, sizeBytes: req.file.size },
+    })
     return res.status(201).json(vaultFile)
   } catch (e) {
     console.error('POST /api/vault/upload error:', e)
@@ -99,6 +103,9 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
       { new: true }
     )
     if (!file) return res.status(404).json({ error: 'File not found' })
+    audit(req.user!.userId, 'update', 'vault', req.params.id, {
+      changes: updates,
+    })
     return res.json(file)
   } catch (e) {
     return res.status(500).json({ error: 'Failed to update file' })
@@ -116,6 +123,9 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 
     await deleteFromB2(file.key)
     await VaultFile.deleteOne({ _id: file._id })
+    audit(req.user!.userId, 'delete', 'vault', req.params.id, {
+      before: { name: file.name, folder: file.folder, sizeBytes: file.sizeBytes },
+    })
     return res.json({ deleted: true })
   } catch (e) {
     console.error('DELETE /api/vault/:id error:', e)

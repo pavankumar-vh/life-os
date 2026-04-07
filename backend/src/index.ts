@@ -37,16 +37,23 @@ import vaultRoutes from './routes/vault'
 
 const app = express()
 const PORT = process.env.PORT || 4000
+const allowedOrigins = new Set(
+  [
+    process.env.FRONTEND_URL,
+    ...(process.env.FRONTEND_URLS || '').split(',').map((origin) => origin.trim()),
+  ].filter(Boolean) as string[]
+)
 
 app.use(helmet())
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:3000',
-    // Allow local network IP testing
-    /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:3000$/
-  ],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.has(origin)) return callback(null, true)
+    if (process.env.NODE_ENV !== 'production' && /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:3000$/.test(origin)) {
+      return callback(null, true)
+    }
+    return callback(new Error('Not allowed by CORS'))
+  },
   credentials: true,
 }))
 app.use(express.json({ limit: '2mb' }))
@@ -91,7 +98,7 @@ app.get('/api/health', (_req, res) => {
 async function start() {
   await connectDB()
   app.listen(PORT, () => {
-    console.log(`Backend running on http://localhost:${PORT}`)
+    console.log(`Backend running on port ${PORT}`)
   })
 }
 

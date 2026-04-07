@@ -12,10 +12,13 @@ const SCOPES = [
 ]
 
 export function getOAuth2Client(): Auth.OAuth2Client {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+    || (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/api/google/callback` : undefined)
+
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/google/callback`
+    redirectUri
   )
 }
 
