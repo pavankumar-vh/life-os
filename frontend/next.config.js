@@ -1,7 +1,13 @@
 /** @type {import('next').NextConfig} */
-const apiBase = process.env.NEXT_PUBLIC_API_URL
-  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
-  : ''
+function normalizeApiBase(raw) {
+  if (!raw) return ''
+  const trimmed = raw.trim().replace(/\/$/, '')
+  if (!trimmed) return ''
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed
+  return `https://${trimmed}`
+}
+
+const apiBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
 
 const nextConfig = {
   transpilePackages: ['@excalidraw/excalidraw'],
