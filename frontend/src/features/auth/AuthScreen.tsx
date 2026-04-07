@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useAuthStore } from '@/store'
 import { getApiBaseUrl } from '@/lib/api'
 import { toast } from '@/components/Toast'
@@ -155,10 +156,17 @@ export function AuthScreen() {
           </div>
         </div>
 
-        {/* Bottom quote */}
-        <p className="relative z-10 text-[11px] text-text-muted/40 tracking-widest uppercase">
-          Built for those who track everything
-        </p>
+        {/* Bottom quote + legal links */}
+        <div className="relative z-10 space-y-3">
+          <p className="text-[11px] text-text-muted/40 tracking-widest uppercase">
+            Built for those who track everything
+          </p>
+          <div className="flex items-center gap-3 text-[11px] text-text-muted/50">
+            <Link href="/privacy" className="hover:text-accent transition-colors">Privacy Policy</Link>
+            <span className="w-1 h-1 rounded-full bg-white/10" />
+            <Link href="/terms" className="hover:text-accent transition-colors">Terms of Service</Link>
+          </div>
+        </div>
       </div>
 
       {/* ── Right panel — Auth card ───────────────────────────── */}
@@ -390,9 +398,9 @@ export function AuthScreen() {
                 : 'Welcome back to your command center'}
             </p>
             <div className="flex items-center gap-4 text-[10px] text-text-muted/60">
-              <a href="/privacy" className="hover:text-accent transition-colors" target="_blank">Privacy Policy</a>
+              <Link href="/privacy" className="hover:text-accent transition-colors">Privacy Policy</Link>
               <span className="w-1 h-1 rounded-full bg-white/10" />
-              <a href="/terms" className="hover:text-accent transition-colors" target="_blank">Terms of Service</a>
+              <Link href="/terms" className="hover:text-accent transition-colors">Terms of Service</Link>
             </div>
           </div>
         </motion.div>
