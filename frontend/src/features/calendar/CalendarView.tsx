@@ -71,6 +71,7 @@ export function CalendarView() {
   const [editingGoogleEventId, setEditingGoogleEventId] = useState<string | null>(null)
   const [creatingGoogleEvent, setCreatingGoogleEvent] = useState(false)
   const [deletingGoogleEventId, setDeletingGoogleEventId] = useState<string | null>(null)
+  const [deletingEventKey, setDeletingEventKey] = useState<string | null>(null)
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventDescription, setNewEventDescription] = useState('')
   const [newEventDate, setNewEventDate] = useState(toISODate())
@@ -79,6 +80,29 @@ export function CalendarView() {
   const [newEventAllDay, setNewEventAllDay] = useState(false)
   const apiBase = getApiBaseUrl()
   const today = toISODate()
+
+  const authedRequest = useCallback(async (path: string, options: RequestInit = {}) => {
+    const token = localStorage.getItem('lifeos-token')
+    if (!token) throw new Error('Please log in again')
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      ...(options.headers as Record<string, string> | undefined),
+    }
+
+    if (options.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json'
+    }
+
+    const res = await fetch(`${apiBase}${path}`, {
+      ...options,
+      headers,
+    })
+
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Request failed')
+    return data
+  }, [apiBase])
 
   const fetchGoogleEvents = useCallback(async (from: string, to: string) => {
     const token = localStorage.getItem('lifeos-token')
@@ -315,6 +339,194 @@ export function CalendarView() {
       toast.error(error instanceof Error ? error.message : 'Failed to delete Google event')
     } finally {
       setDeletingGoogleEventId(null)
+    }
+  }
+
+  const handleEditTimelineEvent = async (event: TimelineEvent) => {
+    if (event.type === 'google') {
+      openEditGoogleModal(event)
+      return
+    }
+
+    const eventData = event.data || {}
+    const sourceId = typeof eventData['id'] === 'string' ? eventData['id'] : ''
+    if (!sourceId) {
+      toast.error('This event cannot be edited from calendar yet')
+      return
+    }
+
+    const updatedTitle = window.prompt('Edit title', event.title || '')
+    if (updatedTitle === null) return
+    const title = updatedTitle.trim()
+    if (!title) {
+      toast.error('Title is required')
+      return
+    }
+
+    const updatedDate = window.prompt('Edit date (YYYY-MM-DD)', event.date)
+    if (updatedDate === null) return
+    const date = updatedDate.trim()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      toast.error('Date must be in YYYY-MM-DD format')
+      return
+    }
+
+    const eventKey = `${event.type}:${sourceId}:${event.date}`
+    setDeletingEventKey(eventKey)
+    try {
+      switch (event.type) {
+        case 'habit': {
+          const oldDate = typeof eventData['completedDate'] === 'string' ? eventData['completedDate'] : event.date
+          const oldName = typeof eventData['name'] === 'string' ? eventData['name'] : event.title
+
+          if (title !== oldName) {
+            await authedRequest(`/api/habits/${encodeURIComponent(sourceId)}`, {
+              method: 'PUT',
+              body: JSON.stringify({ name: title }),
+            })
+          }
+
+          if (date !== oldDate) {
+            await authedRequest(`/api/habits/${encodeURIComponent(sourceId)}/toggle`, {
+              method: 'PATCH',
+              body: JSON.stringify({ date: oldDate }),
+            })
+            await authedRequest(`/api/habits/${encodeURIComponent(sourceId)}/toggle`, {
+              method: 'PATCH',
+              body: JSON.stringify({ date }),
+            })
+          }
+          break
+        }
+        case 'journal': {
+          const payload = {
+            _id: sourceId,
+            date,
+            title,
+            content: typeof eventData['content'] === 'string' ? eventData['content'] : '',
+            mood: typeof eventData['mood'] === 'number' ? eventData['mood'] : 3,
+            energy: typeof eventData['energy'] === 'number' ? eventData['energy'] : 3,
+            highlights: typeof eventData['highlights'] === 'string' ? eventData['highlights'] : '',
+            gratitude: Array.isArray(eventData['gratitude']) ? eventData['gratitude'] : [],
+            improvements: typeof eventData['improvements'] === 'string' ? eventData['improvements'] : '',
+            tags: Array.isArray(eventData['tags']) ? eventData['tags'] : [],
+            photos: Array.isArray(eventData['photos']) ? eventData['photos'] : [],
+          }
+
+          await authedRequest('/api/journal', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          })
+
+          if (date !== event.date) {
+            await authedRequest(`/api/journal/${encodeURIComponent(sourceId)}`, {
+              method: 'DELETE',
+            })
+          }
+          break
+        }
+        case 'workout': {
+          await authedRequest(`/api/workouts/${encodeURIComponent(sourceId)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name: title, date }),
+          })
+          break
+        }
+        case 'meal': {
+          await authedRequest(`/api/meals/${encodeURIComponent(sourceId)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name: title, date }),
+          })
+          break
+        }
+        case 'task': {
+          await authedRequest(`/api/tasks/${encodeURIComponent(sourceId)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ title, dueDate: date }),
+          })
+          break
+        }
+        case 'goal': {
+          await authedRequest(`/api/goals/${encodeURIComponent(sourceId)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ title, deadline: date }),
+          })
+          break
+        }
+        default:
+          toast.info('Edit is not supported for this event type yet')
+          return
+      }
+
+      toast.success('Event updated')
+      await fetchData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update event')
+    } finally {
+      setDeletingEventKey(null)
+    }
+  }
+
+  const handleDeleteTimelineEvent = async (event: TimelineEvent) => {
+    if (event.type === 'google') {
+      const googleEventId = typeof event.data?.['id'] === 'string' ? event.data['id'] : ''
+      if (!googleEventId) {
+        toast.error('Unable to delete this Google event')
+        return
+      }
+      await handleDeleteGoogleEvent(googleEventId)
+      return
+    }
+
+    const eventData = event.data || {}
+    const sourceId = typeof eventData['id'] === 'string' ? eventData['id'] : ''
+    if (!sourceId) {
+      toast.error('This event cannot be deleted from calendar yet')
+      return
+    }
+
+    const confirmed = window.confirm('Delete this event?')
+    if (!confirmed) return
+
+    const eventKey = `${event.type}:${sourceId}:${event.date}`
+    setDeletingEventKey(eventKey)
+
+    try {
+      switch (event.type) {
+        case 'habit': {
+          const completedDate = typeof eventData['completedDate'] === 'string' ? eventData['completedDate'] : event.date
+          await authedRequest(`/api/habits/${encodeURIComponent(sourceId)}/toggle`, {
+            method: 'PATCH',
+            body: JSON.stringify({ date: completedDate }),
+          })
+          break
+        }
+        case 'journal':
+          await authedRequest(`/api/journal/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
+          break
+        case 'workout':
+          await authedRequest(`/api/workouts/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
+          break
+        case 'meal':
+          await authedRequest(`/api/meals/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
+          break
+        case 'task':
+          await authedRequest(`/api/tasks/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
+          break
+        case 'goal':
+          await authedRequest(`/api/goals/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
+          break
+        default:
+          toast.info('Delete is not supported for this event type yet')
+          return
+      }
+
+      toast.success('Event deleted')
+      await fetchData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete event')
+    } finally {
+      setDeletingEventKey(null)
     }
   }
 
@@ -588,6 +800,9 @@ export function CalendarView() {
                     const cfg = TYPE_CONFIG[event.type]
                     const googleLink = typeof event.data?.['htmlLink'] === 'string' ? event.data['htmlLink'] : ''
                     const googleEventId = typeof event.data?.['id'] === 'string' ? event.data['id'] : ''
+                    const sourceId = typeof event.data?.['id'] === 'string' ? event.data['id'] : `${event.type}-${i}`
+                    const eventKey = `${event.type}:${sourceId}:${event.date}`
+                    const isDeleting = deletingEventKey === eventKey
                     return (
                       <motion.div key={i} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
                         className="flex items-start gap-2.5 p-2.5 rounded-lg bg-bg-elevated hover:bg-bg-hover transition-colors">
@@ -610,24 +825,23 @@ export function CalendarView() {
                               Open in Google <ExternalLink className="w-3 h-3" />
                             </a>
                           )}
-                          {googleEventId && (
-                            <div className="mt-2 flex items-center gap-2">
-                              <button
-                                onClick={() => openEditGoogleModal(event)}
-                                className="inline-flex items-center gap-1 text-[11px] text-blue-soft hover:underline"
-                              >
-                                <Pencil className="w-3 h-3" /> Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteGoogleEvent(googleEventId)}
-                                disabled={deletingGoogleEventId === googleEventId}
-                                className="inline-flex items-center gap-1 text-[11px] text-red-400 hover:underline disabled:opacity-60"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                {deletingGoogleEventId === googleEventId ? 'Deleting...' : 'Delete'}
-                              </button>
-                            </div>
-                          )}
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditTimelineEvent(event)}
+                              disabled={isDeleting}
+                              className="inline-flex items-center gap-1 text-[11px] text-blue-soft hover:underline disabled:opacity-60"
+                            >
+                              <Pencil className="w-3 h-3" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTimelineEvent(event)}
+                              disabled={isDeleting || deletingGoogleEventId === googleEventId}
+                              className="inline-flex items-center gap-1 text-[11px] text-red-400 hover:underline disabled:opacity-60"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              {isDeleting || deletingGoogleEventId === googleEventId ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
                         </div>
                       </motion.div>
                     )

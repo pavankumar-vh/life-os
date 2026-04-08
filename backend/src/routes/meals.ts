@@ -42,6 +42,25 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 })
 
+router.put('/:id', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const { id } = req.params
+    const updates = sanitizeBody(req.body)
+    if (isDemoUser(userId)) {
+      const existing = DEMO_MEALS.find(m => m._id === id)
+      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
+    }
+    const meal = await Meal.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
+    if (!meal) return res.status(404).json({ error: 'Not found' })
+    audit(userId, 'update', 'meals', id, { after: meal.toJSON(), changes: updates as Record<string, unknown> })
+    return res.json(meal)
+  } catch (e) {
+    console.error('PUT /api/meals error:', e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
 router.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId
