@@ -42,8 +42,11 @@ export function getAuthUrl(state?: string): string {
   })
 }
 
-export function getAuthedClient(tokens: { access_token: string; refresh_token?: string }): Auth.OAuth2Client {
+export function getAuthedClient(tokens: { access_token?: string; refresh_token?: string }): Auth.OAuth2Client {
   const client = getOAuth2Client()
-  client.setCredentials(tokens)
+  client.setCredentials({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+  })
   return client
 }

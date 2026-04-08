@@ -26,7 +26,19 @@ router.post('/callback', async (req: AuthRequest, res: Response) => {
   try {
     const { code, state } = req.body
     if (!code) return res.status(400).json({ error: 'Authorization code required' })
-    if (state && state !== req.user!.userId) return res.status(400).json({ error: 'Invalid OAuth state' })
+
+    // Expected connect flow state format is: connect:<userId>
+    if (state) {
+      if (typeof state !== 'string') {
+        return res.status(400).json({ error: 'Invalid OAuth state' })
+      }
+
+      // Support both legacy plain userId and the current connect:<userId> format.
+      const expectedConnectState = `connect:${req.user!.userId}`
+      if (state !== req.user!.userId && state !== expectedConnectState) {
+        return res.status(400).json({ error: 'Invalid OAuth state' })
+      }
+    }
 
     const client = getOAuth2Client()
     const { tokens } = await client.getToken(code)
@@ -35,11 +47,26 @@ router.post('/callback', async (req: AuthRequest, res: Response) => {
       return res.json({ connected: true })
     }
 
+    const user = await User.findById(req.user!.userId).select('googleTokens')
+    if (!user) return res.status(404).json({ error: 'User not found' })
+
+    // Google may omit refresh_token on subsequent consents.
+    // Preserve the existing refresh token so connection remains long-lived.
+    const existingAccessToken = user.googleTokens?.access_token
+    const existingRefreshToken = user.googleTokens?.refresh_token
+    const accessToStore = tokens.access_token ? encrypt(tokens.access_token) : existingAccessToken
+    const refreshToStore = tokens.refresh_token ? encrypt(tokens.refresh_token) : existingRefreshToken
+    const expiryToStore = tokens.expiry_date || user.googleTokens?.expiry_date
+
+    if (!accessToStore && !refreshToStore) {
+      return res.status(400).json({ error: 'Google did not return usable OAuth credentials' })
+    }
+
     await User.findByIdAndUpdate(req.user!.userId, {
       googleTokens: {
-        access_token: encrypt(tokens.access_token!),
-        refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
-        expiry_date: tokens.expiry_date || undefined,
+        access_token: accessToStore,
+        refresh_token: refreshToStore,
+        expiry_date: expiryToStore,
       },
     })
 
@@ -61,7 +88,8 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
       return res.json({ connected: false })
     }
     const user = await User.findById(req.user!.userId).select('googleTokens')
-    return res.json({ connected: !!user?.googleTokens?.access_token })
+    const connected = !!(user?.googleTokens?.access_token || user?.googleTokens?.refresh_token)
+    return res.json({ connected })
   } catch {
     return res.json({ connected: false })
   }
@@ -86,14 +114,16 @@ router.post('/disconnect', async (req: AuthRequest, res: Response) => {
 // Helper: get authed client for a user
 async function getUserClient(userId: string) {
   const user = await User.findById(userId).select('googleTokens')
-  if (!user?.googleTokens?.access_token) {
+  const rawAccess = user?.googleTokens?.access_token as unknown
+  const rawRefresh = user?.googleTokens?.refresh_token as unknown
+  if (!rawAccess && !rawRefresh) {
     throw new Error('Google not connected')
   }
 
   // Decrypt tokens (support both legacy plaintext and new encrypted format)
-  const rawAccess = user.googleTokens.access_token as unknown
-  const rawRefresh = user.googleTokens.refresh_token as unknown
-  const accessToken = isEncrypted(rawAccess) ? decrypt(rawAccess) : String(rawAccess)
+  const accessToken = rawAccess
+    ? (isEncrypted(rawAccess) ? decrypt(rawAccess) : String(rawAccess))
+    : undefined
   const refreshToken = rawRefresh
     ? (isEncrypted(rawRefresh) ? decrypt(rawRefresh) : String(rawRefresh))
     : undefined
