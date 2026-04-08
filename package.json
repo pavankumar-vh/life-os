@@ -6,9 +6,12 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "build": "cd frontend && npm run build && cd ../backend && npm run build",
+    "build": "concurrently --kill-others-on-fail \"npm run build:frontend\" \"npm run build:backend\"",
+    "build:fast": "concurrently --kill-others-on-fail \"npm run build:frontend:fast\" \"npm run build:backend:fast\"",
     "build:frontend": "cd frontend && npm run build",
+    "build:frontend:fast": "cd frontend && npm run build:fast",
     "build:backend": "cd backend && npm run build",
+    "build:backend:fast": "cd backend && npm run build:fast",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"
   },
   "devDependencies": {

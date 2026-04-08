@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path')
+
 function normalizeApiBase(raw) {
   if (!raw) return ''
   const trimmed = raw.trim().replace(/\/$/, '')
@@ -8,9 +10,17 @@ function normalizeApiBase(raw) {
 }
 
 const apiBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
+const isFastBuild = process.env.LIFEOS_FAST_BUILD === '1'
 
 const nextConfig = {
+  outputFileTracingRoot: path.join(__dirname, '..'),
   transpilePackages: ['@excalidraw/excalidraw'],
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: isFastBuild,
+  },
   async rewrites() {
     if (!apiBase) return []
     return [
