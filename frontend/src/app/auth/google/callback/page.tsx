@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getApiBaseUrl } from '@/lib/api'
+import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
@@ -15,11 +15,21 @@ export default function AuthGoogleCallbackPage() {
   const setUser = useAuthStore(s => s.setUser)
 
   useEffect(() => {
+    const parseResponseBody = async (res: Response): Promise<any> => {
+      const text = await res.text()
+      if (!text) return {}
+
+      try {
+        return JSON.parse(text)
+      } catch {
+        return { error: text.slice(0, 300) }
+      }
+    }
+
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const state = params.get('state') ?? ''
     const error = params.get('error')
-    const apiBase = getApiBaseUrl()
 
     if (error) {
       setStatus('error')
@@ -37,14 +47,14 @@ export default function AuthGoogleCallbackPage() {
 
     // ── LOGIN FLOW ──────────────────────────────────────────────
     if (state === 'login') {
-      fetch(`${apiBase}/api/auth/google/callback`, {
+      fetchApi('/api/auth/google/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, state }),
       })
-        .then(r => r.json())
-        .then(data => {
-          if (data.token) {
+        .then(async (res) => ({ ok: res.ok, data: await parseResponseBody(res) }))
+        .then(({ ok, data }) => {
+          if (ok && data.token) {
             setStatus('success')
             setMessage('Signed in! Redirecting...')
             setToken(data.token)
@@ -75,7 +85,7 @@ export default function AuthGoogleCallbackPage() {
         return
       }
 
-      fetch(`${apiBase}/api/google/callback`, {
+      fetchApi('/api/google/callback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,9 +93,9 @@ export default function AuthGoogleCallbackPage() {
         },
         body: JSON.stringify({ code, state }),
       })
-        .then(r => r.json())
-        .then(data => {
-          if (data.connected) {
+        .then(async (res) => ({ ok: res.ok, data: await parseResponseBody(res) }))
+        .then(({ ok, data }) => {
+          if (ok && data.connected) {
             setStatus('success')
             setMessage('Google account connected! Closing window...')
 

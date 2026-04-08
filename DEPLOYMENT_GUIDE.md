@@ -85,7 +85,8 @@ Project settings:
 - Framework preset: Next.js
 
 Environment variables:
-- NEXT_PUBLIC_API_URL=https://<your-railway-service-domain>
+- NEXT_PUBLIC_API_URL=https://<your-primary-backend-domain>
+- NEXT_PUBLIC_API_URLS=<optional comma-separated fallback backend domains>
 
 For open-source setup templates, copy these files:
 - backend/.env.example -> backend/.env
@@ -124,4 +125,5 @@ If you use the custom frontend domain:
 - CORS/auth issues in browser
   - Confirm FRONTEND_URL on Railway is exactly:
     - https://life-os.pavankumarvh.me
-  - Confirm NEXT_PUBLIC_API_URL in Vercel points to Railway backend domain.
+  - Confirm NEXT_PUBLIC_API_URL in Vercel points to your primary backend domain.
+  - If configured, confirm NEXT_PUBLIC_API_URLS contains valid fallback backend domains.

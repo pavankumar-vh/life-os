@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSettingsStore, DEFAULT_GOALS } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -34,6 +34,7 @@ const ACCENT_PRESETS = [
 ]
 
 type GoalKeys = keyof typeof DEFAULT_GOALS
+type GoogleFitnessDay = { date: string; steps: number; calories: number }
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -145,6 +146,10 @@ export function SettingsView() {
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
   const [driveBackups, setDriveBackups] = useState<Array<{ id: string; name: string; createdAt: string; size?: string; link?: string }> | null>(null)
   const [backupsLoading, setBackupsLoading] = useState(false)
+  const [fitnessLoading, setFitnessLoading] = useState(false)
+  const [fitnessData, setFitnessData] = useState<GoogleFitnessDay[]>([])
+  const [fitnessError, setFitnessError] = useState<string | null>(null)
+  const [fitnessLastSyncedAt, setFitnessLastSyncedAt] = useState<string | null>(null)
   const apiBase = getApiBaseUrl()
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
 
@@ -181,6 +186,80 @@ export function SettingsView() {
     if (googleConnected) fetchDriveBackups()
   }, [googleConnected, fetchDriveBackups])
 
+  const fetchFitnessData = useCallback(async ({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
+    if (!authToken || (!googleConnected && !force)) {
+      if (!googleConnected) {
+        setFitnessData([])
+        setFitnessError(null)
+        setFitnessLastSyncedAt(null)
+      }
+      return
+    }
+
+    if (!silent) setFitnessLoading(true)
+    setFitnessError(null)
+
+    try {
+      const toDate = new Date()
+      const fromDate = new Date()
+      fromDate.setDate(fromDate.getDate() - 13)
+
+      const from = fromDate.toISOString().split('T')[0]
+      const to = toDate.toISOString().split('T')[0]
+
+      const res = await fetch(`${apiBase}/api/google/fitness/steps?from=${from}&to=${to}`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch Google Fit data')
+      }
+
+      const normalized: GoogleFitnessDay[] = (Array.isArray(data) ? data : [])
+        .map((day: any) => ({
+          date: String(day?.date || ''),
+          steps: Number(day?.steps || 0),
+          calories: Number(day?.calories || 0),
+        }))
+        .filter((day) => !!day.date)
+        .sort((a, b) => a.date.localeCompare(b.date))
+
+      setFitnessData(normalized)
+      setFitnessLastSyncedAt(new Date().toISOString())
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch Google Fit data'
+      setFitnessError(message)
+      if (!silent) {
+        toast.error(message)
+      }
+    } finally {
+      if (!silent) setFitnessLoading(false)
+    }
+  }, [apiBase, authToken, googleConnected])
+
+  useEffect(() => {
+    if (!googleConnected) {
+      setFitnessData([])
+      setFitnessError(null)
+      setFitnessLastSyncedAt(null)
+      return
+    }
+    if (activeTab === 'google') {
+      fetchFitnessData({ silent: true }).catch(() => {})
+    }
+  }, [activeTab, googleConnected, fetchFitnessData])
+
+  useEffect(() => {
+    if (!googleConnected || activeTab !== 'google') return
+
+    const interval = window.setInterval(() => {
+      fetchFitnessData({ silent: true }).catch(() => {})
+    }, 60000)
+
+    return () => window.clearInterval(interval)
+  }, [activeTab, googleConnected, fetchFitnessData])
+
   // Google OAuth via popup
   const handleGoogleConnect = useCallback(async () => {
     setGoogleLoading(true)
@@ -211,6 +290,7 @@ export function SettingsView() {
             const d = await r.json()
             if (d.connected) {
               toast.success('Google account connected!')
+              fetchFitnessData({ silent: true, force: true }).catch(() => {})
             }
           }, 300)
         }
@@ -219,7 +299,7 @@ export function SettingsView() {
       toast.error('Failed to start Google OAuth')
       setGoogleLoading(false)
     }
-  }, [apiBase, authToken, checkGoogleStatus])
+  }, [apiBase, authToken, checkGoogleStatus, fetchFitnessData])
 
   // Goals from settings store
   const settingsGoals = useSettingsStore(s => s.goals)
@@ -255,9 +335,26 @@ export function SettingsView() {
         useHabitsStore.getState().fetchHabits(), useJournalStore.getState().fetchEntries(),
         useWorkoutsStore.getState().fetchWorkouts(), useMealsStore.getState().fetchMeals(),
         useTasksStore.getState().fetchTasks(), useGoalsStore.getState().fetchGoals(),
+        ...(googleConnected ? [fetchFitnessData({ silent: true })] : []),
       ])
     } catch {} finally { setRefreshing(false) }
   }
+
+  const fitnessSummary = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayData = fitnessData.find((d) => d.date === today) || { date: today, steps: 0, calories: 0 }
+    const last7 = fitnessData.slice(-7)
+    const totalSteps = last7.reduce((sum, d) => sum + d.steps, 0)
+    const totalCalories = last7.reduce((sum, d) => sum + d.calories, 0)
+
+    return {
+      todaySteps: todayData.steps,
+      todayCalories: todayData.calories,
+      avgSteps: last7.length ? Math.round(totalSteps / last7.length) : 0,
+      avgCalories: last7.length ? Math.round(totalCalories / last7.length) : 0,
+      recent: [...last7].reverse(),
+    }
+  }, [fitnessData])
 
   const handleExportCSV = () => {
     const rows: string[][] = [['Category', 'Title', 'Date', 'Details']]
@@ -645,10 +742,63 @@ export function SettingsView() {
               <Footprints className="w-4 h-4 text-accent" /> Google Fitness
             </h3>
             <p className="text-xs text-text-muted mb-3">Import step count and calorie data from Google Fit.</p>
-            <div className={`p-3 rounded-lg ${googleConnected ? 'bg-green-soft/5 border border-green-soft/10' : 'bg-bg-elevated'}`}>
-              <p className="text-xs font-medium">{googleConnected ? 'Fitness data sync active' : 'Connect Google to enable fitness sync'}</p>
-              <p className="text-xs text-text-muted mt-0.5">Step count and calories from Google Fit.</p>
-            </div>
+            {googleConnected ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-green-soft/5 border border-green-soft/10 gap-3">
+                  <div>
+                    <p className="text-xs font-medium">Fitness data sync active</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      {fitnessLastSyncedAt ? `Last synced ${new Date(fitnessLastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Not synced yet'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => fetchFitnessData()}
+                    disabled={fitnessLoading}
+                    className="btn-ghost text-xs flex items-center gap-1.5 shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${fitnessLoading ? 'animate-spin' : ''}`} />
+                    {fitnessLoading ? 'Syncing...' : 'Sync now'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-bg-elevated rounded-lg">
+                    <p className="text-[11px] text-text-muted">Today Steps</p>
+                    <p className="text-lg font-semibold text-green-soft">{fitnessSummary.todaySteps.toLocaleString()}</p>
+                    <p className="text-[11px] text-text-muted">7d avg {fitnessSummary.avgSteps.toLocaleString()}</p>
+                  </div>
+                  <div className="p-3 bg-bg-elevated rounded-lg">
+                    <p className="text-[11px] text-text-muted">Today Calories</p>
+                    <p className="text-lg font-semibold text-orange-soft">{fitnessSummary.todayCalories.toLocaleString()}</p>
+                    <p className="text-[11px] text-text-muted">7d avg {fitnessSummary.avgCalories.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-bg-elevated rounded-lg">
+                  <p className="text-xs font-medium text-text-secondary mb-2">Recent fitness days</p>
+                  {fitnessSummary.recent.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {fitnessSummary.recent.slice(0, 5).map((day) => (
+                        <div key={day.date} className="flex items-center justify-between text-xs">
+                          <span className="text-text-muted">{new Date(`${day.date}T00:00:00`).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
+                          <span className="text-text-primary">{day.steps.toLocaleString()} steps · {day.calories.toLocaleString()} kcal</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-muted">{fitnessError || 'No Google Fit data found yet. Tap Sync now to refresh.'}</p>
+                  )}
+                  {fitnessError && fitnessSummary.recent.length > 0 && (
+                    <p className="text-[11px] text-red-soft mt-2">{fitnessError}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-bg-elevated rounded-lg">
+                <p className="text-xs font-medium">Connect Google to enable fitness sync</p>
+                <p className="text-xs text-text-muted mt-0.5">Step count and calories from Google Fit.</p>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

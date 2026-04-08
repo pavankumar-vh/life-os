@@ -9,7 +9,19 @@ function normalizeApiBase(raw) {
   return `https://${trimmed}`
 }
 
-const apiBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
+function getConfiguredApiBase() {
+  const primary = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
+  if (primary) return primary
+
+  const additional = (process.env.NEXT_PUBLIC_API_URLS || '')
+    .split(',')
+    .map((item) => normalizeApiBase(item))
+    .filter(Boolean)
+
+  return additional[0] || ''
+}
+
+const apiBase = getConfiguredApiBase()
 const isFastBuild = process.env.LIFEOS_FAST_BUILD === '1'
 
 const nextConfig = {

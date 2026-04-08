@@ -2,11 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store'
-import { getApiBaseUrl } from '@/lib/api'
+import { fetchApi } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, Lock, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react'
 
-const API_URL = getApiBaseUrl()
+async function parseResponseBody(res: Response): Promise<any> {
+  const text = await res.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { error: text.slice(0, 300) }
+  }
+}
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState('')
@@ -32,12 +41,12 @@ export default function ResetPasswordPage() {
 
     setStatus('loading')
     try {
-      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+      const res = await fetchApi('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),
       })
-      const data = await res.json()
+      const data = await parseResponseBody(res)
       if (!res.ok) throw new Error(data.error || 'Failed to reset password')
 
       // Auto-login after reset

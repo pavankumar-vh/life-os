@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifeos-v3'
+const CACHE_NAME = 'lifeos-v4'
 const STATIC_ASSETS = ['/manifest.json']
 
 self.addEventListener('install', (event) => {
@@ -44,7 +44,15 @@ self.addEventListener('fetch', (event) => {
       return fetch(request).then((res) => {
         // Only cache valid same-origin non-opaque responses
         if (res.ok && res.type === 'basic') {
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, res.clone()))
+          // Clone defensively to avoid occasional race/body-lock errors.
+          let resForCache
+          try {
+            resForCache = res.clone()
+          } catch {
+            return res
+          }
+
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, resForCache)).catch(() => {})
         }
         return res
       })

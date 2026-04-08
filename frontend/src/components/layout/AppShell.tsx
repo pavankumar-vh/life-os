@@ -39,7 +39,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { motion, AnimatePresence, LazyMotion, domAnimation, MotionConfig } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import { DynamicFavicon } from '@/components/DynamicFavicon'
-import { getApiBaseUrl } from '@/lib/api'
+import { fetchApi } from '@/lib/api'
 
 const views: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -111,9 +111,13 @@ export function AppShell() {
   // Auto-fetch user on mount
   useEffect(() => {
     if (token && !user) {
-      const apiBase = getApiBaseUrl()
-      fetch(`${apiBase}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
+      fetchApi('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(async (r) => {
+          const text = await r.text()
+          const data = text ? JSON.parse(text) : {}
+          if (!r.ok) throw new Error(data.error || 'Failed to load user')
+          return data
+        })
         .then((data) => { if (data._id) useAuthStore.getState().setUser(data) })
         .catch(() => useAuthStore.getState().logout())
     }

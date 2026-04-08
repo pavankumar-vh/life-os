@@ -3,12 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAuthStore } from '@/store'
-import { getApiBaseUrl } from '@/lib/api'
+import { fetchApi } from '@/lib/api'
 import { toast } from '@/components/Toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, ArrowRight, Eye, EyeOff, Mail, CheckCircle, Sparkles, Shield, Cpu } from 'lucide-react'
-
-const API_URL = getApiBaseUrl()
 
 type Mode = 'login' | 'register' | 'forgot'
 
@@ -35,6 +33,17 @@ const features = [
   { icon: Shield, label: 'End-to-end encrypted — your keys, your data' },
   { icon: Sparkles, label: 'Habits, goals, workouts, diet and more' },
 ]
+
+async function parseResponseBody(res: Response): Promise<any> {
+  const text = await res.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { error: text.slice(0, 300) }
+  }
+}
 
 export function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login')
@@ -73,11 +82,11 @@ export function AuthScreen() {
     setError('')
     setForgotLoading(true)
     try {
-      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+      const res = await fetchApi('/api/auth/forgot-password', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       })
-      const data = await res.json()
+      const data = await parseResponseBody(res)
       if (!res.ok) throw new Error(data.error || 'Failed')
       setForgotSent(true)
     } catch (err) {
@@ -89,12 +98,12 @@ export function AuthScreen() {
 
   const handleGoogleLogin = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/auth/google/url`)
-      const data = await res.json()
-      if (data.url) {
+      const res = await fetchApi('/api/auth/google/url')
+      const data = await parseResponseBody(res)
+      if (res.ok && data.url) {
         window.location.href = data.url
       } else {
-        toast.error('Failed to initialize Google Login')
+        toast.error(data.error || 'Failed to initialize Google Login')
       }
     } catch (e) {
       console.error(e)

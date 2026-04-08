@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import { toISODate } from '@/lib/utils'
-import { getApiBaseUrl } from '@/lib/api'
-
-const API_BASE = typeof window !== 'undefined' ? '' : getApiBaseUrl()
+import { fetchApi } from '@/lib/api'
 
 // ─── TYPES ─────────────────────────────────────────
 
@@ -120,19 +118,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     set({ isLoading: true })
     try {
-      const url = `${API_BASE}/api/auth/login`
-      console.log('[LifeOS] Login request to:', url)
-      const res = await fetch(url, {
+      const res = await fetchApi('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
-      const data = await res.json()
+      const data = await parseResponseBody(res)
       if (!res.ok) throw new Error(data.error || 'Login failed')
       localStorage.setItem('lifeos-token', data.token)
       set({ user: data.user, token: data.token, isLoading: false })
     } catch (err: any) {
-      console.error('[LifeOS] Login error:', err?.message, '| API_BASE:', API_BASE)
+      console.error('[LifeOS] Login error:', err?.message)
       set({ isLoading: false })
       throw err
     }
@@ -140,12 +136,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (name, email, password) => {
     set({ isLoading: true })
     try {
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
+      const res = await fetchApi('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
       })
-      const data = await res.json()
+      const data = await parseResponseBody(res)
       if (!res.ok) throw new Error(data.error || 'Registration failed')
       localStorage.setItem('lifeos-token', data.token)
       set({ user: data.user, token: data.token, isLoading: false })
@@ -209,9 +205,20 @@ export const useAppStore = create<AppState>((set) => ({
 
 // ─── API HELPER ─────────────────────────────────────
 
+async function parseResponseBody(res: Response): Promise<any> {
+  const text = await res.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { error: text.slice(0, 300) }
+  }
+}
+
 async function api(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('lifeos-token')
-  const res = await fetch(`${API_BASE}/api${path}`, {
+  const res = await fetchApi(`/api${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -219,12 +226,7 @@ async function api(path: string, options: RequestInit = {}) {
       ...options.headers,
     },
   })
-  let data
-  try {
-    data = await res.json()
-  } catch {
-    throw new Error('Invalid server response')
-  }
+  const data = await parseResponseBody(res)
   if (!res.ok) throw new Error(data.error || 'Request failed')
   return data
 }
@@ -1150,13 +1152,12 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
     if (opts.content) formData.append('content', opts.content)
     if (opts.files) opts.files.forEach(f => formData.append('files', f))
     const token = localStorage.getItem('lifeos-token')
-    const res = await fetch(`${API_BASE}/api/flashcards/generate`, {
+    const res = await fetchApi('/api/flashcards/generate', {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     })
-    let data
-    try { data = await res.json() } catch { throw new Error('Invalid server response') }
+    const data = await parseResponseBody(res)
     if (!res.ok) throw new Error(data.error || 'Generation failed')
     const newCards = Array.isArray(data) ? data : []
     set({ cards: [...newCards, ...get().cards] })
@@ -1258,10 +1259,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const oldestId = messages[0]._id
       const token = localStorage.getItem('lifeos-token')
-      const res = await fetch(`${API_BASE}/api/chat?before=${oldestId}&limit=50`, {
+      const res = await fetchApi(`/api/chat?before=${encodeURIComponent(oldestId)}&limit=50`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      const data = await res.json()
+      const data = await parseResponseBody(res)
+      if (!res.ok) throw new Error(data.error || 'Failed to load chat history')
       const older: ChatMessageData[] = Array.isArray(data) ? data : (data.messages ?? [])
       const newHasMore: boolean = Array.isArray(data) ? false : (data.hasMore ?? false)
       set({ messages: [...older, ...get().messages], hasMore: newHasMore })
@@ -1282,7 +1284,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const { provider, model } = useSettingsStore.getState().getAiConfig()
       const token = localStorage.getItem('lifeos-token')
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetchApi('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1292,7 +1294,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
 
       if (!res.ok) {
-        const err = await res.json()
+        const err = await parseResponseBody(res)
         throw new Error(err.error || 'Chat request failed')
       }
 
