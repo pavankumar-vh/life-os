@@ -131,6 +131,55 @@ function toRfc3339(value: string): string | null {
   return parsed.toISOString()
 }
 
+function normalizeCalendarEventPayload(start: unknown, end: unknown, allDay: unknown): {
+  startPayload?: { date?: string; dateTime?: string }
+  endPayload?: { date?: string; dateTime?: string }
+  error?: string
+} {
+  if (typeof start !== 'string' || !start.trim()) {
+    return { error: 'Title and start date required' }
+  }
+
+  const isAllDay = !!allDay
+
+  if (isAllDay) {
+    if (!isIsoDate(start)) {
+      return { error: 'All-day events require start date in YYYY-MM-DD format' }
+    }
+
+    const endDate = typeof end === 'string' && isIsoDate(end) ? end : nextIsoDate(start)
+    if (!endDate) {
+      return { error: 'Invalid all-day event end date' }
+    }
+
+    return {
+      startPayload: { date: start },
+      endPayload: { date: endDate },
+    }
+  }
+
+  const startDateTime = toRfc3339(start)
+  if (!startDateTime) {
+    return { error: 'Invalid start date-time' }
+  }
+
+  let endDateTime = typeof end === 'string' ? toRfc3339(end) : null
+  if (!endDateTime) {
+    const fallback = new Date(startDateTime)
+    fallback.setHours(fallback.getHours() + 1)
+    endDateTime = fallback.toISOString()
+  }
+
+  if (new Date(endDateTime).getTime() <= new Date(startDateTime).getTime()) {
+    return { error: 'Event end time must be after start time' }
+  }
+
+  return {
+    startPayload: { dateTime: startDateTime },
+    endPayload: { dateTime: endDateTime },
+  }
+}
+
 // Helper: get authed client for a user
 async function getUserClient(userId: string) {
   const user = await User.findById(userId).select('googleTokens')
@@ -235,41 +284,9 @@ router.post('/calendar/events', async (req: AuthRequest, res: Response) => {
 
     if (!title || !start) return res.status(400).json({ error: 'Title and start date required' })
 
-    const isAllDay = !!allDay
-    let startPayload: { date?: string; dateTime?: string }
-    let endPayload: { date?: string; dateTime?: string }
-
-    if (isAllDay) {
-      if (!isIsoDate(start)) {
-        return res.status(400).json({ error: 'All-day events require start date in YYYY-MM-DD format' })
-      }
-
-      const endDate = typeof end === 'string' && isIsoDate(end) ? end : nextIsoDate(start)
-      if (!endDate) {
-        return res.status(400).json({ error: 'Invalid all-day event end date' })
-      }
-
-      startPayload = { date: start }
-      endPayload = { date: endDate }
-    } else {
-      const startDateTime = toRfc3339(start)
-      if (!startDateTime) {
-        return res.status(400).json({ error: 'Invalid start date-time' })
-      }
-
-      let endDateTime = typeof end === 'string' ? toRfc3339(end) : null
-      if (!endDateTime) {
-        const fallback = new Date(startDateTime)
-        fallback.setHours(fallback.getHours() + 1)
-        endDateTime = fallback.toISOString()
-      }
-
-      if (new Date(endDateTime).getTime() <= new Date(startDateTime).getTime()) {
-        return res.status(400).json({ error: 'Event end time must be after start time' })
-      }
-
-      startPayload = { dateTime: startDateTime }
-      endPayload = { dateTime: endDateTime }
+    const normalized = normalizeCalendarEventPayload(start, end, allDay)
+    if (normalized.error || !normalized.startPayload || !normalized.endPayload) {
+      return res.status(400).json({ error: normalized.error || 'Invalid event payload' })
     }
 
     const event = await calendar.events.insert({
@@ -277,8 +294,8 @@ router.post('/calendar/events', async (req: AuthRequest, res: Response) => {
       requestBody: {
         summary: title,
         description,
-        start: startPayload,
-        end: endPayload,
+        start: normalized.startPayload,
+        end: normalized.endPayload,
       },
     })
 
@@ -304,6 +321,108 @@ router.post('/calendar/events', async (req: AuthRequest, res: Response) => {
     }
     console.error('Calendar create error:', error)
     return res.status(500).json({ error: 'Failed to create event' })
+  }
+})
+
+// PUT /api/google/calendar/events/:eventId — update an event
+router.put('/calendar/events/:eventId', async (req: AuthRequest, res: Response) => {
+  try {
+    if (isDemoUser(req.user!.userId)) {
+      return res.status(400).json({ error: 'Demo user cannot update events' })
+    }
+
+    const eventIdRaw = req.params.eventId
+    const eventId = Array.isArray(eventIdRaw) ? eventIdRaw[0] : eventIdRaw
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' })
+
+    const client = await getUserClient(req.user!.userId)
+    const calendar = google.calendar({ version: 'v3', auth: client })
+    const { title, description, start, end, allDay } = req.body
+
+    if (!title || !start) return res.status(400).json({ error: 'Title and start date required' })
+
+    const normalized = normalizeCalendarEventPayload(start, end, allDay)
+    if (normalized.error || !normalized.startPayload || !normalized.endPayload) {
+      return res.status(400).json({ error: normalized.error || 'Invalid event payload' })
+    }
+
+    const event = await calendar.events.update({
+      calendarId: 'primary',
+      eventId,
+      requestBody: {
+        summary: title,
+        description,
+        start: normalized.startPayload,
+        end: normalized.endPayload,
+      },
+    })
+
+    const updated = {
+      id: event.data.id,
+      title: event.data.summary,
+      start: event.data.start?.dateTime || event.data.start?.date,
+      end: event.data.end?.dateTime || event.data.end?.date,
+    }
+
+    audit(req.user!.userId, 'update', 'google_calendar_event', event.data.id || eventId, {
+      after: updated,
+    })
+
+    return res.json(updated)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    const detail = (error as any)?.response?.data?.error?.message || msg
+    if (msg === 'Google not connected') return res.status(400).json({ error: msg })
+    if (String(detail).includes('invalid_grant')) {
+      return res.status(401).json({ error: 'Google session expired. Please reconnect Google in Settings.' })
+    }
+    if (String(detail).toLowerCase().includes('not found')) {
+      return res.status(404).json({ error: 'Google event not found' })
+    }
+    if (String(detail).includes('insufficient')) {
+      return res.status(403).json({ error: 'Missing Google Calendar permissions. Please reconnect and grant Calendar access.' })
+    }
+    console.error('Calendar update error:', error)
+    return res.status(500).json({ error: 'Failed to update event' })
+  }
+})
+
+// DELETE /api/google/calendar/events/:eventId — delete an event
+router.delete('/calendar/events/:eventId', async (req: AuthRequest, res: Response) => {
+  try {
+    if (isDemoUser(req.user!.userId)) {
+      return res.status(400).json({ error: 'Demo user cannot delete events' })
+    }
+
+    const eventIdRaw = req.params.eventId
+    const eventId = Array.isArray(eventIdRaw) ? eventIdRaw[0] : eventIdRaw
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' })
+
+    const client = await getUserClient(req.user!.userId)
+    const calendar = google.calendar({ version: 'v3', auth: client })
+
+    await calendar.events.delete({
+      calendarId: 'primary',
+      eventId,
+    })
+
+    audit(req.user!.userId, 'delete', 'google_calendar_event', eventId, {
+      before: { id: eventId },
+    })
+
+    return res.json({ deleted: true, id: eventId })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    const detail = (error as any)?.response?.data?.error?.message || msg
+    if (msg === 'Google not connected') return res.status(400).json({ error: msg })
+    if (String(detail).includes('invalid_grant')) {
+      return res.status(401).json({ error: 'Google session expired. Please reconnect Google in Settings.' })
+    }
+    if (String(detail).toLowerCase().includes('not found')) {
+      return res.status(404).json({ error: 'Google event not found' })
+    }
+    console.error('Calendar delete error:', error)
+    return res.status(500).json({ error: 'Failed to delete event' })
   }
 })
 

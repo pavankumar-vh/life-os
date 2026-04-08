@@ -5,7 +5,7 @@ import { useTimelineStore, useHabitsStore, useJournalStore, useWorkoutsStore, us
 import { toISODate, formatDate } from '@/lib/utils'
 import { getApiBaseUrl } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Flame, BookOpen, Dumbbell, Apple, CheckSquare, Target, Activity, Clock, TrendingUp, Plus, X, ExternalLink } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Flame, BookOpen, Dumbbell, Apple, CheckSquare, Target, Activity, Clock, TrendingUp, Plus, X, ExternalLink, Pencil, Trash2 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -49,6 +49,15 @@ function formatEventTimeRange(start?: string, end?: string, allDay?: boolean) {
   }
 }
 
+function toInputTime(value?: string) {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const hh = String(parsed.getHours()).padStart(2, '0')
+  const mm = String(parsed.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
 export function CalendarView() {
   const { events, isLoading, fetchTimeline } = useTimelineStore()
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
@@ -59,7 +68,9 @@ export function CalendarView() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [googleEvents, setGoogleEvents] = useState<TimelineEvent[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingGoogleEventId, setEditingGoogleEventId] = useState<string | null>(null)
   const [creatingGoogleEvent, setCreatingGoogleEvent] = useState(false)
+  const [deletingGoogleEventId, setDeletingGoogleEventId] = useState<string | null>(null)
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventDescription, setNewEventDescription] = useState('')
   const [newEventDate, setNewEventDate] = useState(toISODate())
@@ -112,6 +123,7 @@ export function CalendarView() {
           data: {
             source: 'google',
             id: event.id,
+            description: event.description,
             start: event.start,
             end: event.end,
             allDay: event.allDay,
@@ -150,7 +162,50 @@ export function CalendarView() {
     if (selectedDate) setNewEventDate(selectedDate)
   }, [selectedDate])
 
-  const handleCreateGoogleEvent = async () => {
+  const closeEventModal = () => {
+    setShowCreateModal(false)
+    setEditingGoogleEventId(null)
+  }
+
+  const openCreateGoogleModal = () => {
+    if (!googleConnected) {
+      toast.info('Connect Google first from Settings > Google')
+      return
+    }
+
+    setEditingGoogleEventId(null)
+    setNewEventTitle('')
+    setNewEventDescription('')
+    setNewEventDate(selectedDate || toISODate())
+    setNewEventStartTime('09:00')
+    setNewEventEndTime('10:00')
+    setNewEventAllDay(false)
+    setShowCreateModal(true)
+  }
+
+  const openEditGoogleModal = (event: TimelineEvent) => {
+    const eventId = typeof event.data?.['id'] === 'string' ? event.data['id'] : ''
+    if (!eventId) {
+      toast.error('Unable to edit this event')
+      return
+    }
+
+    const start = typeof event.data?.['start'] === 'string' ? event.data['start'] : ''
+    const end = typeof event.data?.['end'] === 'string' ? event.data['end'] : ''
+    const description = typeof event.data?.['description'] === 'string' ? event.data['description'] : ''
+    const isAllDay = Boolean(event.data?.['allDay'])
+
+    setEditingGoogleEventId(eventId)
+    setNewEventTitle(event.title || '')
+    setNewEventDescription(description)
+    setNewEventAllDay(isAllDay)
+    setNewEventDate(toEventDate(start) || selectedDate || toISODate())
+    setNewEventStartTime(isAllDay ? '09:00' : (toInputTime(start) || '09:00'))
+    setNewEventEndTime(isAllDay ? '10:00' : (toInputTime(end) || '10:00'))
+    setShowCreateModal(true)
+  }
+
+  const handleSaveGoogleEvent = async () => {
     if (!googleConnected) {
       toast.info('Connect Google in Settings first')
       return
@@ -183,8 +238,12 @@ export function CalendarView() {
         ? undefined
         : new Date(`${newEventDate}T${newEventEndTime}:00`).toISOString()
 
-      const res = await fetch(`${apiBase}/api/google/calendar/events`, {
-        method: 'POST',
+      const endpoint = editingGoogleEventId
+        ? `${apiBase}/api/google/calendar/events/${encodeURIComponent(editingGoogleEventId)}`
+        : `${apiBase}/api/google/calendar/events`
+
+      const res = await fetch(endpoint, {
+        method: editingGoogleEventId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -200,19 +259,62 @@ export function CalendarView() {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to create Google event')
+        throw new Error(data.error || 'Failed to save Google event')
       }
 
-      toast.success('Google event created')
-      setShowCreateModal(false)
+      toast.success(editingGoogleEventId ? 'Google event updated' : 'Google event created')
+      closeEventModal()
       setNewEventTitle('')
       setNewEventDescription('')
       setNewEventAllDay(false)
       await fetchData()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create Google event')
+      toast.error(error instanceof Error ? error.message : 'Failed to save Google event')
     } finally {
       setCreatingGoogleEvent(false)
+    }
+  }
+
+  const handleDeleteGoogleEvent = async (eventId: string) => {
+    if (!googleConnected) {
+      toast.info('Connect Google in Settings first')
+      return
+    }
+
+    if (!eventId) {
+      toast.error('Unable to delete this event')
+      return
+    }
+
+    const confirmed = window.confirm('Delete this Google Calendar event?')
+    if (!confirmed) return
+
+    const token = localStorage.getItem('lifeos-token')
+    if (!token) {
+      toast.error('Please log in again')
+      return
+    }
+
+    setDeletingGoogleEventId(eventId)
+    try {
+      const res = await fetch(`${apiBase}/api/google/calendar/events/${encodeURIComponent(eventId)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete Google event')
+      }
+
+      toast.success('Google event deleted')
+      await fetchData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete Google event')
+    } finally {
+      setDeletingGoogleEventId(null)
     }
   }
 
@@ -329,13 +431,7 @@ export function CalendarView() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              if (!googleConnected) {
-                toast.info('Connect Google first from Settings > Google')
-                return
-              }
-              setShowCreateModal(true)
-            }}
+            onClick={openCreateGoogleModal}
             className="px-3 py-1.5 text-xs rounded-lg bg-accent/15 text-accent hover:bg-accent/20 transition-colors flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> Add Google Event
@@ -491,6 +587,7 @@ export function CalendarView() {
                   {selectedEvents.map((event, i) => {
                     const cfg = TYPE_CONFIG[event.type]
                     const googleLink = typeof event.data?.['htmlLink'] === 'string' ? event.data['htmlLink'] : ''
+                    const googleEventId = typeof event.data?.['id'] === 'string' ? event.data['id'] : ''
                     return (
                       <motion.div key={i} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
                         className="flex items-start gap-2.5 p-2.5 rounded-lg bg-bg-elevated hover:bg-bg-hover transition-colors">
@@ -512,6 +609,24 @@ export function CalendarView() {
                             >
                               Open in Google <ExternalLink className="w-3 h-3" />
                             </a>
+                          )}
+                          {googleEventId && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                onClick={() => openEditGoogleModal(event)}
+                                className="inline-flex items-center gap-1 text-[11px] text-blue-soft hover:underline"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGoogleEvent(googleEventId)}
+                                disabled={deletingGoogleEventId === googleEventId}
+                                className="inline-flex items-center gap-1 text-[11px] text-red-400 hover:underline disabled:opacity-60"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                {deletingGoogleEventId === googleEventId ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </div>
                           )}
                         </div>
                       </motion.div>
@@ -581,7 +696,7 @@ export function CalendarView() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => !creatingGoogleEvent && setShowCreateModal(false)}
+            onClick={closeEventModal}
           >
             <motion.div
               initial={{ opacity: 0, y: 14, scale: 0.98 }}
@@ -593,10 +708,10 @@ export function CalendarView() {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                  <CalIcon className="w-4 h-4 text-blue-soft" /> Create Google Event
+                  <CalIcon className="w-4 h-4 text-blue-soft" /> {editingGoogleEventId ? 'Edit Google Event' : 'Create Google Event'}
                 </h3>
                 <button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={closeEventModal}
                   disabled={creatingGoogleEvent}
                   className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
                 >
@@ -671,18 +786,18 @@ export function CalendarView() {
 
               <div className="flex items-center justify-end gap-2 mt-5">
                 <button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={closeEventModal}
                   disabled={creatingGoogleEvent}
                   className="px-3 py-2 rounded-lg text-xs text-text-muted hover:text-text-primary transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleCreateGoogleEvent}
+                  onClick={handleSaveGoogleEvent}
                   disabled={creatingGoogleEvent}
                   className="btn px-3 py-2 text-xs"
                 >
-                  {creatingGoogleEvent ? 'Creating...' : 'Create Event'}
+                  {creatingGoogleEvent ? (editingGoogleEventId ? 'Saving...' : 'Creating...') : (editingGoogleEventId ? 'Save Changes' : 'Create Event')}
                 </button>
               </div>
             </motion.div>
