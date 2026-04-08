@@ -509,7 +509,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
 // ─── TIMELINE STORE ─────────────────────────────────
 
 export interface TimelineEvent {
-  type: 'habit' | 'journal' | 'workout' | 'meal' | 'task' | 'goal'
+  type: 'habit' | 'journal' | 'workout' | 'meal' | 'task' | 'goal' | 'google'
   date: string
   title: string
   subtitle?: string

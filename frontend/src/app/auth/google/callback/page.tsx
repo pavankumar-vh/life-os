@@ -87,8 +87,25 @@ export default function AuthGoogleCallbackPage() {
         .then(data => {
           if (data.connected) {
             setStatus('success')
-            setMessage('Google account connected! Redirecting...')
-            setTimeout(() => { window.location.href = '/?tab=settings&stab=google' }, 1500)
+            setMessage('Google account connected! Closing window...')
+
+            // Notify opener so Settings can refresh instantly.
+            if (window.opener && !window.opener.closed) {
+              try {
+                window.opener.postMessage({ type: 'lifeos-google-connected' }, window.location.origin)
+              } catch {}
+            }
+
+            setTimeout(() => {
+              // If this callback is inside the OAuth popup, close it.
+              if (window.opener && !window.opener.closed) {
+                window.close()
+                return
+              }
+
+              // Fallback when opened directly in a tab.
+              window.location.href = '/?tab=settings&stab=google'
+            }, 900)
           } else {
             setStatus('error')
             setMessage(data.error || 'Failed to connect')

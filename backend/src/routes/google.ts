@@ -111,6 +111,26 @@ router.post('/disconnect', async (req: AuthRequest, res: Response) => {
   }
 })
 
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function nextIsoDate(value: string): string | null {
+  if (!isIsoDate(value)) return null
+  const date = new Date(`${value}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return null
+  date.setUTCDate(date.getUTCDate() + 1)
+  return date.toISOString().split('T')[0]
+}
+
+function toRfc3339(value: string): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)) return value
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
 // Helper: get authed client for a user
 async function getUserClient(userId: string) {
   const user = await User.findById(userId).select('googleTokens')
@@ -129,6 +149,16 @@ async function getUserClient(userId: string) {
     : undefined
 
   const client = getAuthedClient({ access_token: accessToken, refresh_token: refreshToken })
+
+  // If only refresh token exists, proactively mint a fresh access token.
+  if (!accessToken && refreshToken) {
+    const refreshed = await client.getAccessToken()
+    if (!refreshed.token) throw new Error('Google access token refresh failed')
+    await User.findByIdAndUpdate(userId, {
+      $set: { 'googleTokens.access_token': encrypt(refreshed.token) },
+    })
+    client.setCredentials({ access_token: refreshed.token, refresh_token: refreshToken })
+  }
 
   // Listen for token refresh and persist (encrypted)
   client.on('tokens', async (tokens) => {
@@ -182,7 +212,11 @@ router.get('/calendar/events', async (req: AuthRequest, res: Response) => {
     return res.json(events)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
+    const detail = (error as any)?.response?.data?.error?.message || msg
     if (msg === 'Google not connected') return res.status(400).json({ error: msg })
+    if (String(detail).includes('invalid_grant')) {
+      return res.status(401).json({ error: 'Google session expired. Please reconnect Google in Settings.' })
+    }
     console.error('Calendar fetch error:', error)
     return res.status(500).json({ error: 'Failed to fetch calendar events' })
   }
@@ -201,13 +235,50 @@ router.post('/calendar/events', async (req: AuthRequest, res: Response) => {
 
     if (!title || !start) return res.status(400).json({ error: 'Title and start date required' })
 
+    const isAllDay = !!allDay
+    let startPayload: { date?: string; dateTime?: string }
+    let endPayload: { date?: string; dateTime?: string }
+
+    if (isAllDay) {
+      if (!isIsoDate(start)) {
+        return res.status(400).json({ error: 'All-day events require start date in YYYY-MM-DD format' })
+      }
+
+      const endDate = typeof end === 'string' && isIsoDate(end) ? end : nextIsoDate(start)
+      if (!endDate) {
+        return res.status(400).json({ error: 'Invalid all-day event end date' })
+      }
+
+      startPayload = { date: start }
+      endPayload = { date: endDate }
+    } else {
+      const startDateTime = toRfc3339(start)
+      if (!startDateTime) {
+        return res.status(400).json({ error: 'Invalid start date-time' })
+      }
+
+      let endDateTime = typeof end === 'string' ? toRfc3339(end) : null
+      if (!endDateTime) {
+        const fallback = new Date(startDateTime)
+        fallback.setHours(fallback.getHours() + 1)
+        endDateTime = fallback.toISOString()
+      }
+
+      if (new Date(endDateTime).getTime() <= new Date(startDateTime).getTime()) {
+        return res.status(400).json({ error: 'Event end time must be after start time' })
+      }
+
+      startPayload = { dateTime: startDateTime }
+      endPayload = { dateTime: endDateTime }
+    }
+
     const event = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: {
         summary: title,
         description,
-        start: allDay ? { date: start } : { dateTime: start },
-        end: allDay ? { date: end || start } : { dateTime: end || start },
+        start: startPayload,
+        end: endPayload,
       },
     })
 
@@ -223,7 +294,14 @@ router.post('/calendar/events', async (req: AuthRequest, res: Response) => {
     return res.json(created)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
+    const detail = (error as any)?.response?.data?.error?.message || msg
     if (msg === 'Google not connected') return res.status(400).json({ error: msg })
+    if (String(detail).includes('invalid_grant')) {
+      return res.status(401).json({ error: 'Google session expired. Please reconnect Google in Settings.' })
+    }
+    if (String(detail).includes('insufficient')) {
+      return res.status(403).json({ error: 'Missing Google Calendar permissions. Please reconnect and grant Calendar access.' })
+    }
     console.error('Calendar create error:', error)
     return res.status(500).json({ error: 'Failed to create event' })
   }

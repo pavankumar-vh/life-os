@@ -3,8 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTimelineStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, type TimelineEvent } from '@/store'
 import { toISODate, formatDate } from '@/lib/utils'
+import { getApiBaseUrl } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Flame, BookOpen, Dumbbell, Apple, CheckSquare, Target, Activity, Clock, TrendingUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Flame, BookOpen, Dumbbell, Apple, CheckSquare, Target, Activity, Clock, TrendingUp, Plus, X, ExternalLink } from 'lucide-react'
 import { toast } from '@/components/Toast'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -17,9 +18,10 @@ const TYPE_CONFIG: Record<string, { icon: typeof Flame; color: string; bg: strin
   meal: { icon: Apple, color: 'text-orange-soft', bg: 'bg-orange-soft/10', label: 'Meals' },
   task: { icon: CheckSquare, color: 'text-blue-soft', bg: 'bg-blue-soft/10', label: 'Tasks' },
   goal: { icon: Target, color: 'text-accent', bg: 'bg-accent/10', label: 'Goals' },
+  google: { icon: CalIcon, color: 'text-blue-soft', bg: 'bg-blue-soft/10', label: 'Google' },
 }
 
-const TYPE_FILTERS = ['all', 'habit', 'journal', 'workout', 'meal', 'task', 'goal']
+const TYPE_FILTERS = ['all', 'habit', 'journal', 'workout', 'meal', 'task', 'goal', 'google']
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
@@ -30,6 +32,23 @@ function getFirstDayOfMonth(year: number, month: number) {
   return day === 0 ? 6 : day - 1 // Monday-first
 }
 
+function toEventDate(value?: string) {
+  if (!value) return ''
+  return value.includes('T') ? value.split('T')[0] : value
+}
+
+function formatEventTimeRange(start?: string, end?: string, allDay?: boolean) {
+  if (!start) return 'Google Calendar'
+  if (allDay) return 'All day · Google Calendar'
+  try {
+    const startTime = new Date(start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const endTime = end ? new Date(end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+    return endTime ? `${startTime} - ${endTime} · Google Calendar` : `${startTime} · Google Calendar`
+  } catch {
+    return 'Google Calendar'
+  }
+}
+
 export function CalendarView() {
   const { events, isLoading, fetchTimeline } = useTimelineStore()
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
@@ -37,16 +56,165 @@ export function CalendarView() {
   const [selectedDate, setSelectedDate] = useState<string | null>(toISODate())
   const [typeFilter, setTypeFilter] = useState('all')
   const [viewMode, setViewMode] = useState<'calendar' | 'timeline'>('calendar')
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleEvents, setGoogleEvents] = useState<TimelineEvent[]>([])
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creatingGoogleEvent, setCreatingGoogleEvent] = useState(false)
+  const [newEventTitle, setNewEventTitle] = useState('')
+  const [newEventDescription, setNewEventDescription] = useState('')
+  const [newEventDate, setNewEventDate] = useState(toISODate())
+  const [newEventStartTime, setNewEventStartTime] = useState('09:00')
+  const [newEventEndTime, setNewEventEndTime] = useState('10:00')
+  const [newEventAllDay, setNewEventAllDay] = useState(false)
+  const apiBase = getApiBaseUrl()
   const today = toISODate()
 
-  const fetchData = useCallback(() => {
+  const fetchGoogleEvents = useCallback(async (from: string, to: string) => {
+    const token = localStorage.getItem('lifeos-token')
+    if (!token) {
+      setGoogleConnected(false)
+      setGoogleEvents([])
+      return
+    }
+
+    try {
+      const statusRes = await fetch(`${apiBase}/api/google/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const statusData = await statusRes.json().catch(() => ({ connected: false }))
+      if (!statusRes.ok || !statusData.connected) {
+        setGoogleConnected(false)
+        setGoogleEvents([])
+        return
+      }
+
+      setGoogleConnected(true)
+      const res = await fetch(`${apiBase}/api/google/calendar/events?from=${from}&to=${to}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json().catch(() => [])
+      if (!res.ok) {
+        if (data?.error === 'Google not connected') {
+          setGoogleConnected(false)
+        }
+        setGoogleEvents([])
+        return
+      }
+
+      const mapped = (Array.isArray(data) ? data : [])
+        .map((event: any): TimelineEvent => ({
+          type: 'google',
+          date: toEventDate(event.start),
+          title: event.title || 'Google event',
+          subtitle: formatEventTimeRange(event.start, event.end, event.allDay),
+          icon: 'G',
+          color: '#60a5fa',
+          data: {
+            source: 'google',
+            id: event.id,
+            start: event.start,
+            end: event.end,
+            allDay: event.allDay,
+            location: event.location,
+            htmlLink: event.htmlLink,
+          },
+        }))
+        .filter((event: TimelineEvent) => event.date && event.date >= from && event.date <= to)
+
+      setGoogleEvents(mapped)
+    } catch {
+      setGoogleEvents([])
+    }
+  }, [apiBase])
+
+  const fetchData = useCallback(async () => {
     const from = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`
     const lastDay = getDaysInMonth(currentYear, currentMonth)
     const to = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    fetchTimeline(from, to).catch(() => toast.error('Failed to load calendar data'))
-  }, [currentYear, currentMonth, fetchTimeline])
+    try {
+      await Promise.all([fetchTimeline(from, to), fetchGoogleEvents(from, to)])
+    } catch {
+      toast.error('Failed to load calendar data')
+    }
+  }, [currentYear, currentMonth, fetchTimeline, fetchGoogleEvents])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    const onFocus = () => { fetchData() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [fetchData])
+
+  useEffect(() => {
+    if (selectedDate) setNewEventDate(selectedDate)
+  }, [selectedDate])
+
+  const handleCreateGoogleEvent = async () => {
+    if (!googleConnected) {
+      toast.info('Connect Google in Settings first')
+      return
+    }
+    if (!newEventTitle.trim()) {
+      toast.error('Event title is required')
+      return
+    }
+    if (!newEventDate) {
+      toast.error('Event date is required')
+      return
+    }
+    if (!newEventAllDay && newEventEndTime <= newEventStartTime) {
+      toast.error('End time must be after start time')
+      return
+    }
+
+    const token = localStorage.getItem('lifeos-token')
+    if (!token) {
+      toast.error('Please log in again')
+      return
+    }
+
+    setCreatingGoogleEvent(true)
+    try {
+      const start = newEventAllDay
+        ? newEventDate
+        : new Date(`${newEventDate}T${newEventStartTime}:00`).toISOString()
+      const end = newEventAllDay
+        ? undefined
+        : new Date(`${newEventDate}T${newEventEndTime}:00`).toISOString()
+
+      const res = await fetch(`${apiBase}/api/google/calendar/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: newEventTitle.trim(),
+          description: newEventDescription.trim(),
+          start,
+          end,
+          allDay: newEventAllDay,
+        }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create Google event')
+      }
+
+      toast.success('Google event created')
+      setShowCreateModal(false)
+      setNewEventTitle('')
+      setNewEventDescription('')
+      setNewEventAllDay(false)
+      await fetchData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create Google event')
+    } finally {
+      setCreatingGoogleEvent(false)
+    }
+  }
 
   const navigateMonth = (offset: number) => {
     let m = currentMonth + offset
@@ -65,15 +233,17 @@ export function CalendarView() {
   }
 
   // Group events by date
+  const allEvents = useMemo(() => [...events, ...googleEvents], [events, googleEvents])
+
   const eventsByDate = useMemo(() => {
     const map: Record<string, TimelineEvent[]> = {}
-    for (const e of events) {
+    for (const e of allEvents) {
       if (typeFilter !== 'all' && e.type !== typeFilter) continue
       if (!map[e.date]) map[e.date] = []
       map[e.date].push(e)
     }
     return map
-  }, [events, typeFilter])
+  }, [allEvents, typeFilter])
 
   // Calendar grid
   const calendarDays = useMemo(() => {
@@ -125,8 +295,8 @@ export function CalendarView() {
       }
     }
     const activeDays = Object.keys(eventsByDate).length
-    return { types, activeDays, total: events.filter(e => typeFilter === 'all' || e.type === typeFilter).length }
-  }, [eventsByDate, events, typeFilter])
+    return { types, activeDays, total: allEvents.filter(e => typeFilter === 'all' || e.type === typeFilter).length }
+  }, [eventsByDate, allEvents, typeFilter])
 
   // Streak calculation
   const currentStreak = useMemo(() => {
@@ -153,8 +323,23 @@ export function CalendarView() {
             <CalIcon className="w-6 h-6 text-accent" /> Calendar
           </h1>
           <p className="text-text-muted text-xs mt-0.5">Your life, day by day</p>
+          <p className={`text-[11px] mt-1 ${googleConnected ? 'text-green-soft' : 'text-text-muted'}`}>
+            {googleConnected ? 'Google Calendar connected' : 'Google Calendar not connected'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (!googleConnected) {
+                toast.info('Connect Google first from Settings > Google')
+                return
+              }
+              setShowCreateModal(true)
+            }}
+            className="px-3 py-1.5 text-xs rounded-lg bg-accent/15 text-accent hover:bg-accent/20 transition-colors flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Google Event
+          </button>
           <div className="flex gap-1 bg-bg-elevated rounded-lg p-0.5">
             <button onClick={() => setViewMode('calendar')}
               className={`px-3 py-1 text-xs rounded-md transition-all ${viewMode === 'calendar' ? 'bg-bg-surface text-accent font-medium' : 'text-text-muted'}`}>Calendar</button>
@@ -259,7 +444,7 @@ export function CalendarView() {
                         {uniqueTypes.slice(0, 4).map((t, j) => {
                           const cfg = TYPE_CONFIG[t]
                           return <div key={j} className={`w-1 h-1 rounded-full ${cfg?.bg?.replace('/10', '') || 'bg-accent'}`}
-                            style={{ backgroundColor: t === 'habit' ? '#a78bfa' : t === 'journal' ? '#e8d5b7' : t === 'workout' ? '#4ade80' : t === 'meal' ? '#fb923c' : t === 'task' ? '#60a5fa' : '#a78bfa' }} />
+                            style={{ backgroundColor: t === 'habit' ? '#a78bfa' : t === 'journal' ? '#e8d5b7' : t === 'workout' ? '#4ade80' : t === 'meal' ? '#fb923c' : t === 'task' ? '#60a5fa' : t === 'google' ? '#60a5fa' : '#a78bfa' }} />
                         })}
                         {uniqueTypes.length > 4 && <span className="text-[11px] text-text-secondary">+</span>}
                       </div>
@@ -305,6 +490,7 @@ export function CalendarView() {
                 <div className="space-y-2 max-h-[500px] overflow-y-auto">
                   {selectedEvents.map((event, i) => {
                     const cfg = TYPE_CONFIG[event.type]
+                    const googleLink = typeof event.data?.['htmlLink'] === 'string' ? event.data['htmlLink'] : ''
                     return (
                       <motion.div key={i} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
                         className="flex items-start gap-2.5 p-2.5 rounded-lg bg-bg-elevated hover:bg-bg-hover transition-colors">
@@ -317,6 +503,16 @@ export function CalendarView() {
                           <span className={`text-[11px] mt-1 inline-block px-1.5 py-0.5 rounded ${cfg?.bg || ''} ${cfg?.color || 'text-text-muted'}`}>
                             {cfg?.label || event.type}
                           </span>
+                          {googleLink && (
+                            <a
+                              href={googleLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] mt-1 inline-flex items-center gap-1 text-blue-soft hover:underline"
+                            >
+                              Open in Google <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
                         </div>
                       </motion.div>
                     )
@@ -377,6 +573,122 @@ export function CalendarView() {
           )}
         </div>
       )}
+
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => !creatingGoogleEvent && setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 14, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-md card"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                  <CalIcon className="w-4 h-4 text-blue-soft" /> Create Google Event
+                </h3>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={creatingGoogleEvent}
+                  className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Title</label>
+                  <input
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    placeholder="Event title"
+                    className="input w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Description (optional)</label>
+                  <textarea
+                    value={newEventDescription}
+                    onChange={(e) => setNewEventDescription(e.target.value)}
+                    placeholder="Notes"
+                    rows={3}
+                    className="input w-full resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={newEventDate}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 text-xs text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={newEventAllDay}
+                    onChange={(e) => setNewEventAllDay(e.target.checked)}
+                  />
+                  All day event
+                </label>
+
+                {!newEventAllDay && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Start time</label>
+                      <input
+                        type="time"
+                        value={newEventStartTime}
+                        onChange={(e) => setNewEventStartTime(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">End time</label>
+                      <input
+                        type="time"
+                        value={newEventEndTime}
+                        onChange={(e) => setNewEventEndTime(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={creatingGoogleEvent}
+                  className="px-3 py-2 rounded-lg text-xs text-text-muted hover:text-text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateGoogleEvent}
+                  disabled={creatingGoogleEvent}
+                  className="btn px-3 py-2 text-xs"
+                >
+                  {creatingGoogleEvent ? 'Creating...' : 'Create Event'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
