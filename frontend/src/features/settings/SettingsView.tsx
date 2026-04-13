@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSettingsStore, DEFAULT_GOALS } from '@/store'
+import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSettingsStore, useGoogleFitnessStore, DEFAULT_GOALS } from '@/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Download, Upload, Shield, Database, CheckCircle2, AlertTriangle, HardDrive, RefreshCw, Cloud, Package, ArrowRightLeft, Unlock,
@@ -34,7 +34,6 @@ const ACCENT_PRESETS = [
 ]
 
 type GoalKeys = keyof typeof DEFAULT_GOALS
-type GoogleFitnessDay = { date: string; steps: number; calories: number }
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -146,10 +145,12 @@ export function SettingsView() {
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
   const [driveBackups, setDriveBackups] = useState<Array<{ id: string; name: string; createdAt: string; size?: string; link?: string }> | null>(null)
   const [backupsLoading, setBackupsLoading] = useState(false)
-  const [fitnessLoading, setFitnessLoading] = useState(false)
-  const [fitnessData, setFitnessData] = useState<GoogleFitnessDay[]>([])
-  const [fitnessError, setFitnessError] = useState<string | null>(null)
-  const [fitnessLastSyncedAt, setFitnessLastSyncedAt] = useState<string | null>(null)
+  const fitnessLoading = useGoogleFitnessStore(s => s.isLoading)
+  const fitnessData = useGoogleFitnessStore(s => s.days)
+  const fitnessError = useGoogleFitnessStore(s => s.error)
+  const fitnessLastSyncedAt = useGoogleFitnessStore(s => s.lastSyncedAt)
+  const fetchFitnessData = useGoogleFitnessStore(s => s.fetchFitnessData)
+  const clearFitnessData = useGoogleFitnessStore(s => s.clearFitnessData)
   const apiBase = getApiBaseUrl()
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
 
@@ -186,75 +187,21 @@ export function SettingsView() {
     if (googleConnected) fetchDriveBackups()
   }, [googleConnected, fetchDriveBackups])
 
-  const fetchFitnessData = useCallback(async ({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
-    if (!authToken || (!googleConnected && !force)) {
-      if (!googleConnected) {
-        setFitnessData([])
-        setFitnessError(null)
-        setFitnessLastSyncedAt(null)
-      }
-      return
-    }
-
-    if (!silent) setFitnessLoading(true)
-    setFitnessError(null)
-
-    try {
-      const toDate = new Date()
-      const fromDate = new Date()
-      fromDate.setDate(fromDate.getDate() - 13)
-
-      const from = fromDate.toISOString().split('T')[0]
-      const to = toDate.toISOString().split('T')[0]
-
-      const res = await fetch(`${apiBase}/api/google/fitness/steps?from=${from}&to=${to}`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to fetch Google Fit data')
-      }
-
-      const normalized: GoogleFitnessDay[] = (Array.isArray(data) ? data : [])
-        .map((day: any) => ({
-          date: String(day?.date || ''),
-          steps: Number(day?.steps || 0),
-          calories: Number(day?.calories || 0),
-        }))
-        .filter((day) => !!day.date)
-        .sort((a, b) => a.date.localeCompare(b.date))
-
-      setFitnessData(normalized)
-      setFitnessLastSyncedAt(new Date().toISOString())
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch Google Fit data'
-      setFitnessError(message)
-      if (!silent) {
-        toast.error(message)
-      }
-    } finally {
-      if (!silent) setFitnessLoading(false)
-    }
-  }, [apiBase, authToken, googleConnected])
-
   useEffect(() => {
     if (!googleConnected) {
-      setFitnessData([])
-      setFitnessError(null)
-      setFitnessLastSyncedAt(null)
+      clearFitnessData()
       return
     }
     if (activeTab === 'google') {
-      fetchFitnessData({ silent: true }).catch(() => {})
+      fetchFitnessData({ silent: true, days: 14 }).catch(() => {})
     }
-  }, [activeTab, googleConnected, fetchFitnessData])
+  }, [activeTab, googleConnected, fetchFitnessData, clearFitnessData])
 
   useEffect(() => {
     if (!googleConnected || activeTab !== 'google') return
 
     const interval = window.setInterval(() => {
-      fetchFitnessData({ silent: true }).catch(() => {})
+      fetchFitnessData({ silent: true, days: 14 }).catch(() => {})
     }, 60000)
 
     return () => window.clearInterval(interval)
@@ -290,7 +237,7 @@ export function SettingsView() {
             const d = await r.json()
             if (d.connected) {
               toast.success('Google account connected!')
-              fetchFitnessData({ silent: true, force: true }).catch(() => {})
+              fetchFitnessData({ silent: true, days: 14 }).catch(() => {})
             }
           }, 300)
         }
@@ -335,7 +282,7 @@ export function SettingsView() {
         useHabitsStore.getState().fetchHabits(), useJournalStore.getState().fetchEntries(),
         useWorkoutsStore.getState().fetchWorkouts(), useMealsStore.getState().fetchMeals(),
         useTasksStore.getState().fetchTasks(), useGoalsStore.getState().fetchGoals(),
-        ...(googleConnected ? [fetchFitnessData({ silent: true })] : []),
+        ...(googleConnected ? [fetchFitnessData({ silent: true, days: 14 })] : []),
       ])
     } catch {} finally { setRefreshing(false) }
   }
@@ -596,6 +543,7 @@ export function SettingsView() {
                           headers: { Authorization: `Bearer ${authToken}` },
                         })
                         setGoogleConnected(false)
+                        clearFitnessData()
                         setDriveBackups(null)
                         toast.success('Google account disconnected')
                       } catch { toast.error('Failed to disconnect') }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useAuthStore, useHabitsStore, useTasksStore, useGoalsStore, useWorkoutsStore, useMealsStore, useJournalStore, useSettingsStore } from '@/store'
+import { useAuthStore, useHabitsStore, useTasksStore, useGoalsStore, useWorkoutsStore, useMealsStore, useJournalStore, useSettingsStore, useGoogleFitnessStore } from '@/store'
 import { getGreeting, getDayProgress, toISODate } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { motion, useMotionValue, useTransform, animate, useInView } from 'framer-motion'
@@ -67,6 +67,8 @@ export function Dashboard() {
   const { workouts, fetchWorkouts } = useWorkoutsStore()
   const { meals, fetchMeals } = useMealsStore()
   const { entries, fetchEntries } = useJournalStore()
+  const fitnessDays = useGoogleFitnessStore(s => s.days)
+  const fetchFitnessData = useGoogleFitnessStore(s => s.fetchFitnessData)
   const { setActiveView } = useAppStore()
   const [mounted, setMounted] = useState(false)
   const userGoals = useSettingsStore(s => s.goals)
@@ -81,9 +83,10 @@ export function Dashboard() {
     fetchWorkouts().catch(() => {})
     fetchMeals(today).catch(() => {})
     fetchEntries().catch(() => {})
+    fetchFitnessData({ silent: true, days: 14 }).catch(() => {})
     setMounted(true)
   // Dashboard silently ignores load errors — data will simply be empty
-  }, [fetchHabits, fetchTasks, fetchGoals, fetchWorkouts, fetchMeals, fetchEntries, today])
+  }, [fetchHabits, fetchTasks, fetchGoals, fetchWorkouts, fetchMeals, fetchEntries, fetchFitnessData, today])
 
   const completedHabitsToday = habits.filter((h) => (h.completedDates || []).includes(today)).length
   const totalHabits = habits.length
@@ -94,7 +97,9 @@ export function Dashboard() {
   const activeGoals = goals.filter((g) => g.status === 'active').length
   const completedGoals = goals.filter((g) => g.status === 'completed').length
   const todayWorkouts = workouts.filter((w) => w.date === today)
-  const todayCalories = meals.reduce((sum, m) => sum + m.calories, 0)
+  const todayMealCalories = meals.reduce((sum, m) => sum + m.calories, 0)
+  const todayFitCalories = fitnessDays.find((d) => d.date === today)?.calories || 0
+  const todayCalories = todayMealCalories > 0 ? todayMealCalories : todayFitCalories
   const todayProtein = meals.reduce((sum, m) => sum + m.protein, 0)
   const todayCarbs = meals.reduce((sum, m) => sum + m.carbs, 0)
   const todayFat = meals.reduce((sum, m) => sum + m.fat, 0)

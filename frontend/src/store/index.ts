@@ -589,6 +589,84 @@ export const useBackupStore = create<BackupState>((set) => ({
   },
 }))
 
+// ─── GOOGLE FITNESS STORE ──────────────────────────
+
+export interface GoogleFitnessDayData {
+  date: string
+  steps: number
+  calories: number
+}
+
+interface GoogleFitnessState {
+  days: GoogleFitnessDayData[]
+  isLoading: boolean
+  error: string | null
+  lastSyncedAt: string | null
+  fetchFitnessData: (opts?: { from?: string; to?: string; days?: number; silent?: boolean }) => Promise<void>
+  clearFitnessData: () => void
+}
+
+export const useGoogleFitnessStore = create<GoogleFitnessState>((set) => ({
+  days: [],
+  isLoading: false,
+  error: null,
+  lastSyncedAt: null,
+
+  fetchFitnessData: async (opts = {}) => {
+    const { from, to, days = 14, silent = false } = opts
+
+    if (typeof window === 'undefined') return
+
+    const token = localStorage.getItem('lifeos-token')
+    if (!token) {
+      set({ days: [], error: null, lastSyncedAt: null })
+      return
+    }
+
+    if (!silent) set({ isLoading: true })
+
+    try {
+      const toDate = to || toISODate()
+      const fromDate = from || (() => {
+        const date = new Date(`${toDate}T00:00:00`)
+        date.setDate(date.getDate() - Math.max(0, days - 1))
+        return toISODate(date)
+      })()
+
+      const params = new URLSearchParams({ from: fromDate, to: toDate })
+      const res = await fetchApi(`/api/google/fitness/steps?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      const data = await parseResponseBody(res)
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch fitness data')
+
+      const normalized: GoogleFitnessDayData[] = (Array.isArray(data) ? data : [])
+        .map((day: any) => ({
+          date: String(day?.date || ''),
+          steps: Number(day?.steps || 0),
+          calories: Number(day?.calories || 0),
+        }))
+        .filter((day) => !!day.date)
+        .sort((a, b) => a.date.localeCompare(b.date))
+
+      set({
+        days: normalized,
+        error: null,
+        lastSyncedAt: new Date().toISOString(),
+      })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch fitness data' })
+    } finally {
+      if (!silent) set({ isLoading: false })
+    }
+  },
+
+  clearFitnessData: () => {
+    set({ days: [], error: null, lastSyncedAt: null, isLoading: false })
+  },
+}))
+
 // ─── BODY TRACKER TYPES & STORE ─────────────────────
 
 export interface BodyLogData {

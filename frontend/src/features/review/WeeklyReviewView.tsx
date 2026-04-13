@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
-import { useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSleepTrackerStore, useBodyTrackerStore, useSettingsStore, DEFAULT_GOALS } from '@/store'
+import { useHabitsStore, useJournalStore, useWorkoutsStore, useMealsStore, useTasksStore, useGoalsStore, useSleepTrackerStore, useBodyTrackerStore, useSettingsStore, useGoogleFitnessStore, DEFAULT_GOALS } from '@/store'
 import { toISODate, formatDate } from '@/lib/utils'
 import { MOTIVATIONAL_QUOTES } from '@/lib/quotes'
 import { BarChart3, Flame, BookOpen, Dumbbell, CheckSquare, Target, Moon, Scale, TrendingUp, TrendingDown, Minus, Award, Quote, Utensils, Droplets, Zap } from 'lucide-react'
@@ -45,6 +45,7 @@ export function WeeklyReviewView() {
   const goals = useGoalsStore(s => s.goals)
   const sleepLogs = useSleepTrackerStore(s => s.logs)
   const bodyLogs = useBodyTrackerStore(s => s.logs)
+  const fitnessDays = useGoogleFitnessStore(s => s.days)
   const settingsGoals = useSettingsStore(s => s.goals) || DEFAULT_GOALS
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export function WeeklyReviewView() {
     useGoalsStore.getState().fetchGoals().catch(() => {})
     useSleepTrackerStore.getState().fetchLogs().catch(() => {})
     useBodyTrackerStore.getState().fetchLogs().catch(() => {})
+    useGoogleFitnessStore.getState().fetchFitnessData({ silent: true, days: 21 }).catch(() => {})
   }, [])
 
   const week = useMemo(() => getWeekDates(0), [])
@@ -135,16 +137,33 @@ export function WeeklyReviewView() {
       ? +(weekSleep.reduce((s, l) => s + l.quality, 0) / weekSleep.length).toFixed(1) : 0
 
     // ─── Nutrition (meals this week) ───
-    const weekMeals = meals.filter(m => m.date && week.dates.includes(m.date.slice(0, 10)))
-    const totalCalories = weekMeals.reduce((s, m) => s + (m.calories || 0), 0)
-    const totalProtein = weekMeals.reduce((s, m) => s + (m.protein || 0), 0)
-    const mealDays = new Set(weekMeals.map(m => m.date.slice(0, 10))).size
-    const avgCalories = mealDays > 0 ? Math.round(totalCalories / mealDays) : 0
-    const avgProtein = mealDays > 0 ? Math.round(totalProtein / mealDays) : 0
+    const fitCaloriesByDate = new Map(fitnessDays.map((d) => [d.date, d.calories] as const))
+    const mealCaloriesByDate = new Map<string, number>()
+    for (const m of meals) {
+      if (!m.date) continue
+      const date = m.date.slice(0, 10)
+      mealCaloriesByDate.set(date, (mealCaloriesByDate.get(date) || 0) + (m.calories || 0))
+    }
 
-    const prevMeals = meals.filter(m => m.date && prevWeek.dates.includes(m.date.slice(0, 10)))
-    const prevMealDays = new Set(prevMeals.map(m => m.date.slice(0, 10))).size
-    const prevAvgCalories = prevMealDays > 0 ? Math.round(prevMeals.reduce((s, m) => s + (m.calories || 0), 0) / prevMealDays) : 0
+    const caloriesForDate = (date: string) => {
+      const mealCalories = mealCaloriesByDate.get(date) || 0
+      return mealCalories > 0 ? mealCalories : (fitCaloriesByDate.get(date) || 0)
+    }
+
+    const weekMeals = meals.filter(m => m.date && week.dates.includes(m.date.slice(0, 10)))
+    const totalProtein = weekMeals.reduce((s, m) => s + (m.protein || 0), 0)
+    const proteinDays = new Set(weekMeals.map(m => m.date.slice(0, 10))).size
+    const avgProtein = proteinDays > 0 ? Math.round(totalProtein / proteinDays) : 0
+
+    const weekCalorieDays = week.dates.map(caloriesForDate).filter((v) => v > 0)
+    const avgCalories = weekCalorieDays.length > 0
+      ? Math.round(weekCalorieDays.reduce((s, v) => s + v, 0) / weekCalorieDays.length)
+      : 0
+
+    const prevCalorieDays = prevWeek.dates.map(caloriesForDate).filter((v) => v > 0)
+    const prevAvgCalories = prevCalorieDays.length > 0
+      ? Math.round(prevCalorieDays.reduce((s, v) => s + v, 0) / prevCalorieDays.length)
+      : 0
     const prevNutritionScore = prevAvgCalories > 0 ? Math.min(prevAvgCalories / settingsGoals.calories, 1) * 100 * 0.10 : 0
 
     // ─── Body ───
@@ -182,7 +201,7 @@ export function WeeklyReviewView() {
       latestBody, prevBody,
       lifeScore, prevLifeScore,
     }
-  }, [habits, entries, workouts, meals, tasks, goals, sleepLogs, bodyLogs, week, prevWeek, settingsGoals])
+  }, [habits, entries, workouts, meals, tasks, goals, sleepLogs, bodyLogs, fitnessDays, week, prevWeek, settingsGoals])
 
   // Quote of the day (deterministic per day)
   const quote = MOTIVATIONAL_QUOTES[new Date().getDate() % MOTIVATIONAL_QUOTES.length]
