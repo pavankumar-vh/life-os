@@ -268,7 +268,7 @@ export function ChatView() {
         </div>
       </div>
       <p className="text-xs text-text-muted text-center mt-1.5">
-        Powered by GPT-4o mini · Your data stays private
+        Powered by AI · Your data stays private
       </p>
     </div>
   )

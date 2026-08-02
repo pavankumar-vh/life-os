@@ -18,29 +18,29 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
   {
     id: 'openai', label: 'OpenAI', icon: '⬡',
     models: [
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
-      { id: 'gpt-5.4', label: 'GPT-5.4' },
-      { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
       { id: 'gpt-4o', label: 'GPT-4o' },
+      { id: 'gpt-4.1', label: 'GPT-4.1' },
       { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+      { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
     ],
   },
   {
     id: 'gemini', label: 'Gemini', icon: '✦',
     models: [
-      { id: 'gemini-3-flash-preview', label: '3 Flash (Preview)' },
       { id: 'gemini-2.5-flash', label: '2.5 Flash' },
-      { id: 'gemini-2.5-pro', label: '2.5 Pro' },
       { id: 'gemini-2.5-flash-lite', label: '2.5 Flash-Lite' },
+      { id: 'gemini-2.5-pro', label: '2.5 Pro' },
+      { id: 'gemini-3-flash-preview', label: '3 Flash (Preview)' },
     ],
   },
   {
     id: 'anthropic', label: 'Claude', icon: '◈',
     models: [
-      { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-      { id: 'claude-haiku-4-6', label: 'Claude Haiku 4.6' },
+      { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
       { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+      { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     ],
   },
   {
@@ -48,9 +48,9 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
     models: [
       { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
       { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B' },
-      { id: 'gemma2-9b-it', label: 'Gemma 2 9B' },
-      { id: 'mistral-saba-24b', label: 'Mistral Saba 24B' },
-      { id: 'qwen-qwq-32b', label: 'QwQ 32B' },
+      { id: 'gpt-oss-20b', label: 'GPT-OSS 20B' },
+      { id: 'gpt-oss-120b', label: 'GPT-OSS 120B' },
+      { id: 'qwen-3.6-27b', label: 'Qwen 3.6 27B' },
     ],
   },
 ]

@@ -112,7 +112,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
     let providerResponse: Response
 
     if (provider === 'gemini') {
-      const geminiModel = model || 'gemini-2.5-flash'
+      const geminiModel = model || 'gemini-2.5-flash'  // valid stable model per Google AI docs
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${key}`
       const contents = [
         ...historyMessages.map((m: any) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
@@ -124,7 +124,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
         body: JSON.stringify({ system_instruction: { parts: [{ text: systemContent }] }, contents, generationConfig: { temperature: 0.7, maxOutputTokens: 1500 } }),
       })
     } else if (provider === 'anthropic') {
-      const claudeModel = model || 'claude-sonnet-4-6'
+      const claudeModel = model || 'claude-sonnet-4-5'  // valid alias per Anthropic docs
       providerResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -139,7 +139,8 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
         body: JSON.stringify({ model: groqModel, messages: [{ role: 'system', content: systemContent }, ...historyMessages, { role: 'user', content: message }], stream: true, max_tokens: 1500, temperature: 0.7 }),
       })
     } else {
-      const openaiModel = model || 'gpt-5.4-mini'
+      // OpenAI — use gpt-4o-mini as the default (widely available, stable)
+      const openaiModel = model || 'gpt-4o-mini'
       providerResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
