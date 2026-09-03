@@ -75,7 +75,7 @@ export function SleepTrackerView() {
     setShowAdd(false)
   }
 
-  // Chart data
+  const [chartRange, setChartRange] = useState<'7d' | '14d' | '30d' | 'all'>('14d')
   const chartData = useMemo(() => {
     const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
     if (chartRange === 'all') return sorted
