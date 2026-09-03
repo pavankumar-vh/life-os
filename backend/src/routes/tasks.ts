@@ -30,7 +30,12 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId, status: 'todo' })
     }
     const task = await Task.create({ ...body, userId })
-    audit(userId, 'create', 'tasks', task._id, { after: task.toJSON() })
+    audit(userId, 'create', 'tasks', task._id, {
+      after: task.toJSON(),
+      eventType: 'task.created',
+      source: 'manual',
+      metadata: { title: task.title, priority: task.priority, dueDate: task.dueDate },
+    })
     return res.status(201).json(task)
   } catch (e) {
     console.error('POST /api/tasks error:', e)
@@ -50,9 +55,18 @@ router.put('/:id', async (req: AuthRequest, res) => {
     const before = await Task.findOne({ _id: id, userId })
     const task = await Task.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!task) return res.status(404).json({ error: 'Not found' })
-    audit(userId, 'update', 'tasks', id, { before: before?.toJSON(), after: task.toJSON(), changes: updates as Record<string, unknown> })
+    // Determine the semantic event type
+    const wasCompleted = (updates as Record<string, unknown>).status === 'done' && before?.status !== 'done'
+    audit(userId, 'update', 'tasks', id, {
+      before: before?.toJSON(),
+      after: task.toJSON(),
+      changes: updates as Record<string, unknown>,
+      eventType: wasCompleted ? 'task.completed' : 'task.updated',
+      source: 'manual',
+      metadata: { title: task.title, priority: task.priority, status: task.status },
+    })
     // Award XP atomically: only if we're the one transitioning to done
-    if ((updates as any).status === 'done') {
+    if ((updates as Record<string, unknown>).status === 'done') {
       const xpResult = await Task.findOneAndUpdate(
         { _id: id, userId, _xpAwarded: { $ne: true } },
         { $set: { _xpAwarded: true } }
@@ -73,7 +87,12 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     if (isDemoUser(userId)) return res.json({ success: true })
     const task = await Task.findOne({ _id: id, userId })
     if (task) {
-      audit(userId, 'delete', 'tasks', id, { before: task.toJSON() })
+      audit(userId, 'delete', 'tasks', id, {
+        before: task.toJSON(),
+        eventType: 'task.deleted',
+        source: 'manual',
+        metadata: { title: task.title },
+      })
     }
     await Task.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })

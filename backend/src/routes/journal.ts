@@ -33,7 +33,12 @@ router.post('/', async (req: AuthRequest, res) => {
       { ...body, userId },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     )
-    audit(userId, 'create', 'journal', entry._id, { after: entry.toJSON() })
+    audit(userId, 'update', 'journal', entry._id, {
+      after: entry.toJSON(),
+      eventType: 'journal.updated',
+      source: 'manual',
+      metadata: { title: entry.title, date: entry.date },
+    })
     return res.json(entry)
   } catch (e) {
     console.error('POST /api/journal error:', e)
@@ -47,7 +52,14 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
     const entry = await Journal.findOne({ _id: id, userId })
-    if (entry) audit(userId, 'delete', 'journal', id, { before: entry.toJSON() })
+    if (entry) {
+      audit(userId, 'delete', 'journal', id, {
+        before: entry.toJSON(),
+        eventType: 'journal.deleted',
+        source: 'manual',
+        metadata: { title: entry.title, date: entry.date },
+      })
+    }
     await Journal.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

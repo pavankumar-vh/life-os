@@ -94,7 +94,12 @@ router.post('/', async (req: AuthRequest, res) => {
     }
 
     const item = await Capture.create({ ...payload, userId })
-    audit(userId, 'create', 'captures', item._id, { after: item.toJSON() })
+    audit(userId, 'create', 'captures', item._id, {
+      after: item.toJSON(),
+      eventType: 'capture.created',
+      source: source as any, // maps cleanly to ActivitySource
+      metadata: { type: item.type, tags: item.tags },
+    })
     return res.status(201).json(item)
   } catch (e) {
     console.error('POST /api/captures error:', e)
@@ -127,9 +132,18 @@ router.put('/:id', async (req: AuthRequest, res) => {
       return res.json({ ...existing, ...allowedUpdates, _id: id, userId })
     }
 
+    const before = await Capture.findOne({ _id: id, userId })
     const item = await Capture.findOneAndUpdate({ _id: id, userId }, allowedUpdates, { new: true })
     if (!item) return res.status(404).json({ error: 'Not found' })
-    audit(userId, 'update', 'captures', id, { after: item.toJSON(), changes: allowedUpdates })
+    const wasProcessed = allowedUpdates.processed === true && before?.processed !== true
+    audit(userId, 'update', 'captures', id, {
+      before: before?.toJSON(),
+      after: item.toJSON(),
+      changes: allowedUpdates,
+      eventType: wasProcessed ? 'capture.processed' : 'generic.update',
+      source: 'manual',
+      metadata: { type: item.type },
+    })
     return res.json(item)
   } catch (e) {
     console.error('PUT /api/captures error:', e)
@@ -144,7 +158,14 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
     const item = await Capture.findOne({ _id: id, userId })
-    if (item) audit(userId, 'delete', 'captures', id, { before: item.toJSON() })
+    if (item) {
+      audit(userId, 'delete', 'captures', id, {
+        before: item.toJSON(),
+        eventType: 'capture.deleted',
+        source: 'manual',
+        metadata: { type: item.type },
+      })
+    }
     await Capture.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {
