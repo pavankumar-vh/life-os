@@ -61,8 +61,8 @@ function NoteListItem({ note, isActive, onSelect, onMenu, menuOpen, onTogglePin,
   menuOpen: boolean; onTogglePin: () => void; onDelete: () => void; onDragStart?: (e: React.DragEvent) => void;
 }) {
   return (
-    <div className="relative group" draggable={true} onDragStart={onDragStart}>
-      <button onClick={onSelect}
+    <div className="relative group">
+      <button onClick={onSelect} draggable={true} onDragStart={onDragStart}
         className={`w-full text-left px-4 py-3.5 transition-all relative ${
           isActive ? 'bg-accent/[0.08]' : 'hover:bg-white/[0.03] active:bg-white/[0.05]'
         }`}>
