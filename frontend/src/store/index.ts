@@ -98,17 +98,25 @@ interface AuthState {
   user: UserData | null
   token: string | null
   isLoading: boolean
+  // MFA pending state
+  mfaPending: boolean
+  mfaToken: string | null
   setUser: (user: UserData | null) => void
   setToken: (token: string | null) => void
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
+  completeMfa: (totp: string) => Promise<void>
+  useRecoveryCode: (recoveryCode: string) => Promise<void>
+  cancelMfa: () => void
   logout: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   isLoading: false,
+  mfaPending: false,
+  mfaToken: null,
   setUser: (user) => set({ user }),
   setToken: (token) => {
     if (token) localStorage.setItem('lifeos-token', token)
@@ -125,14 +133,60 @@ export const useAuthStore = create<AuthState>((set) => ({
       })
       const data = await parseResponseBody(res)
       if (!res.ok) throw new Error(data.error || 'Login failed')
+
+      // MFA required — store challenge token and transition to MFA step
+      if (data.requiresMfa && data.mfaToken) {
+        set({ mfaPending: true, mfaToken: data.mfaToken, isLoading: false })
+        return
+      }
+
       localStorage.setItem('lifeos-token', data.token)
-      set({ user: data.user, token: data.token, isLoading: false })
+      set({ user: data.user, token: data.token, isLoading: false, mfaPending: false, mfaToken: null })
     } catch (err: any) {
       console.error('[LifeOS] Login error:', err?.message)
       set({ isLoading: false })
       throw err
     }
   },
+  completeMfa: async (totpCode) => {
+    const { mfaToken } = get()
+    if (!mfaToken) throw new Error('No MFA session active')
+    set({ isLoading: true })
+    try {
+      const res = await fetchApi('/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mfaToken, totp: totpCode }),
+      })
+      const data = await parseResponseBody(res)
+      if (!res.ok) throw new Error(data.error || 'Invalid code')
+      localStorage.setItem('lifeos-token', data.token)
+      set({ user: data.user, token: data.token, isLoading: false, mfaPending: false, mfaToken: null })
+    } catch (err) {
+      set({ isLoading: false })
+      throw err
+    }
+  },
+  useRecoveryCode: async (recoveryCode) => {
+    const { mfaToken } = get()
+    if (!mfaToken) throw new Error('No MFA session active')
+    set({ isLoading: true })
+    try {
+      const res = await fetchApi('/api/auth/mfa/recovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mfaToken, recoveryCode }),
+      })
+      const data = await parseResponseBody(res)
+      if (!res.ok) throw new Error(data.error || 'Invalid recovery code')
+      localStorage.setItem('lifeos-token', data.token)
+      set({ user: data.user, token: data.token, isLoading: false, mfaPending: false, mfaToken: null })
+    } catch (err) {
+      set({ isLoading: false })
+      throw err
+    }
+  },
+  cancelMfa: () => set({ mfaPending: false, mfaToken: null }),
   register: async (name, email, password) => {
     set({ isLoading: true })
     try {
@@ -152,7 +206,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   logout: () => {
     localStorage.removeItem('lifeos-token')
-    set({ user: null, token: null })
+    set({ user: null, token: null, mfaPending: false, mfaToken: null })
   },
 }))
 
