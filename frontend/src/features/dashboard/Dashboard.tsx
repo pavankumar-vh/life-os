@@ -472,7 +472,7 @@ export function Dashboard() {
                       boxShadow: m.value > 0 ? `0 0 12px -2px ${m.glow}` : 'none',
                     }}
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (m.value / m.max) * 100)}%` }}
+                    animate={{ width: `${Math.min(100, (m.value / Math.max(m.max, 1)) * 100)}%` }}
                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.5 + idx * 0.1 }}
                   />
                 </div>
