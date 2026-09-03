@@ -807,7 +807,11 @@ export function CalendarView() {
                       <motion.div key={i} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
                         className="flex items-start gap-2.5 p-2.5 rounded-lg bg-bg-elevated hover:bg-bg-hover transition-colors">
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${cfg?.bg || 'bg-bg-elevated'}`}>
-                          <span className="text-sm">{event.icon}</span>
+                          {/^[a-z0-9-]+$/.test(event.icon || '') && cfg?.icon ? (
+                            <cfg.icon className="w-3.5 h-3.5" />
+                          ) : (
+                            <span className="text-sm">{event.icon}</span>
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-text-primary">{event.title}</p>
@@ -887,7 +891,13 @@ export function CalendarView() {
                       return (
                         <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}
                           className="card flex items-center gap-3 py-2.5">
-                          <span className="text-base">{event.icon}</span>
+                          {/^[a-z0-9-]+$/.test(event.icon || '') && cfg?.icon ? (
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg.bg}`}>
+                              <cfg.icon className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            <span className="text-base">{event.icon}</span>
+                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-text-primary">{event.title}</p>
                             {event.subtitle && <p className="text-xs text-text-muted">{event.subtitle}</p>}
