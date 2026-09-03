@@ -37,6 +37,11 @@ export interface IUser extends Document {
   }
   passwordResetToken?: string
   passwordResetExpires?: Date
+  // MFA / TOTP
+  mfaEnabled: boolean
+  mfaSecret?: string           // encrypted TOTP secret (active)
+  mfaPendingSecret?: string    // encrypted TOTP secret during enrollment (cleared after activation)
+  mfaRecoveryCodes?: string[]  // array of bcrypt-hashed one-time recovery codes
   createdAt: Date
 }
 
@@ -70,6 +75,11 @@ const UserSchema = new Schema<IUser>({
   },
   passwordResetToken: { type: String, select: false },
   passwordResetExpires: { type: Date, select: false },
+  // MFA
+  mfaEnabled: { type: Boolean, default: false },
+  mfaSecret: { type: String, select: false },
+  mfaPendingSecret: { type: String, select: false },
+  mfaRecoveryCodes: { type: [String], select: false },
 }, { timestamps: true })
 
 export const User = mongoose.model<IUser>('User', UserSchema)
