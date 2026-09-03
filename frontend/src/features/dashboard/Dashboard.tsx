@@ -96,7 +96,7 @@ export function Dashboard() {
   const doneTasks = tasks.filter((t) => t.status === 'done').length
   const activeGoals = goals.filter((g) => g.status === 'active').length
   const completedGoals = goals.filter((g) => g.status === 'completed').length
-  const todayWorkouts = workouts.filter((w) => w.date === today)
+  const todayWorkouts = workouts.filter((w) => w.date?.startsWith(today))
   const todayMealCalories = meals.reduce((sum, m) => sum + m.calories, 0)
   const todayFitCalories = fitnessDays.find((d) => d.date === today)?.calories || 0
   const todayCalories = todayMealCalories > 0 ? todayMealCalories : todayFitCalories
@@ -115,13 +115,16 @@ export function Dashboard() {
     return { date, completed, total: totalHabits }
   }), [last7Days, habits, totalHabits])
 
-  const weeklyWorkoutCount = workouts.filter(w => last7Days.includes(w.date)).length
-  const weeklyJournalCount = entries.filter(e => last7Days.includes(typeof e.date === 'string' ? e.date : toISODate(new Date(e.date)))).length
+  const weeklyWorkoutCount = workouts.filter(w => last7Days.some(d => w.date?.startsWith(d))).length
+  const weeklyJournalCount = entries.filter(e => {
+    const dStr = typeof e.date === 'string' ? e.date.slice(0, 10) : toISODate(new Date(e.date))
+    return last7Days.includes(dStr)
+  }).length
 
   const urgentTasks = tasks.filter(t => t.status !== 'done' && (t.priority === 'urgent' || t.priority === 'high'))
 
   const todayEntry = entries.find(e => {
-    const d = typeof e.date === 'string' ? e.date : toISODate(new Date(e.date))
+    const d = typeof e.date === 'string' ? e.date.slice(0, 10) : toISODate(new Date(e.date))
     return d === today
   })
 
@@ -143,10 +146,10 @@ export function Dashboard() {
     let score = 0, max = 0
     // Habits: up to 40 points
     if (totalHabits > 0) { score += (completedHabitsToday / totalHabits) * 40; max += 40 }
-    // Tasks: up to 20 points (based on today's done tasks)
-    const tasksDoneToday = tasks.filter(t => t.status === 'done').length
-    const totalTasks = tasks.length
-    if (totalTasks > 0) { score += Math.min(1, tasksDoneToday / Math.max(totalTasks, 1)) * 20; max += 20 }
+    // Tasks: up to 20 points (based on today's due tasks)
+    const todayTasks = tasks.filter(t => t.dueDate?.startsWith(today))
+    const todayTasksDone = todayTasks.filter(t => t.status === 'done').length
+    if (todayTasks.length > 0) { score += (todayTasksDone / todayTasks.length) * 20; max += 20 }
     // Journal: 20 points if written today
     if (todayEntry) { score += 20 }
     max += 20
@@ -513,7 +516,7 @@ export function Dashboard() {
           ) : (
             <div className="space-y-2">
               {todayWorkouts.map((w) => {
-                const vol = w.exercises.reduce((s: number, ex: { sets: { reps: number; weight: number }[] }) => s + ex.sets.reduce((ss: number, set: { reps: number; weight: number }) => ss + set.reps * set.weight, 0), 0)
+                const vol = (w.exercises || []).reduce((s: number, ex: { sets: { reps: number; weight: number }[] }) => s + (ex.sets || []).reduce((ss: number, set: { reps: number; weight: number }) => ss + (set.reps * set.weight || 0), 0), 0)
                 return (
                   <motion.div
                     key={w._id}
@@ -525,7 +528,7 @@ export function Dashboard() {
                       <span className="text-xs text-text-muted">{w.duration}min</span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-text-muted">
-                      <span>{w.exercises.length} exercises</span>
+                      <span>{(w.exercises || []).length} exercises</span>
                       <span>{vol.toLocaleString()}kg vol</span>
                     </div>
                   </motion.div>
