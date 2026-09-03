@@ -4,6 +4,8 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import { connectDB } from './lib/db'
+import { rateLimit } from 'express-rate-limit'
+import { errorHandler } from './middleware/errorHandler'
 
 // Route imports
 import authRoutes from './routes/auth'
@@ -63,6 +65,19 @@ app.use(cors({
   },
   credentials: true,
 }))
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Limit each IP to 1000 requests per windowMs
+  message: { error: 'Too many requests from this IP, please try again later.', code: 'RATE_LIMIT_EXCEEDED' }
+})
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit each IP to 50 requests per windowMs
+  message: { error: 'Too many authentication attempts, please try again later.', code: 'RATE_LIMIT_EXCEEDED' }
+})
+
+app.use(globalLimiter)
 app.use(express.json({ limit: '2mb' }))
 // Higher limit for backup/import endpoints
 app.use('/api/backup', express.json({ limit: '10mb' }))
@@ -77,7 +92,7 @@ app.get('/api/health', (_req, res) => {
 })
 
 // Routes
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/habits', habitsRoutes)
 app.use('/api/tasks', tasksRoutes)
 app.use('/api/goals', goalsRoutes)
@@ -110,6 +125,9 @@ app.use('/api/today', todayRoutes)
 app.use('/api/activity', activityRoutes)
 app.use('/api/review', reviewRoutes)
 app.use('/api/export', exportRoutes)
+
+// Error Handler MUST be the last middleware
+app.use(errorHandler)
 
 async function start() {
   // Start server first so health check is immediately reachable
