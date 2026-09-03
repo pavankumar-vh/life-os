@@ -531,7 +531,7 @@ export function NotesView() {
   }, [editTitle])
 
   const ToolBtn = ({ active, onClick, children, title }: { active?: boolean; onClick: () => void; children: React.ReactNode; title?: string }) => (
-    <button type="button" onClick={onClick} title={title}
+    <button type="button" onClick={onClick} onMouseDown={e => e.preventDefault()} title={title}
       className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
         active ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-white/[0.08] hover:text-text-primary'
       }`}>{children}</button>
@@ -653,7 +653,10 @@ export function NotesView() {
             </AnimatePresence>
             <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-text-secondary">
               <Folder className="w-3 h-3 shrink-0" />
-              <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
+              <input type="text" list="folder-options" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-24 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
+              <datalist id="folder-options">
+                {folders.filter(f => f !== 'all').map(f => <option key={f} value={f} />)}
+              </datalist>
             </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             {/* Attachment / image upload button */}
