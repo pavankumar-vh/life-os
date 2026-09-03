@@ -606,7 +606,13 @@ export function NotesView() {
                 layout
                 onDragOver={f !== 'all' ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
                 onDragEnter={f !== 'all' ? (e) => { e.preventDefault(); setDragOverFolder(f) } : undefined}
-                onDragLeave={f !== 'all' ? (e) => { e.preventDefault(); if (dragOverFolder === f) setDragOverFolder(null) } : undefined}
+                onDragLeave={f !== 'all' ? (e) => { 
+                  e.preventDefault(); 
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  if (e.clientX <= rect.left || e.clientX >= rect.right || e.clientY <= rect.top || e.clientY >= rect.bottom) {
+                    if (dragOverFolder === f) setDragOverFolder(null);
+                  }
+                } : undefined}
                 onDrop={f !== 'all' ? (e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -629,7 +635,10 @@ export function NotesView() {
                 <Folder className="w-2.5 h-2.5 shrink-0" />
                 <span>{f === 'all' ? 'All' : f}</span>
                 {isEmpty && (
-                  <div onClick={(e) => { e.stopPropagation(); deleteEmptyFolder(f) }} className="p-0.5 rounded hover:bg-white/[0.1] text-text-muted hover:text-red-soft transition-colors ml-1">
+                  <div onClick={(e) => { e.stopPropagation(); deleteEmptyFolder(f) }} 
+                    className={`p-0.5 rounded transition-colors ml-1 ${
+                      dragOverFolder === f ? 'text-white/70 hover:text-white hover:bg-white/20' : 'text-text-muted hover:text-red-soft hover:bg-white/[0.1]'
+                    }`}>
                     <X className="w-2.5 h-2.5" />
                   </div>
                 )}
