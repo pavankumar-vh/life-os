@@ -586,19 +586,16 @@ export function NotesView() {
                 const noteId = e.dataTransfer.getData('text/plain')
                 if (noteId) handleMoveToFolder(noteId, f)
               } : undefined}
-              animate={{ scale: dragOverFolder === f ? 1.08 : 1, y: dragOverFolder === f ? -2 : 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              animate={{ scale: dragOverFolder === f ? 1.05 : 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap flex items-center gap-1 font-medium relative z-10 ${
                 dragOverFolder === f 
-                  ? 'bg-accent text-white shadow-lg shadow-accent/30'
+                  ? 'bg-accent text-white shadow-md'
                   : folderFilter === f 
                     ? 'bg-accent/15 text-accent' 
                     : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'
               }`}>
               <Folder className="w-2.5 h-2.5" />{f === 'all' ? 'All' : f}
-              {dragOverFolder === f && (
-                <motion.div layoutId="folder-drag-glow" className="absolute -inset-[3px] rounded-lg border-2 border-accent/50 z-[-1]" transition={{ type: 'spring', stiffness: 300, damping: 25 }} />
-              )}
             </motion.button>
           ))}
           <button onClick={createFolder} title="New Folder" className="px-2 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30">
