@@ -83,9 +83,23 @@ export function SleepTrackerView() {
     
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days + 1)
-    const cutoffStr = toISODate(cutoffDate)
+    const endStr = toISODate(new Date())
     
-    return sorted.filter(d => d.date >= cutoffStr)
+    const logMap = new Map(sorted.map(l => [l.date, l]))
+    const padded = []
+    
+    const current = new Date(cutoffDate)
+    while (toISODate(current) <= endStr) {
+      const dateStr = toISODate(current)
+      if (logMap.has(dateStr)) {
+        padded.push(logMap.get(dateStr))
+      } else {
+        padded.push({ date: dateStr, hours: null, quality: 0 } as any)
+      }
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return padded
   }, [logs, chartRange])
   const avgHoursLine = useMemo(() => {
     if (!chartData.length) return 0
@@ -154,7 +168,7 @@ export function SleepTrackerView() {
           {/* Hours Area Chart */}
           <div className="h-[200px] mb-2" key={chartRange}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} syncId="sleepSync">
                 <defs>
                   <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
@@ -212,6 +226,7 @@ export function SleepTrackerView() {
                   stroke="#60a5fa" strokeWidth={2.5} fill="url(#sleepHoursGrad)"
                   dot={false}
                   activeDot={{ r: 5, stroke: '#60a5fa', strokeWidth: 2, fill: '#0a0a0a' }}
+                  connectNulls={true}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -220,7 +235,7 @@ export function SleepTrackerView() {
           {/* Quality Bar Chart */}
           <div className="h-[60px]" key={`q-${chartRange}`}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }} syncId="sleepSync">
                 <XAxis dataKey="date" hide />
                 <YAxis domain={[0, 5]} hide />
                 <Bar dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
