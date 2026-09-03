@@ -860,18 +860,23 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
 // ─── QUICK CAPTURE STORE ────────────────────────────
 
+export type CaptureSource = 'manual' | 'api' | 'import' | 'automation' | 'future_mcp' | 'future_agent'
+
 export interface CaptureData {
   _id: string
   text: string
   type: 'thought' | 'idea' | 'todo' | 'reminder'
+  source: CaptureSource
   processed: boolean
+  tags: string[]
   createdAt: string
+  updatedAt: string
 }
 
 interface CaptureState {
   items: CaptureData[]
   isLoading: boolean
-  fetchCaptures: () => Promise<void>
+  fetchCaptures: (params?: { q?: string; type?: string; source?: string; processed?: boolean }) => Promise<void>
   addCapture: (item: Partial<CaptureData>) => Promise<void>
   updateCapture: (id: string, updates: Partial<CaptureData>) => Promise<void>
   deleteCapture: (id: string) => Promise<void>
@@ -880,9 +885,17 @@ interface CaptureState {
 export const useCaptureStore = create<CaptureState>((set, get) => ({
   items: [],
   isLoading: false,
-  fetchCaptures: async () => {
+  fetchCaptures: async (params) => {
     set({ isLoading: true })
-    try { set({ items: await api('/captures') }) } finally { set({ isLoading: false }) }
+    try {
+      const qs = new URLSearchParams()
+      if (params?.q) qs.set('q', params.q)
+      if (params?.type) qs.set('type', params.type)
+      if (params?.source) qs.set('source', params.source)
+      if (params?.processed !== undefined) qs.set('processed', String(params.processed))
+      const query = qs.toString() ? `?${qs.toString()}` : ''
+      set({ items: await api(`/captures${query}`) })
+    } finally { set({ isLoading: false }) }
   },
   addCapture: async (item) => {
     const data = await api('/captures', { method: 'POST', body: JSON.stringify(item) })

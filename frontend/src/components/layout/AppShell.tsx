@@ -21,7 +21,7 @@ import { BodyTrackerView } from '@/features/body/BodyTrackerView'
 import { SleepTrackerView } from '@/features/sleep/SleepTrackerView'
 import { NotesView } from '@/features/notes/NotesView'
 import { PomodoroView } from '@/features/pomodoro/PomodoroView'
-import { QuickCaptureView } from '@/features/capture/QuickCaptureView'
+import { QuickCaptureView, openGlobalCapture } from '@/features/capture/QuickCaptureView'
 import { WeeklyReviewView } from '@/features/review/WeeklyReviewView'
 import { ExpenseTrackerView } from '@/features/expenses/ExpenseTrackerView'
 import { ReadingListView } from '@/features/reading/ReadingListView'
@@ -38,6 +38,8 @@ import { ChatPanel } from '@/features/chat/ChatPanel'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { motion, AnimatePresence, LazyMotion, domAnimation, MotionConfig } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
+
+// Register global ⌘⇧C capture shortcut at the top level so it works everywhere
 import { DynamicFavicon } from '@/components/DynamicFavicon'
 import { fetchApi } from '@/lib/api'
 
@@ -98,6 +100,7 @@ export function AppShell() {
   useHotkeys('mod+/', (e) => { e.preventDefault(); toggleFocusMode() })
   useHotkeys('mod+n', (e) => { e.preventDefault(); setQuickAddOpen(true) })
   useHotkeys('mod+j', (e) => { e.preventDefault(); toggleChat() })
+  useHotkeys('mod+shift+c', (e) => { e.preventDefault(); openGlobalCapture() })
   useHotkeys('mod+1', () => setActiveView('dashboard'))
   useHotkeys('mod+2', () => setActiveView('habits'))
   useHotkeys('mod+3', () => setActiveView('journal'))
