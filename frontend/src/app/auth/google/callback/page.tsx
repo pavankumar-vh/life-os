@@ -5,12 +5,13 @@ import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
-// Unified Google OAuth callback — handles both:
-//   state='login'           → sign in / register via Google
-//   state='connect:<userId>'→ connect Google to existing account (from Settings)
+// Google OAuth callback — handles ONLY the integration connect flow:
+//   state='connect:<userId>' → connect Google Calendar/Drive/Fitness to existing account (from Settings)
+//
+// Note: Google Sign-In (state='login') has been removed. Authentication is via email + password only.
 export default function AuthGoogleCallbackPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
-  const [message, setMessage] = useState('Authenticating with Google...')
+  const [message, setMessage] = useState('Connecting Google account...')
   const setToken = useAuthStore(s => s.setToken)
   const setUser = useAuthStore(s => s.setUser)
 
@@ -18,7 +19,6 @@ export default function AuthGoogleCallbackPage() {
     const parseResponseBody = async (res: Response): Promise<any> => {
       const text = await res.text()
       if (!text) return {}
-
       try {
         return JSON.parse(text)
       } catch {
@@ -45,36 +45,7 @@ export default function AuthGoogleCallbackPage() {
       return
     }
 
-    // ── LOGIN FLOW ──────────────────────────────────────────────
-    if (state === 'login') {
-      fetchApi('/api/auth/google/callback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, state }),
-      })
-        .then(async (res) => ({ ok: res.ok, data: await parseResponseBody(res) }))
-        .then(({ ok, data }) => {
-          if (ok && data.token) {
-            setStatus('success')
-            setMessage('Signed in! Redirecting...')
-            setToken(data.token)
-            setUser(data.user)
-            setTimeout(() => { window.location.href = '/' }, 1000)
-          } else {
-            setStatus('error')
-            setMessage(data.error || 'Failed to sign in')
-            setTimeout(() => { window.location.href = '/' }, 2500)
-          }
-        })
-        .catch(() => {
-          setStatus('error')
-          setMessage('Network error during sign in')
-          setTimeout(() => { window.location.href = '/' }, 2500)
-        })
-      return
-    }
-
-    // ── CONNECT FLOW (from Settings) ─────────────────────────────
+    // ── CONNECT FLOW (from Settings → Google integrations) ────────────────
     if (state.startsWith('connect:')) {
       setMessage('Connecting Google account...')
       const token = localStorage.getItem('lifeos-token')
@@ -130,9 +101,9 @@ export default function AuthGoogleCallbackPage() {
       return
     }
 
-    // Unknown state
+    // Unknown or removed flow (e.g. old state='login' bookmarks)
     setStatus('error')
-    setMessage('Invalid authorization state')
+    setMessage('Invalid authorization state. Please try again from Settings.')
     setTimeout(() => { window.location.href = '/' }, 2500)
   }, [setToken, setUser])
 
