@@ -10,7 +10,7 @@ import { DateNavigator } from '@/components/DateNavigator'
 import { DatePicker } from '@/components/DatePicker'
 import { toast } from '@/components/Toast'
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  ComposedChart, Area, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, Cell,
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
@@ -165,10 +165,10 @@ export function SleepTrackerView() {
           </div>
 
           {chartData.length > 1 ? (<>
-          {/* Hours Area Chart */}
-          <div className="h-[200px] mb-2" key={chartRange}>
+          {/* Combined Sleep Chart */}
+          <div className="h-[250px] mb-2" key={chartRange}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} syncId="sleepSync">
+              <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
@@ -185,16 +185,25 @@ export function SleepTrackerView() {
                   tickLine={false} axisLine={false}
                   tickFormatter={(v) => { try { return format(new Date(v), 'MMM d') } catch { return '' } }}
                 />
+                
+                {/* Left Axis for Hours */}
                 <YAxis
+                  yAxisId="hours"
                   domain={[0, (dataMax: number) => Math.max(12, Math.ceil(dataMax))]} stroke="rgba(255,255,255,0.15)"
                   fontSize={10} tickLine={false} axisLine={false}
                   tickFormatter={(v) => `${v}h`}
                 />
+                
+                {/* Right Axis for Quality (Hidden but used for scale) */}
+                <YAxis yAxisId="quality" orientation="right" domain={[0, 5]} hide />
+                
                 <ReferenceLine
+                  yAxisId="hours"
                   y={8} stroke="rgba(74,222,128,0.2)" strokeDasharray="4 4"
                   label={{ value: '8h goal', position: 'insideTopRight', fill: 'rgba(74,222,128,0.35)', fontSize: 10 }}
                 />
                 <ReferenceLine
+                  yAxisId="hours"
                   y={avgHoursLine} stroke="rgba(96,165,250,0.25)" strokeDasharray="4 4"
                   label={{ value: `avg ${avgHoursLine.toFixed(1)}h`, position: 'insideTopLeft', fill: 'rgba(96,165,250,0.4)', fontSize: 10 }}
                 />
@@ -224,29 +233,24 @@ export function SleepTrackerView() {
                     )
                   }}
                 />
+                
+                {/* Bars for Quality (rendered first so they are behind the Area) */}
+                <Bar yAxisId="quality" dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={QUALITY_BAR_COLORS[d.quality]} opacity={0.3} />
+                  ))}
+                </Bar>
+
+                {/* Area for Hours */}
                 <Area
+                  yAxisId="hours"
                   type="monotone" dataKey="hours"
                   stroke="#60a5fa" strokeWidth={2.5} fill="url(#sleepHoursGrad)"
                   dot={false}
                   activeDot={{ r: 5, stroke: '#60a5fa', strokeWidth: 2, fill: '#0a0a0a' }}
                   connectNulls={true}
                 />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Quality Bar Chart */}
-          <div className="h-[60px]" key={`q-${chartRange}`}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }} syncId="sleepSync">
-                <XAxis type="number" domain={chartDomain} dataKey="timestamp" hide />
-                <YAxis domain={[0, 5]} hide />
-                <Bar dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
-                  {chartData.map((d, i) => (
-                    <Cell key={i} fill={QUALITY_BAR_COLORS[d.quality]} opacity={0.6} />
-                  ))}
-                </Bar>
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
 
