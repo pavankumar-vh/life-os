@@ -1,15 +1,11 @@
-import { totp, authenticator } from 'otplib'
+import speakeasy from 'speakeasy'
 import QRCode from 'qrcode'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
 // ─── TOTP Configuration ────────────────────────────────────────────────────
-// RFC 6238 — compatible with Google Authenticator, Aegis, 2FAS, Authy,
-// Microsoft Authenticator, 1Password, and all standards-compliant TOTP apps.
-
-authenticator.options = {
-  window: 1, // ±1 step (±30 seconds) to tolerate minor clock drift
-}
+// RFC 6238 compliant — compatible with Google Authenticator, Aegis, 2FAS,
+// Microsoft Authenticator, Authy, 1Password, and all standards-compliant TOTP apps.
 
 const APP_NAME = 'Life OS'
 
@@ -18,16 +14,21 @@ const APP_NAME = 'Life OS'
 /**
  * Generates a new cryptographically secure TOTP secret.
  * Returns the base32 secret, the otpauth URI, and a QR code data URI.
- * The secret is NOT persisted here — caller stores it as mfaPendingSecret.
+ * The secret is NOT persisted here — the caller stores it as mfaPendingSecret.
  */
 export async function generateTotpSetup(email: string): Promise<{
   secret: string
   otpauthUri: string
   qrDataUri: string
 }> {
-  const secret = authenticator.generateSecret(20) // 160-bit secret
+  const secretObj = speakeasy.generateSecret({
+    length: 20,      // 160-bit secret
+    name: `${APP_NAME} (${email})`,
+    issuer: APP_NAME,
+  })
 
-  const otpauthUri = authenticator.keyuri(email, APP_NAME, secret)
+  const otpauthUri = secretObj.otpauth_url!
+  const secret = secretObj.base32
 
   const qrDataUri = await QRCode.toDataURL(otpauthUri, {
     errorCorrectionLevel: 'M',
@@ -41,13 +42,19 @@ export async function generateTotpSetup(email: string): Promise<{
 // ─── Verification ─────────────────────────────────────────────────────────
 
 /**
- * Verifies a 6-digit TOTP token against the stored secret.
+ * Verifies a 6-digit TOTP token against the stored base32 secret.
+ * window=2 allows ±60 seconds clock drift (2 time steps either side).
  * Never logs the token or secret.
  */
 export function verifyTotp(secret: string, token: string): boolean {
   try {
     if (!/^\d{6}$/.test(token)) return false
-    return authenticator.verify({ token, secret })
+    return speakeasy.totp.verify({
+      secret,
+      encoding: 'base32',
+      token,
+      window: 1, // ±30 seconds (1 step each direction)
+    })
   } catch {
     return false
   }
@@ -57,7 +64,7 @@ export function verifyTotp(secret: string, token: string): boolean {
 
 const RECOVERY_CODE_COUNT = 10
 // Format: XXXX-XXXX-XXXX (12 hex chars displayed as 3 groups of 4)
-const RECOVERY_CODE_BYTES = 6 // 6 bytes = 12 hex chars
+const RECOVERY_CODE_BYTES = 6
 
 /**
  * Generates cryptographically secure one-time recovery codes.
