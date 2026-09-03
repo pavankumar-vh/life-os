@@ -10,7 +10,7 @@ import { DateNavigator } from '@/components/DateNavigator'
 import { DatePicker } from '@/components/DatePicker'
 import { toast } from '@/components/Toast'
 import {
-  ComposedChart, Area, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, Cell,
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
@@ -76,34 +76,40 @@ export function SleepTrackerView() {
   }
 
   const [chartRange, setChartRange] = useState<'7d' | '14d' | '30d' | 'all'>('14d')
-  const { chartData, chartDomain } = useMemo(() => {
-    const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, timestamp: parseISO(d.date).getTime() }))
-    
-    const now = new Date()
-    const domainMax = now.getTime()
-    let domainMin: number
+  const chartData = useMemo(() => {
+    const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
     
     if (chartRange === 'all') {
-      domainMin = sorted.length > 0 ? sorted[0].timestamp : domainMax - 7 * 86400000
-      return { chartData: sorted, chartDomain: [domainMin, domainMax] }
+      return sorted
     }
     
     const days = chartRange === '7d' ? 7 : chartRange === '14d' ? 14 : 30
     
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days + 1)
-    cutoffDate.setHours(0, 0, 0, 0)
-    domainMin = cutoffDate.getTime()
+    const endStr = toISODate(new Date())
     
-    const cutoffStr = toISODate(cutoffDate)
-    const data = sorted.filter(d => d.date >= cutoffStr)
+    const logMap = new Map(sorted.map(l => [l.date, l]))
+    const padded = []
     
-    return { chartData: data, chartDomain: [domainMin, domainMax] }
+    const current = new Date(cutoffDate)
+    while (toISODate(current) <= endStr) {
+      const dateStr = toISODate(current)
+      if (logMap.has(dateStr)) {
+        padded.push(logMap.get(dateStr))
+      } else {
+        padded.push({ date: dateStr, hours: 0, quality: 0 } as any)
+      }
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return padded
   }, [logs, chartRange])
   
   const avgHoursLine = useMemo(() => {
-    if (!chartData.length) return 0
-    return chartData.reduce((s, d) => s + d.hours, 0) / chartData.length
+    const validLogs = chartData.filter(d => d.hours > 0)
+    if (!validLogs.length) return 0
+    return validLogs.reduce((s, d) => s + d.hours, 0) / validLogs.length
   }, [chartData])
 
   const QUALITY_BAR_COLORS = ['', '#ef4444', '#f97316', '#9ca3af', '#4ade80', '#e8d5b7']
@@ -165,65 +171,60 @@ export function SleepTrackerView() {
           </div>
 
           {chartData.length > 1 ? (<>
-          {/* Combined Sleep Chart */}
+          {/* Single Sleep Bar Chart */}
           <div className="h-[250px] mb-2" key={chartRange}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
-                  type="number"
-                  domain={chartDomain}
-                  dataKey="timestamp"
-                  scale="time"
+                  dataKey="date"
                   stroke="rgba(255,255,255,0.15)" fontSize={10}
                   tickLine={false} axisLine={false}
-                  tickFormatter={(v) => { try { return format(new Date(v), 'MMM d') } catch { return '' } }}
+                  interval="preserveStartEnd"
+                  tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return '' } }}
                 />
                 
-                {/* Left Axis for Hours */}
                 <YAxis
-                  yAxisId="hours"
                   domain={[0, (dataMax: number) => Math.max(12, Math.ceil(dataMax))]} stroke="rgba(255,255,255,0.15)"
                   fontSize={10} tickLine={false} axisLine={false}
                   tickFormatter={(v) => `${v}h`}
                 />
                 
-                {/* Right Axis for Quality (Hidden but used for scale) */}
-                <YAxis yAxisId="quality" orientation="right" domain={[0, 5]} hide />
-                
                 <ReferenceLine
-                  yAxisId="hours"
                   y={8} stroke="rgba(74,222,128,0.2)" strokeDasharray="4 4"
                   label={{ value: '8h goal', position: 'insideTopRight', fill: 'rgba(74,222,128,0.35)', fontSize: 10 }}
                 />
                 <ReferenceLine
-                  yAxisId="hours"
                   y={avgHoursLine} stroke="rgba(96,165,250,0.25)" strokeDasharray="4 4"
                   label={{ value: `avg ${avgHoursLine.toFixed(1)}h`, position: 'insideTopLeft', fill: 'rgba(96,165,250,0.4)', fontSize: 10 }}
                 />
                 <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null
                     const d = payload[0]?.payload
                     if (!d) return null
                     let dateLabel = d.date
                     try { dateLabel = format(parseISO(d.date), 'EEEE, MMM d') } catch { /* */ }
+                    
+                    if (d.hours === 0) {
+                      return (
+                        <div className="bg-[rgba(10,10,10,0.96)] border border-glass-border rounded-xl px-4 py-3 shadow-2xl backdrop-blur-xl">
+                          <p className="text-[10px] text-text-muted mb-1">{dateLabel}</p>
+                          <p className="text-sm font-semibold text-text-secondary">No log</p>
+                        </div>
+                      )
+                    }
+                    
                     return (
                       <div className="bg-[rgba(10,10,10,0.96)] border border-glass-border rounded-xl px-4 py-3 shadow-2xl backdrop-blur-xl">
                         <p className="text-[10px] text-text-muted mb-2">{dateLabel}</p>
                         <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-blue-400" />
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[d.quality] }} />
                           <span className="text-sm font-semibold text-text-primary">{d.hours}h sleep</span>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[d.quality] }} />
-                          <span className="text-xs text-text-secondary">{QUALITY_LABELS[d.quality]} ({d.quality}/5)</span>
+                          <span className="text-xs text-text-secondary">{QUALITY_LABELS[d.quality]} Quality ({d.quality}/5)</span>
                         </div>
                         <div className="text-[10px] text-text-muted mt-2 flex items-center gap-3">
                           <span>🛏 {d.bedtime}</span>
@@ -234,37 +235,27 @@ export function SleepTrackerView() {
                   }}
                 />
                 
-                {/* Bars for Quality (rendered first so they are behind the Area) */}
-                <Bar yAxisId="quality" dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
+                <Bar dataKey="hours" radius={[4, 4, 0, 0]} maxBarSize={32}>
                   {chartData.map((d, i) => (
-                    <Cell key={i} fill={QUALITY_BAR_COLORS[d.quality]} opacity={0.3} />
+                    <Cell key={i} fill={d.quality ? QUALITY_BAR_COLORS[d.quality] : '#1f2937'} opacity={0.8} />
                   ))}
                 </Bar>
-
-                {/* Area for Hours */}
-                <Area
-                  yAxisId="hours"
-                  type="monotone" dataKey="hours"
-                  stroke="#60a5fa" strokeWidth={2.5} fill="url(#sleepHoursGrad)"
-                  dot={false}
-                  activeDot={{ r: 5, stroke: '#60a5fa', strokeWidth: 2, fill: '#0a0a0a' }}
-                  connectNulls={true}
-                />
-              </ComposedChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-center gap-5 mt-3 pt-3 border-t border-glass-border">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded-full bg-blue-400" />
-              <span className="text-[10px] text-text-muted">Hours</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded-full bg-accent" />
-              <span className="text-[10px] text-text-muted">Quality</span>
-            </div>
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-glass-border">
+            {QUALITY_LABELS.map((label, i) => {
+              if (!label) return null
+              return (
+                <div key={label} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[i] }} />
+                  <span className="text-[10px] text-text-muted">{label}</span>
+                </div>
+              )
+            })}
+            <div className="flex items-center gap-1.5 ml-2">
               <span className="w-3 h-[1px] border-t border-dashed border-green-soft/40" />
               <span className="text-[10px] text-text-muted">8h Goal</span>
             </div>
