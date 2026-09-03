@@ -76,31 +76,31 @@ export function SleepTrackerView() {
   }
 
   const [chartRange, setChartRange] = useState<'7d' | '14d' | '30d' | 'all'>('14d')
-  const chartData = useMemo(() => {
-    const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
-    if (chartRange === 'all') return sorted
+  const { chartData, chartDomain } = useMemo(() => {
+    const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, timestamp: parseISO(d.date).getTime() }))
+    
+    const now = new Date()
+    const domainMax = now.getTime()
+    let domainMin: number
+    
+    if (chartRange === 'all') {
+      domainMin = sorted.length > 0 ? sorted[0].timestamp : domainMax - 7 * 86400000
+      return { chartData: sorted, chartDomain: [domainMin, domainMax] }
+    }
+    
     const days = chartRange === '7d' ? 7 : chartRange === '14d' ? 14 : 30
     
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days + 1)
-    const endStr = toISODate(new Date())
+    cutoffDate.setHours(0, 0, 0, 0)
+    domainMin = cutoffDate.getTime()
     
-    const logMap = new Map(sorted.map(l => [l.date, l]))
-    const padded = []
+    const cutoffStr = toISODate(cutoffDate)
+    const data = sorted.filter(d => d.date >= cutoffStr)
     
-    const current = new Date(cutoffDate)
-    while (toISODate(current) <= endStr) {
-      const dateStr = toISODate(current)
-      if (logMap.has(dateStr)) {
-        padded.push(logMap.get(dateStr))
-      } else {
-        padded.push({ date: dateStr, hours: null, quality: 0 } as any)
-      }
-      current.setDate(current.getDate() + 1)
-    }
-    
-    return padded
+    return { chartData: data, chartDomain: [domainMin, domainMax] }
   }, [logs, chartRange])
+  
   const avgHoursLine = useMemo(() => {
     if (!chartData.length) return 0
     return chartData.reduce((s, d) => s + d.hours, 0) / chartData.length
@@ -177,10 +177,13 @@ export function SleepTrackerView() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
-                  dataKey="date" stroke="rgba(255,255,255,0.15)" fontSize={10}
+                  type="number"
+                  domain={chartDomain}
+                  dataKey="timestamp"
+                  scale="time"
+                  stroke="rgba(255,255,255,0.15)" fontSize={10}
                   tickLine={false} axisLine={false}
-                  interval="preserveStartEnd"
-                  tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return v } }}
+                  tickFormatter={(v) => { try { return format(new Date(v), 'MMM d') } catch { return '' } }}
                 />
                 <YAxis
                   domain={[0, (dataMax: number) => Math.max(12, Math.ceil(dataMax))]} stroke="rgba(255,255,255,0.15)"
@@ -236,7 +239,7 @@ export function SleepTrackerView() {
           <div className="h-[60px]" key={`q-${chartRange}`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }} syncId="sleepSync">
-                <XAxis dataKey="date" hide />
+                <XAxis type="number" domain={chartDomain} dataKey="timestamp" hide />
                 <YAxis domain={[0, 5]} hide />
                 <Bar dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
                   {chartData.map((d, i) => (
