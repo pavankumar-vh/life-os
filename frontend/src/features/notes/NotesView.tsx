@@ -469,8 +469,8 @@ export function NotesView() {
     setTagFilter(tag)
   }
 
-  const onTitleChange = (v: string) => { setEditTitle(v); doSave() }
-  const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
+  const onTitleChange = (v: string) => { setEditTitle(v); editTitleRef.current = v; doSave() }
+  const onFolderChange = (v: string) => { setEditFolder(v); editFolderRef.current = v; doSave() }
   const activateTagInput = () => {
     setTagInputActive(true)
     setShowTagSuggestions(true)
@@ -485,6 +485,7 @@ export function NotesView() {
     if (!normalized || editTagsLower.has(normalized)) { setTagInput(''); return }
     const updated = [...editTags, tag]
     setEditTags(updated)
+    editTagsRef.current = updated
     setTagInput('')
     setShowTagSuggestions(false)
     setTagSuggestIdx(0)
@@ -493,6 +494,7 @@ export function NotesView() {
   const removeTag = (tag: string) => {
     const updated = editTags.filter(t => t !== tag)
     setEditTags(updated)
+    editTagsRef.current = updated
     doSave()
   }
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -680,6 +682,7 @@ export function NotesView() {
           <div className="flex-1 overflow-y-auto overscroll-contain relative">
             <div className="w-full max-w-none px-5 sm:px-8 md:px-12 lg:px-20 xl:px-28 py-6 sm:py-8">
               <textarea ref={titleRef} value={editTitle} onChange={e => onTitleChange(e.target.value)} placeholder="Title" rows={1}
+                onFocus={(e) => { if (editTitle === 'Untitled Note') e.target.select() }}
                 className="w-full text-2xl sm:text-3xl lg:text-[34px] font-bold text-text-primary bg-transparent resize-none outline-none placeholder:text-text-muted leading-[1.15] tracking-tight mb-2"
                 style={{ overflow: 'hidden' }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus('start') } }} />
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-text-secondary mb-6 sm:mb-8 pb-5 sm:pb-6 border-b border-border/50">
