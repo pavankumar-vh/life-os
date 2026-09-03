@@ -402,7 +402,7 @@ export function NotesView() {
 
   const createNote = async () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    await saveNote({ title: '', content: '', folder: folderFilter === 'all' ? 'General' : folderFilter, tags: [], pinned: false })
+    await saveNote({ title: 'Untitled Note', content: '', folder: folderFilter === 'all' ? 'General' : folderFilter, tags: [], pinned: false })
     setTimeout(() => {
       const newest = useNotesStore.getState().notes[0]
       if (newest) { selectNote(newest); setTimeout(() => titleRef.current?.focus(), 50) }
@@ -439,7 +439,7 @@ export function NotesView() {
     setModal(null)
     setModalInput('')
     if (!name) return
-    saveNote({ title: '', content: '', folder: name, tags: [], pinned: false }).then(() => {
+    saveNote({ title: 'Untitled Note', content: '', folder: name, tags: [], pinned: false }).then(() => {
       setFolderFilter(name)
       setTimeout(() => {
         const newest = useNotesStore.getState().notes.find(n => n.folder === name)
