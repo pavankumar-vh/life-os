@@ -137,6 +137,7 @@ export function NotesView() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editFolder, setEditFolder] = useState('General')
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
   const [editTags, setEditTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [editPinned, setEditPinned] = useState(false)
@@ -574,13 +575,23 @@ export function NotesView() {
         <div className="flex gap-1 px-4 py-2 overflow-x-auto no-scrollbar shrink-0">
           {folders.map(f => (
             <button key={f} onClick={() => setFolderFilter(f)} 
-              onDragOver={f !== 'all' ? (e) => e.preventDefault() : undefined}
+              onDragOver={f !== 'all' ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
+              onDragEnter={f !== 'all' ? (e) => { e.preventDefault(); setDragOverFolder(f) } : undefined}
+              onDragLeave={f !== 'all' ? (e) => { e.preventDefault(); if (dragOverFolder === f) setDragOverFolder(null) } : undefined}
               onDrop={f !== 'all' ? (e) => {
                 e.preventDefault()
+                e.stopPropagation()
+                setDragOverFolder(null)
                 const noteId = e.dataTransfer.getData('text/plain')
                 if (noteId) handleMoveToFolder(noteId, f)
               } : undefined}
-              className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium ${folderFilter === f ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'}`}>
+              className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-all duration-200 flex items-center gap-1 font-medium ${
+                dragOverFolder === f 
+                  ? 'bg-accent text-white scale-105 shadow-lg'
+                  : folderFilter === f 
+                    ? 'bg-accent/15 text-accent' 
+                    : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'
+              }`}>
               <Folder className="w-2.5 h-2.5" />{f === 'all' ? 'All' : f}
             </button>
           ))}
