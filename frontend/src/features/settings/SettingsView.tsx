@@ -5,7 +5,7 @@ import { useAuthStore, useBackupStore, useAppStore, useHabitsStore, useJournalSt
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Download, Upload, Shield, Database, CheckCircle2, AlertTriangle, HardDrive, RefreshCw, Cloud, Package, ArrowRightLeft, Unlock,
-  Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints, X, ExternalLink, FileJson2
+  Palette, Eye, EyeOff, Keyboard, Bot, Key, Trash2, Target, Droplets, Dumbbell, Scale, Activity, Moon, Utensils, Link2, Unlink, Calendar, CloudUpload, Loader2, Footprints, X, ExternalLink, FileJson2, ShieldCheck, KeyRound
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 import { getApiBaseUrl } from '@/lib/api'
@@ -130,6 +130,287 @@ function AiKeysSection() {
   )
 }
 
+
+// ─── MFA Settings Panel ────────────────────────────────────────────────────
+
+function MfaSettingsPanel() {
+  const authToken = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
+  const apiBase = getApiBaseUrl()
+
+  const [mfaStatus, setMfaStatus] = useState<{ enabled: boolean; remainingRecoveryCodes: number } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Setup flow state
+  const [setupData, setSetupData] = useState<{ otpauthUri: string; qrDataUri: string; manualKey: string } | null>(null)
+  const [otpInput, setOtpInput] = useState('')
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
+  const [savedCodes, setSavedCodes] = useState(false)
+
+  // Disable / Regenerate flow state
+  const [showDisable, setShowDisable] = useState(false)
+  const [showRegen, setShowRegen] = useState(false)
+  const [disablePassword, setDisablePassword] = useState('')
+  const [disableOtp, setDisableOtp] = useState('')
+  const [regenPassword, setRegenPassword] = useState('')
+  const [regenOtp, setRegenOtp] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
+  const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[] | null>(null)
+
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }
+
+  const fetchStatus = async () => {
+    try {
+      const r = await fetch(`${apiBase}/api/auth/mfa/status`, { headers })
+      if (r.ok) setMfaStatus(await r.json())
+    } catch {}
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchStatus() }, [])
+
+  const handleSetup = async () => {
+    setLoading(true)
+    try {
+      const r = await fetch(`${apiBase}/api/auth/mfa/setup`, { method: 'POST', headers })
+      const d = await r.json()
+      if (!r.ok) { toast.error(d.error || 'Setup failed'); setLoading(false); return }
+      setSetupData(d)
+      setOtpInput('')
+      setRecoveryCodes(null)
+      setSavedCodes(false)
+    } catch { toast.error('Network error') }
+    setLoading(false)
+  }
+
+  const handleActivate = async () => {
+    setActionLoading(true)
+    try {
+      const r = await fetch(`${apiBase}/api/auth/mfa/activate`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ totp: otpInput.trim() }),
+      })
+      const d = await r.json()
+      if (!r.ok) { toast.error(d.error || 'Invalid code'); setActionLoading(false); return }
+      setRecoveryCodes(d.recoveryCodes)
+      setSetupData(null)
+      setOtpInput('')
+    } catch { toast.error('Network error') }
+    setActionLoading(false)
+  }
+
+  const handleDisable = async () => {
+    setActionLoading(true)
+    try {
+      const r = await fetch(`${apiBase}/api/auth/mfa/disable`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ password: disablePassword, totp: disableOtp.trim() }),
+      })
+      const d = await r.json()
+      if (!r.ok) { toast.error(d.error || 'Failed'); setActionLoading(false); return }
+      toast.success('MFA disabled')
+      setShowDisable(false)
+      setDisablePassword(''); setDisableOtp('')
+      fetchStatus()
+    } catch { toast.error('Network error') }
+    setActionLoading(false)
+  }
+
+  const handleRegen = async () => {
+    setActionLoading(true)
+    try {
+      const r = await fetch(`${apiBase}/api/auth/mfa/regenerate`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ password: regenPassword, totp: regenOtp.trim() }),
+      })
+      const d = await r.json()
+      if (!r.ok) { toast.error(d.error || 'Failed'); setActionLoading(false); return }
+      setNewRecoveryCodes(d.recoveryCodes)
+      setShowRegen(false)
+      setRegenPassword(''); setRegenOtp('')
+      toast.success('Recovery codes regenerated')
+      fetchStatus()
+    } catch { toast.error('Network error') }
+    setActionLoading(false)
+  }
+
+  const copyAllCodes = (codes: string[]) => {
+    navigator.clipboard.writeText(codes.join('\n'))
+    toast.success('Codes copied to clipboard')
+  }
+
+  if (loading) {
+    return <div className="card flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-accent" /></div>
+  }
+
+  return (
+    <div className="card space-y-4">
+      <h3 className="text-sm font-medium flex items-center gap-2">
+        <ShieldCheck className="w-4 h-4 text-accent" /> Two-Factor Authentication
+      </h3>
+      <p className="text-xs text-text-muted">
+        Protect your account with a time-based one-time password (TOTP) from your authenticator app.
+        Compatible with Google Authenticator, Aegis, 2FAS, Microsoft Authenticator, 1Password, and any RFC 6238-compliant app.
+      </p>
+
+      {/* Status badge */}
+      {mfaStatus && (
+        <div className={`flex items-center gap-2 p-3 rounded-lg text-xs font-medium ${
+          mfaStatus.enabled
+            ? 'bg-green-soft/8 border border-green-soft/15 text-green-soft'
+            : 'bg-bg-elevated text-text-muted'
+        }`}>
+          {mfaStatus.enabled
+            ? <><CheckCircle2 className="w-4 h-4" /> 2FA is active &nbsp;·&nbsp; {mfaStatus.remainingRecoveryCodes} recovery code{mfaStatus.remainingRecoveryCodes !== 1 ? 's' : ''} remaining</>
+            : <><Shield className="w-4 h-4" /> 2FA is not enabled</>}
+        </div>
+      )}
+
+      {/* ── Setup QR step ── */}
+      {setupData && !recoveryCodes && (
+        <div className="space-y-3 p-3 bg-bg-elevated rounded-xl">
+          <p className="text-xs text-text-secondary font-medium">Step 1 — Scan with your authenticator app</p>
+          <div className="flex justify-center">
+            <img src={setupData.qrDataUri} alt="TOTP QR Code" className="rounded-lg w-40 h-40" />
+          </div>
+          <div className="p-2 bg-bg-card rounded-lg">
+            <p className="text-[10px] text-text-muted mb-1">Manual entry key</p>
+            <code className="text-xs text-accent break-all select-all">{setupData.manualKey}</code>
+          </div>
+          <p className="text-xs text-text-secondary font-medium mt-3">Step 2 — Verify with a code</p>
+          <input
+            type="text" inputMode="numeric" maxLength={6} value={otpInput}
+            onChange={e => setOtpInput(e.target.value.replace(/\D/g, ''))}
+            placeholder="000000" autoFocus
+            className="input w-full text-center tracking-[0.3em] font-mono"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => { setSetupData(null); setOtpInput('') }}
+              className="btn-ghost flex-1 text-xs py-2">Cancel</button>
+            <button onClick={handleActivate} disabled={actionLoading || otpInput.length !== 6}
+              className="btn flex-1 text-xs py-2 flex items-center justify-center gap-1.5">
+              {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Activate 2FA'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Recovery codes (show once after activation) ── */}
+      {recoveryCodes && !savedCodes && (
+        <div className="space-y-3 p-3 bg-bg-elevated rounded-xl">
+          <div className="flex items-center gap-2 p-2 bg-amber-500/8 border border-amber-500/15 rounded-lg">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <p className="text-[11px] text-amber-300 leading-relaxed">
+              Save these recovery codes now — they will not be shown again.
+              Each code can only be used once.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {recoveryCodes.map((code, i) => (
+              <code key={i} className="text-xs text-accent font-mono p-2 bg-bg-card rounded-lg text-center select-all">{code}</code>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => copyAllCodes(recoveryCodes)} className="btn-ghost flex-1 text-xs py-2 flex items-center justify-center gap-1.5">
+              <Key className="w-3 h-3" /> Copy all
+            </button>
+            <button onClick={() => { setSavedCodes(true); fetchStatus() }}
+              className="btn flex-1 text-xs py-2">I've saved these codes</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── New recovery codes after regeneration ── */}
+      {newRecoveryCodes && (
+        <div className="space-y-3 p-3 bg-bg-elevated rounded-xl">
+          <p className="text-xs font-medium text-text-secondary">New recovery codes (previous ones are now invalid)</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {newRecoveryCodes.map((code, i) => (
+              <code key={i} className="text-xs text-accent font-mono p-2 bg-bg-card rounded-lg text-center select-all">{code}</code>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => copyAllCodes(newRecoveryCodes)} className="btn-ghost flex-1 text-xs py-2 flex items-center justify-center gap-1.5">
+              <Key className="w-3 h-3" /> Copy all
+            </button>
+            <button onClick={() => setNewRecoveryCodes(null)} className="btn flex-1 text-xs py-2">Done</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Disable MFA form ── */}
+      {showDisable && (
+        <div className="space-y-2 p-3 bg-bg-elevated rounded-xl">
+          <p className="text-xs font-medium text-text-secondary">Confirm identity to disable 2FA</p>
+          <input type="password" value={disablePassword} onChange={e => setDisablePassword(e.target.value)}
+            placeholder="Current password" className="input w-full text-sm" />
+          <input type="text" inputMode="numeric" maxLength={6} value={disableOtp}
+            onChange={e => setDisableOtp(e.target.value.replace(/\D/g, ''))}
+            placeholder="Authenticator code" className="input w-full text-sm text-center font-mono tracking-widest" />
+          <div className="flex gap-2">
+            <button onClick={() => { setShowDisable(false); setDisablePassword(''); setDisableOtp('') }}
+              className="btn-ghost flex-1 text-xs py-2">Cancel</button>
+            <button onClick={handleDisable} disabled={actionLoading || !disablePassword || disableOtp.length !== 6}
+              className="btn flex-1 text-xs py-2 !bg-red-500/20 !text-red-400 border border-red-500/20 flex items-center justify-center gap-1.5">
+              {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disable 2FA'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Regenerate form ── */}
+      {showRegen && (
+        <div className="space-y-2 p-3 bg-bg-elevated rounded-xl">
+          <p className="text-xs font-medium text-text-secondary">Confirm identity to regenerate codes</p>
+          <input type="password" value={regenPassword} onChange={e => setRegenPassword(e.target.value)}
+            placeholder="Current password" className="input w-full text-sm" />
+          <input type="text" inputMode="numeric" maxLength={6} value={regenOtp}
+            onChange={e => setRegenOtp(e.target.value.replace(/\D/g, ''))}
+            placeholder="Authenticator code" className="input w-full text-sm text-center font-mono tracking-widest" />
+          <div className="flex gap-2">
+            <button onClick={() => { setShowRegen(false); setRegenPassword(''); setRegenOtp('') }}
+              className="btn-ghost flex-1 text-xs py-2">Cancel</button>
+            <button onClick={handleRegen} disabled={actionLoading || !regenPassword || regenOtp.length !== 6}
+              className="btn flex-1 text-xs py-2 flex items-center justify-center gap-1.5">
+              {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Regenerate Codes'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Action buttons ── */}
+      {!setupData && !recoveryCodes && (
+        <div className="flex flex-wrap gap-2">
+          {!mfaStatus?.enabled ? (
+            <button onClick={handleSetup} disabled={loading}
+              className="btn text-xs py-2 px-4 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" /> Enable 2FA
+            </button>
+          ) : (
+            <>
+              <button onClick={() => { setShowDisable(!showDisable); setShowRegen(false) }}
+                className="btn-ghost text-xs py-2 px-4 flex items-center gap-1.5 text-red-400 hover:text-red-300">
+                <Unlock className="w-3.5 h-3.5" /> Disable 2FA
+              </button>
+              <button onClick={() => { setShowRegen(!showRegen); setShowDisable(false) }}
+                className="btn-ghost text-xs py-2 px-4 flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5" /> Regenerate Recovery Codes
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="pt-2 border-t border-white/[0.05]">
+        <p className="text-[10px] text-text-muted/50 leading-relaxed">
+          <strong className="text-text-muted/70">Authenticator app</strong> = protects your account.
+          &nbsp;<strong className="text-text-muted/70">Recovery codes</strong> = restores access if you lose your phone.
+          &nbsp;<strong className="text-text-muted/70">Data export</strong> = backs up your Life OS data (separate concept).
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsView() {
   const { user } = useAuthStore()
   const { isExporting, isImporting, lastBackup, exportData, importData } = useBackupStore()
@@ -137,7 +418,7 @@ export function SettingsView() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'general' | 'goals' | 'google' | 'data'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'goals' | 'security' | 'google' | 'data'>('general')
 
   // Google integration state
   const [googleConnected, setGoogleConnected] = useState(false)
@@ -321,6 +602,7 @@ export function SettingsView() {
   const TABS = [
     { id: 'general' as const, label: 'General' },
     { id: 'goals' as const, label: 'Goals & Targets' },
+    { id: 'security' as const, label: 'Security' },
     { id: 'google' as const, label: 'Google' },
     { id: 'data' as const, label: 'Data' },
   ]
@@ -513,6 +795,13 @@ export function SettingsView() {
               <p className="text-xs text-accent">These goals sync automatically across all views. Changes take effect immediately.</p>
             </div>
           </div>
+        </motion.div>
+      )}
+
+      {/* ═══ SECURITY TAB ═══ */}
+      {activeTab === 'security' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <MfaSettingsPanel />
         </motion.div>
       )}
 

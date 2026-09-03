@@ -87,7 +87,7 @@ export function GymView() {
       se + (ex.sets || []).reduce((ss, set) => ss + (set.reps || 0) * (set.weight || 0), 0), 0), 0)
   }), [last7Days, workouts])
 
-  const weeklyWorkoutCount = workouts.filter(w => last7Days.includes(w.date)).length
+  const weeklyWorkoutCount = workouts.filter(w => last7Days.some(d => w.date?.startsWith(d))).length
 
   // Streak
   const streak = useMemo(() => {
@@ -118,14 +118,14 @@ export function GymView() {
 
   // Muscle group split (this week)
   const muscleGroupSplit = useMemo(() => {
-    const thisWeekWorkouts = workouts.filter(w => last7Days.includes(w.date))
+    const thisWeekWorkouts = workouts.filter(w => last7Days.some(d => w.date?.startsWith(d)))
     const counts: Record<string, number> = {}
     Object.keys(MUSCLE_GROUPS).forEach(g => counts[g] = 0)
     thisWeekWorkouts.forEach(w => {
-      w.exercises.forEach(ex => {
+      (w.exercises || []).forEach(ex => {
         Object.entries(MUSCLE_GROUPS).forEach(([group, exercises]) => {
-          if (exercises.some(e => ex.name.toLowerCase().includes(e.toLowerCase()))) {
-            counts[group] += ex.sets.length
+          if (exercises.some(e => (ex.name || '').toLowerCase().includes(e.toLowerCase()))) {
+            counts[group] += (ex.sets || []).length
           }
         })
       })
@@ -621,7 +621,7 @@ export function GymView() {
                 <Target className="w-3.5 h-3.5 text-accent" /> Muscle Balance Radar
               </h3>
               <ResponsiveContainer width="100%" height={220}>
-                <RadarChart data={muscleGroupSplit.map(([group, sets]) => ({ muscle: group, sets }))}>
+                <RadarChart outerRadius="70%" margin={{ top: 10, right: 30, bottom: 10, left: 30 }} data={muscleGroupSplit.map(([group, sets]) => ({ muscle: group, sets }))}>
                   <PolarGrid stroke="rgba(255,255,255,0.06)" />
                   <PolarAngleAxis dataKey="muscle" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} />
                   <Radar name="Sets" dataKey="sets" stroke="#e8d5b7" fill="#e8d5b7" fillOpacity={0.15} strokeWidth={2} animationDuration={800} />

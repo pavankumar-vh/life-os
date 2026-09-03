@@ -56,13 +56,13 @@ function wordCount(html: string) {
   return txt ? txt.split(/\s+/).length : 0
 }
 
-function NoteListItem({ note, isActive, onSelect, onMenu, menuOpen, onTogglePin, onDelete }: {
+function NoteListItem({ note, isActive, onSelect, onMenu, menuOpen, onTogglePin, onDelete, onDragStart }: {
   note: NoteData; isActive: boolean; onSelect: () => void; onMenu: () => void;
-  menuOpen: boolean; onTogglePin: () => void; onDelete: () => void;
+  menuOpen: boolean; onTogglePin: () => void; onDelete: () => void; onDragStart?: (e: React.DragEvent) => void;
 }) {
   return (
     <div className="relative group">
-      <button onClick={onSelect}
+      <button onClick={onSelect} draggable={true} onDragStart={onDragStart}
         className={`w-full text-left px-4 py-3.5 transition-all relative ${
           isActive ? 'bg-accent/[0.08]' : 'hover:bg-white/[0.03] active:bg-white/[0.05]'
         }`}>
@@ -137,6 +137,21 @@ export function NotesView() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editFolder, setEditFolder] = useState('General')
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
+  const [persistedFolders, setPersistedFolders] = useState<string[]>([])
+  
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('lifeos_notes_folders')
+      if (stored) setPersistedFolders(JSON.parse(stored))
+    } catch (e) {}
+  }, [])
+
+  const savePersistedFolders = (newFolders: string[]) => {
+    setPersistedFolders(newFolders)
+    localStorage.setItem('lifeos_notes_folders', JSON.stringify(newFolders))
+  }
+
   const [editTags, setEditTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [editPinned, setEditPinned] = useState(false)
@@ -151,6 +166,7 @@ export function NotesView() {
   const [modal, setModal] = useState<{ type: 'folder' | 'delete' | 'tag'; deleteId?: string } | null>(null)
   const [tagSuggestIdx, setTagSuggestIdx] = useState(0)
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+  const [showFolderDropdown, setShowFolderDropdown] = useState(false)
   const [tagInputActive, setTagInputActive] = useState(false)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const tagContainerRef = useRef<HTMLDivElement>(null)
@@ -315,7 +331,11 @@ export function NotesView() {
     return () => window.removeEventListener('keydown', handler)
   }, [folderFilter])
 
-  const folders = useMemo(() => ['all', ...new Set(notes.map(n => n.folder))], [notes])
+  const folders = useMemo(() => {
+    const set = new Set(notes.map(n => n.folder))
+    persistedFolders.forEach(f => set.add(f))
+    return ['all', ...Array.from(set).sort()]
+  }, [notes, persistedFolders])
   const allTags = useMemo(() => [...new Set(notes.flatMap(n => n.tags))].sort(), [notes])
   const allTagsLower = useMemo(() => new Set(allTags.map(t => t.toLowerCase())), [allTags])
   const editTagsLower = useMemo(() => new Set(editTags.map(t => t.toLowerCase())), [editTags])
@@ -402,7 +422,7 @@ export function NotesView() {
 
   const createNote = async () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    await saveNote({ title: '', content: '', folder: folderFilter === 'all' ? 'General' : folderFilter, tags: [], pinned: false })
+    await saveNote({ title: 'Untitled Note', content: '', folder: folderFilter === 'all' ? 'General' : folderFilter, tags: [], pinned: false })
     setTimeout(() => {
       const newest = useNotesStore.getState().notes[0]
       if (newest) { selectNote(newest); setTimeout(() => titleRef.current?.focus(), 50) }
@@ -428,6 +448,19 @@ export function NotesView() {
     setMenuOpen(null)
   }
 
+  const handleMoveToFolder = async (noteId: string, newFolder: string) => {
+    if (newFolder === 'all') return
+    const note = useNotesStore.getState().notes.find(n => n._id === noteId)
+    if (note && note.folder !== newFolder) {
+      await saveNote({ _id: noteId, folder: newFolder })
+      if (activeIdRef.current === noteId) {
+        setEditFolder(newFolder)
+        editFolderRef.current = newFolder
+      }
+      toast.success(`Moved to ${newFolder}`)
+    }
+  }
+
   const createFolder = () => {
     setModalInput('')
     setModal({ type: 'folder' })
@@ -439,13 +472,21 @@ export function NotesView() {
     setModal(null)
     setModalInput('')
     if (!name) return
-    saveNote({ title: '', content: '', folder: name, tags: [], pinned: false }).then(() => {
+    const updatedFolders = [...new Set([...persistedFolders, name])]
+    savePersistedFolders(updatedFolders)
+    saveNote({ title: 'Untitled Note', content: '', folder: name, tags: [], pinned: false }).then(() => {
       setFolderFilter(name)
       setTimeout(() => {
         const newest = useNotesStore.getState().notes.find(n => n.folder === name)
         if (newest) { selectNote(newest); setTimeout(() => titleRef.current?.focus(), 50) }
       }, 100)
     })
+  }
+
+  const deleteEmptyFolder = (folderName: string) => {
+    if (folderFilter === folderName) setFolderFilter('all')
+    const updated = persistedFolders.filter(f => f !== folderName)
+    savePersistedFolders(updated)
   }
 
   const confirmCreateTag = () => {
@@ -469,8 +510,8 @@ export function NotesView() {
     setTagFilter(tag)
   }
 
-  const onTitleChange = (v: string) => { setEditTitle(v); doSave() }
-  const onFolderChange = (v: string) => { setEditFolder(v); doSave() }
+  const onTitleChange = (v: string) => { setEditTitle(v); editTitleRef.current = v; doSave() }
+  const onFolderChange = (v: string) => { setEditFolder(v); editFolderRef.current = v; doSave() }
   const activateTagInput = () => {
     setTagInputActive(true)
     setShowTagSuggestions(true)
@@ -485,6 +526,7 @@ export function NotesView() {
     if (!normalized || editTagsLower.has(normalized)) { setTagInput(''); return }
     const updated = [...editTags, tag]
     setEditTags(updated)
+    editTagsRef.current = updated
     setTagInput('')
     setShowTagSuggestions(false)
     setTagSuggestIdx(0)
@@ -493,6 +535,7 @@ export function NotesView() {
   const removeTag = (tag: string) => {
     const updated = editTags.filter(t => t !== tag)
     setEditTags(updated)
+    editTagsRef.current = updated
     doSave()
   }
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -529,7 +572,7 @@ export function NotesView() {
   }, [editTitle])
 
   const ToolBtn = ({ active, onClick, children, title }: { active?: boolean; onClick: () => void; children: React.ReactNode; title?: string }) => (
-    <button type="button" onClick={onClick} title={title}
+    <button type="button" onClick={onClick} onMouseDown={e => e.preventDefault()} title={title}
       className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
         active ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-white/[0.08] hover:text-text-primary'
       }`}>{children}</button>
@@ -556,11 +599,52 @@ export function NotesView() {
           </div>
         </div>
         <div className="flex gap-1 px-4 py-2 overflow-x-auto no-scrollbar shrink-0">
-          {folders.map(f => (
-            <button key={f} onClick={() => setFolderFilter(f)} className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium ${folderFilter === f ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'}`}>
-              <Folder className="w-2.5 h-2.5" />{f === 'all' ? 'All' : f}
-            </button>
-          ))}
+          {folders.map(f => {
+            const isEmpty = f !== 'all' && !notes.some(n => n.folder === f)
+            return (
+              <motion.button key={f} onClick={() => setFolderFilter(f)} 
+                layout
+                onDragOver={f !== 'all' ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
+                onDragEnter={f !== 'all' ? (e) => { e.preventDefault(); setDragOverFolder(f) } : undefined}
+                onDragLeave={f !== 'all' ? (e) => { 
+                  e.preventDefault(); 
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  if (e.clientX <= rect.left || e.clientX >= rect.right || e.clientY <= rect.top || e.clientY >= rect.bottom) {
+                    if (dragOverFolder === f) setDragOverFolder(null);
+                  }
+                } : undefined}
+                onDrop={f !== 'all' ? (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setDragOverFolder(null)
+                  const noteId = e.dataTransfer.getData('text/plain')
+                  if (noteId) {
+                    handleMoveToFolder(noteId, f)
+                    if (!persistedFolders.includes(f)) savePersistedFolders([...persistedFolders, f])
+                  }
+                } : undefined}
+                animate={{ scale: dragOverFolder === f ? 1.05 : 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap flex items-center gap-1.5 font-medium relative z-10 ${
+                  dragOverFolder === f 
+                    ? 'bg-accent text-white shadow-md'
+                    : folderFilter === f 
+                      ? 'bg-accent/15 text-accent' 
+                      : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'
+                }`}>
+                <Folder className="w-2.5 h-2.5 shrink-0" />
+                <span>{f === 'all' ? 'All' : f}</span>
+                {isEmpty && (
+                  <div onClick={(e) => { e.stopPropagation(); deleteEmptyFolder(f) }} 
+                    className={`p-0.5 rounded transition-colors ml-1 ${
+                      dragOverFolder === f ? 'text-white/70 hover:text-white hover:bg-white/20' : 'text-text-muted hover:text-red-soft hover:bg-white/[0.1]'
+                    }`}>
+                    <X className="w-2.5 h-2.5" />
+                  </div>
+                )}
+              </motion.button>
+            )
+          })}
           <button onClick={createFolder} title="New Folder" className="px-2 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30">
             <FolderPlus className="w-2.5 h-2.5" />New
           </button>
@@ -607,11 +691,11 @@ export function NotesView() {
             <div>
               {pinnedNotes.length > 0 && (<>
                 <div className="px-4 pt-3 pb-1.5 flex items-center gap-1.5"><Pin className="w-2.5 h-2.5 text-accent/60" /><span className="text-[10px] font-semibold text-accent/60 uppercase tracking-wider">Pinned</span></div>
-                {pinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} />)}
+                {pinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} onDragStart={(e) => e.dataTransfer.setData('text/plain', note._id)} />)}
               </>)}
               {unpinnedNotes.length > 0 && (<>
                 {pinnedNotes.length > 0 && <div className="px-4 pt-3 pb-1.5 flex items-center gap-1.5"><Clock className="w-2.5 h-2.5 text-text-muted" /><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Recent</span></div>}
-                {unpinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} />)}
+                {unpinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} onDragStart={(e) => e.dataTransfer.setData('text/plain', note._id)} />)}
               </>)}
               <div className="h-24 md:h-4" />
             </div>
@@ -649,9 +733,30 @@ export function NotesView() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-text-secondary">
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-text-secondary relative z-[100]">
               <Folder className="w-3 h-3 shrink-0" />
-              <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-16 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
+              <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} 
+                onFocus={() => setShowFolderDropdown(true)}
+                onBlur={() => setTimeout(() => setShowFolderDropdown(false), 200)}
+                className="bg-transparent outline-none w-24 text-text-secondary placeholder:text-text-muted font-medium" 
+                placeholder="Folder" 
+              />
+              <AnimatePresence>
+                {showFolderDropdown && (
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
+                    className="absolute top-full left-0 mt-2 w-48 bg-[rgba(22,22,24,0.98)] backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl py-1 overflow-hidden">
+                     <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider font-semibold">Move to folder</div>
+                     <div className="h-px bg-white/[0.06] mx-2 my-0.5" />
+                     {folders.filter(f => f !== 'all').map(f => (
+                       <button key={f} onMouseDown={(e) => { e.preventDefault(); onFolderChange(f); setShowFolderDropdown(false); }} 
+                         className="w-full text-left px-3 py-2 text-[11px] text-text-secondary hover:bg-accent/10 hover:text-accent transition-colors flex items-center gap-2">
+                         <Folder className="w-3 h-3" />
+                         {f}
+                       </button>
+                     ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             {/* Attachment / image upload button */}
@@ -680,6 +785,7 @@ export function NotesView() {
           <div className="flex-1 overflow-y-auto overscroll-contain relative">
             <div className="w-full max-w-none px-5 sm:px-8 md:px-12 lg:px-20 xl:px-28 py-6 sm:py-8">
               <textarea ref={titleRef} value={editTitle} onChange={e => onTitleChange(e.target.value)} placeholder="Title" rows={1}
+                onFocus={(e) => { if (editTitle === 'Untitled Note') e.target.select() }}
                 className="w-full text-2xl sm:text-3xl lg:text-[34px] font-bold text-text-primary bg-transparent resize-none outline-none placeholder:text-text-muted leading-[1.15] tracking-tight mb-2"
                 style={{ overflow: 'hidden' }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus('start') } }} />
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-text-secondary mb-6 sm:mb-8 pb-5 sm:pb-6 border-b border-border/50">

@@ -10,7 +10,7 @@ import { DateNavigator } from '@/components/DateNavigator'
 import { DatePicker } from '@/components/DatePicker'
 import { toast } from '@/components/Toast'
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, Cell,
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
@@ -39,7 +39,9 @@ export function SleepTrackerView() {
 
   const stats = useMemo(() => {
     if (logs.length === 0) return null
-    const week = logs.slice(0, 7)
+    // Ensure we use the 7 most recent logs regardless of DB sorting
+    const recentLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date))
+    const week = recentLogs.slice(0, 7)
     return {
       avgHours: +(week.reduce((s, l) => s + l.hours, 0) / week.length).toFixed(1),
       avgQuality: +(week.reduce((s, l) => s + l.quality, 0) / week.length).toFixed(1),
@@ -59,24 +61,55 @@ export function SleepTrackerView() {
   }, [logs])
 
   const handleAdd = async () => {
+    if (!bedtime || !waketime) {
+      toast.error('Please enter both bedtime and wake time')
+      return
+    }
     const hours = calcHours(bedtime, waketime)
+    if (isNaN(hours) || hours <= 0 || hours >= 24) {
+      toast.error('Invalid sleep duration')
+      return
+    }
     await addLog({ date: selectedDate, bedtime, waketime, hours, quality, notes }).catch(() => toast.error('Failed to save sleep log'))
     setBedtime('23:00'); setWaketime('07:00'); setQuality(3); setNotes('')
     setShowAdd(false)
   }
 
-  // Chart data
   const [chartRange, setChartRange] = useState<'7d' | '14d' | '30d' | 'all'>('14d')
   const chartData = useMemo(() => {
-    const sorted = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    if (chartRange === 'all') return sorted
+    const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
+    
+    if (chartRange === 'all') {
+      return sorted
+    }
+    
     const days = chartRange === '7d' ? 7 : chartRange === '14d' ? 14 : 30
-    const cutoff = Date.now() - days * 86400000
-    return sorted.filter(d => new Date(d.date).getTime() >= cutoff)
+    
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - days + 1)
+    const endStr = toISODate(new Date())
+    
+    const logMap = new Map(sorted.map(l => [l.date, l]))
+    const padded = []
+    
+    const current = new Date(cutoffDate)
+    while (toISODate(current) <= endStr) {
+      const dateStr = toISODate(current)
+      if (logMap.has(dateStr)) {
+        padded.push(logMap.get(dateStr))
+      } else {
+        padded.push({ date: dateStr, hours: 0, quality: 0 } as any)
+      }
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return padded
   }, [logs, chartRange])
+  
   const avgHoursLine = useMemo(() => {
-    if (!chartData.length) return 0
-    return chartData.reduce((s, d) => s + d.hours, 0) / chartData.length
+    const validLogs = chartData.filter(d => d.hours > 0)
+    if (!validLogs.length) return 0
+    return validLogs.reduce((s, d) => s + d.hours, 0) / validLogs.length
   }, [chartData])
 
   const QUALITY_BAR_COLORS = ['', '#ef4444', '#f97316', '#9ca3af', '#4ade80', '#e8d5b7']
@@ -138,28 +171,25 @@ export function SleepTrackerView() {
           </div>
 
           {chartData.length > 1 ? (<>
-          {/* Hours Area Chart */}
-          <div className="h-[200px] mb-2" key={chartRange}>
+          {/* Single Sleep Bar Chart */}
+          <div className="h-[250px] mb-2" key={chartRange}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="sleepHoursGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
-                  dataKey="date" stroke="rgba(255,255,255,0.15)" fontSize={10}
+                  dataKey="date"
+                  stroke="rgba(255,255,255,0.15)" fontSize={10}
                   tickLine={false} axisLine={false}
                   interval="preserveStartEnd"
-                  tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return v } }}
+                  tickFormatter={(v) => { try { return format(parseISO(v), 'MMM d') } catch { return '' } }}
                 />
+                
                 <YAxis
-                  domain={[0, 12]} stroke="rgba(255,255,255,0.15)"
+                  domain={[0, (dataMax: number) => Math.max(12, Math.ceil(dataMax))]} stroke="rgba(255,255,255,0.15)"
                   fontSize={10} tickLine={false} axisLine={false}
                   tickFormatter={(v) => `${v}h`}
                 />
+                
                 <ReferenceLine
                   y={8} stroke="rgba(74,222,128,0.2)" strokeDasharray="4 4"
                   label={{ value: '8h goal', position: 'insideTopRight', fill: 'rgba(74,222,128,0.35)', fontSize: 10 }}
@@ -169,22 +199,32 @@ export function SleepTrackerView() {
                   label={{ value: `avg ${avgHoursLine.toFixed(1)}h`, position: 'insideTopLeft', fill: 'rgba(96,165,250,0.4)', fontSize: 10 }}
                 />
                 <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null
                     const d = payload[0]?.payload
                     if (!d) return null
                     let dateLabel = d.date
                     try { dateLabel = format(parseISO(d.date), 'EEEE, MMM d') } catch { /* */ }
+                    
+                    if (d.hours === 0) {
+                      return (
+                        <div className="bg-[rgba(10,10,10,0.96)] border border-glass-border rounded-xl px-4 py-3 shadow-2xl backdrop-blur-xl">
+                          <p className="text-[10px] text-text-muted mb-1">{dateLabel}</p>
+                          <p className="text-sm font-semibold text-text-secondary">No log</p>
+                        </div>
+                      )
+                    }
+                    
                     return (
                       <div className="bg-[rgba(10,10,10,0.96)] border border-glass-border rounded-xl px-4 py-3 shadow-2xl backdrop-blur-xl">
                         <p className="text-[10px] text-text-muted mb-2">{dateLabel}</p>
                         <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-blue-400" />
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[d.quality] }} />
                           <span className="text-sm font-semibold text-text-primary">{d.hours}h sleep</span>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[d.quality] }} />
-                          <span className="text-xs text-text-secondary">{QUALITY_LABELS[d.quality]} ({d.quality}/5)</span>
+                          <span className="text-xs text-text-secondary">{QUALITY_LABELS[d.quality]} Quality ({d.quality}/5)</span>
                         </div>
                         <div className="text-[10px] text-text-muted mt-2 flex items-center gap-3">
                           <span>🛏 {d.bedtime}</span>
@@ -194,25 +234,10 @@ export function SleepTrackerView() {
                     )
                   }}
                 />
-                <Area
-                  type="monotone" dataKey="hours"
-                  stroke="#60a5fa" strokeWidth={2.5} fill="url(#sleepHoursGrad)"
-                  dot={false}
-                  activeDot={{ r: 5, stroke: '#60a5fa', strokeWidth: 2, fill: '#0a0a0a' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Quality Bar Chart */}
-          <div className="h-[60px]" key={`q-${chartRange}`}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="date" hide />
-                <YAxis domain={[0, 5]} hide />
-                <Bar dataKey="quality" radius={[3, 3, 0, 0]} maxBarSize={20}>
+                
+                <Bar dataKey="hours" radius={[4, 4, 0, 0]} maxBarSize={32}>
                   {chartData.map((d, i) => (
-                    <Cell key={i} fill={QUALITY_BAR_COLORS[d.quality]} opacity={0.6} />
+                    <Cell key={i} fill={d.quality ? QUALITY_BAR_COLORS[d.quality] : '#1f2937'} opacity={0.8} />
                   ))}
                 </Bar>
               </BarChart>
@@ -220,16 +245,17 @@ export function SleepTrackerView() {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-center gap-5 mt-3 pt-3 border-t border-glass-border">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded-full bg-blue-400" />
-              <span className="text-[10px] text-text-muted">Hours</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded-full bg-accent" />
-              <span className="text-[10px] text-text-muted">Quality</span>
-            </div>
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-glass-border">
+            {QUALITY_LABELS.map((label, i) => {
+              if (!label) return null
+              return (
+                <div key={label} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: QUALITY_BAR_COLORS[i] }} />
+                  <span className="text-[10px] text-text-muted">{label}</span>
+                </div>
+              )
+            })}
+            <div className="flex items-center gap-1.5 ml-2">
               <span className="w-3 h-[1px] border-t border-dashed border-green-soft/40" />
               <span className="text-[10px] text-text-muted">8h Goal</span>
             </div>
@@ -290,8 +316,10 @@ export function SleepTrackerView() {
         <div className="text-center py-16 card"><p className="text-sm text-text-muted">No sleep data yet</p></div>
       ) : (
         <div className="space-y-1.5">
-          {logs.filter(l => l.date === selectedDate).length > 0 ? (
-            logs.filter(l => l.date === selectedDate).map(log => (
+          {(() => {
+            const todayLogs = logs.filter(l => l.date === selectedDate)
+            if (todayLogs.length === 0) return <div className="text-center py-4"><p className="text-xs text-text-muted">No logs for this date</p></div>
+            return todayLogs.map(log => (
               <div key={log._id} className="card group flex items-center gap-3 border-accent/20">
                 <div className="w-10 h-10 rounded-lg bg-blue-soft/10 flex items-center justify-center shrink-0">
                   <Moon className="w-4 h-4 text-blue-soft" />
@@ -312,9 +340,7 @@ export function SleepTrackerView() {
               </button>
             </div>
           ))
-          ) : (
-            <div className="card text-center py-6 text-text-muted text-xs">No sleep log for {formatDate(selectedDate)}</div>
-          )}
+          })()}
 
           {/* Recent logs */}
           {logs.some(l => l.date !== selectedDate) && (
