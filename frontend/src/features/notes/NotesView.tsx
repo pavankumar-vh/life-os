@@ -56,12 +56,12 @@ function wordCount(html: string) {
   return txt ? txt.split(/\s+/).length : 0
 }
 
-function NoteListItem({ note, isActive, onSelect, onMenu, menuOpen, onTogglePin, onDelete }: {
+function NoteListItem({ note, isActive, onSelect, onMenu, menuOpen, onTogglePin, onDelete, onDragStart }: {
   note: NoteData; isActive: boolean; onSelect: () => void; onMenu: () => void;
-  menuOpen: boolean; onTogglePin: () => void; onDelete: () => void;
+  menuOpen: boolean; onTogglePin: () => void; onDelete: () => void; onDragStart?: (e: React.DragEvent) => void;
 }) {
   return (
-    <div className="relative group">
+    <div className="relative group" draggable={true} onDragStart={onDragStart}>
       <button onClick={onSelect}
         className={`w-full text-left px-4 py-3.5 transition-all relative ${
           isActive ? 'bg-accent/[0.08]' : 'hover:bg-white/[0.03] active:bg-white/[0.05]'
@@ -429,6 +429,19 @@ export function NotesView() {
     setMenuOpen(null)
   }
 
+  const handleMoveToFolder = async (noteId: string, newFolder: string) => {
+    if (newFolder === 'all') return
+    const note = useNotesStore.getState().notes.find(n => n._id === noteId)
+    if (note && note.folder !== newFolder) {
+      await saveNote({ _id: noteId, folder: newFolder })
+      if (activeIdRef.current === noteId) {
+        setEditFolder(newFolder)
+        editFolderRef.current = newFolder
+      }
+      toast.success(`Moved to ${newFolder}`)
+    }
+  }
+
   const createFolder = () => {
     setModalInput('')
     setModal({ type: 'folder' })
@@ -560,7 +573,14 @@ export function NotesView() {
         </div>
         <div className="flex gap-1 px-4 py-2 overflow-x-auto no-scrollbar shrink-0">
           {folders.map(f => (
-            <button key={f} onClick={() => setFolderFilter(f)} className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium ${folderFilter === f ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'}`}>
+            <button key={f} onClick={() => setFolderFilter(f)} 
+              onDragOver={f !== 'all' ? (e) => e.preventDefault() : undefined}
+              onDrop={f !== 'all' ? (e) => {
+                e.preventDefault()
+                const noteId = e.dataTransfer.getData('text/plain')
+                if (noteId) handleMoveToFolder(noteId, f)
+              } : undefined}
+              className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium ${folderFilter === f ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'}`}>
               <Folder className="w-2.5 h-2.5" />{f === 'all' ? 'All' : f}
             </button>
           ))}
@@ -610,11 +630,11 @@ export function NotesView() {
             <div>
               {pinnedNotes.length > 0 && (<>
                 <div className="px-4 pt-3 pb-1.5 flex items-center gap-1.5"><Pin className="w-2.5 h-2.5 text-accent/60" /><span className="text-[10px] font-semibold text-accent/60 uppercase tracking-wider">Pinned</span></div>
-                {pinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} />)}
+                {pinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} onDragStart={(e) => e.dataTransfer.setData('text/plain', note._id)} />)}
               </>)}
               {unpinnedNotes.length > 0 && (<>
                 {pinnedNotes.length > 0 && <div className="px-4 pt-3 pb-1.5 flex items-center gap-1.5"><Clock className="w-2.5 h-2.5 text-text-muted" /><span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Recent</span></div>}
-                {unpinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} />)}
+                {unpinnedNotes.map(note => <NoteListItem key={note._id} note={note} isActive={note._id === activeId} onSelect={() => selectNote(note)} onMenu={() => setMenuOpen(menuOpen === note._id ? null : note._id)} menuOpen={menuOpen === note._id} onTogglePin={() => togglePin(note)} onDelete={() => handleDelete(note._id)} onDragStart={(e) => e.dataTransfer.setData('text/plain', note._id)} />)}
               </>)}
               <div className="h-24 md:h-4" />
             </div>
