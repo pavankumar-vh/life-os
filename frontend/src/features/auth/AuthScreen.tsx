@@ -6,9 +6,9 @@ import { useAuthStore } from '@/store'
 import { fetchApi } from '@/lib/api'
 import { toast } from '@/components/Toast'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, ArrowRight, Eye, EyeOff, Mail, CheckCircle, Sparkles, Shield, Cpu } from 'lucide-react'
+import { Zap, ArrowRight, Eye, EyeOff, Mail, CheckCircle, Sparkles, Shield, Cpu, ShieldCheck, KeyRound } from 'lucide-react'
 
-type Mode = 'login' | 'register' | 'forgot'
+type Mode = 'login' | 'register' | 'forgot' | 'mfa' | 'recovery'
 
 function PasswordStrength({ password }: { password: string }) {
   const score = password.length >= 16 ? 3 : password.length >= 10 ? 2 : password.length >= 8 ? 1 : 0
@@ -37,7 +37,6 @@ const features = [
 async function parseResponseBody(res: Response): Promise<any> {
   const text = await res.text()
   if (!text) return {}
-
   try {
     return JSON.parse(text)
   } catch {
@@ -56,9 +55,24 @@ export function AuthScreen() {
   const [error, setError] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
   const [forgotLoading, setForgotLoading] = useState(false)
-  const { login, register, isLoading } = useAuthStore()
+  // MFA step state
+  const [otpCode, setOtpCode] = useState('')
+  const [recoveryCode, setRecoveryCode] = useState('')
 
-  const reset = () => { setError(''); setForgotSent(false); setPassword(''); setConfirm(''); setName('') }
+  const { login, register, completeMfa, useRecoveryCode, cancelMfa, isLoading, mfaPending } = useAuthStore()
+
+  // When login detects requiresMfa, switch to MFA step
+  const prevMfaPending = useAuthStore(s => s.mfaPending)
+  if (mfaPending && mode !== 'mfa' && mode !== 'recovery') {
+    setMode('mfa')
+    setOtpCode('')
+    setError('')
+  }
+  if (!mfaPending && (mode === 'mfa' || mode === 'recovery')) {
+    setMode('login')
+  }
+
+  const reset = () => { setError(''); setForgotSent(false); setPassword(''); setConfirm(''); setName(''); setOtpCode(''); setRecoveryCode('') }
   const switchMode = (m: Mode) => { setMode(m); reset() }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,18 +110,23 @@ export function AuthScreen() {
     }
   }
 
-  const handleGoogleLogin = async () => {
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
     try {
-      const res = await fetchApi('/api/auth/google/url')
-      const data = await parseResponseBody(res)
-      if (res.ok && data.url) {
-        window.location.href = data.url
-      } else {
-        toast.error(data.error || 'Failed to initialize Google Login')
-      }
-    } catch (e) {
-      console.error(e)
-      toast.error('Network error starting Google Login')
+      await completeMfa(otpCode.trim())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid code')
+    }
+  }
+
+  const handleRecoveryVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    try {
+      await useRecoveryCode(recoveryCode.trim())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid recovery code')
     }
   }
 
@@ -207,11 +226,15 @@ export function AuthScreen() {
                   {mode === 'login' && 'Welcome back'}
                   {mode === 'register' && 'Create your account'}
                   {mode === 'forgot' && 'Forgot password?'}
+                  {mode === 'mfa' && 'Two-Factor Auth'}
+                  {mode === 'recovery' && 'Use Recovery Code'}
                 </h1>
                 <p className="text-sm text-text-muted">
                   {mode === 'login' && 'Sign in to your LifeOS account'}
                   {mode === 'register' && 'Start tracking everything that matters'}
                   {mode === 'forgot' && "We'll send you a reset link"}
+                  {mode === 'mfa' && 'Enter the 6-digit code from your authenticator app'}
+                  {mode === 'recovery' && 'Enter one of your saved recovery codes'}
                 </p>
               </motion.div>
             </AnimatePresence>
@@ -227,6 +250,93 @@ export function AuthScreen() {
             }}>
 
             <AnimatePresence mode="wait">
+
+              {/* ── MFA TOTP STEP ──────────────────────────── */}
+              {mode === 'mfa' && (
+                <motion.div key="mfa" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <div className="flex justify-center mb-5">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                      style={{ background: 'rgba(232,213,183,0.08)', border: '1px solid rgba(232,213,183,0.15)' }}>
+                      <ShieldCheck className="w-6 h-6 text-accent" />
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleMfaVerify} className="space-y-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000"
+                      autoComplete="one-time-code"
+                      autoFocus
+                      className="input w-full text-center tracking-[0.3em] text-lg font-mono"
+                    />
+                    {error && <ErrorBox msg={error} />}
+                    <motion.button
+                      type="submit"
+                      disabled={isLoading || otpCode.length !== 6}
+                      className="btn w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
+                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                      {isLoading ? <Spinner /> : (<>Verify Code <ArrowRight className="w-4 h-4" /></>)}
+                    </motion.button>
+                  </form>
+
+                  <div className="mt-4 pt-4 border-t border-white/[0.06] flex justify-between items-center">
+                    <button onClick={() => { cancelMfa(); switchMode('login') }}
+                      className="text-xs text-text-muted/50 hover:text-accent transition-colors cursor-pointer">
+                      ← Back to login
+                    </button>
+                    <button onClick={() => switchMode('recovery')}
+                      className="text-xs text-text-muted/50 hover:text-accent transition-colors cursor-pointer">
+                      Use recovery code
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ── RECOVERY CODE STEP ─────────────────────── */}
+              {mode === 'recovery' && (
+                <motion.div key="recovery" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <div className="flex justify-center mb-5">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                      style={{ background: 'rgba(232,213,183,0.08)', border: '1px solid rgba(232,213,183,0.15)' }}>
+                      <KeyRound className="w-6 h-6 text-accent" />
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleRecoveryVerify} className="space-y-3">
+                    <input
+                      type="text"
+                      value={recoveryCode}
+                      onChange={e => setRecoveryCode(e.target.value)}
+                      placeholder="XXXX-XXXX-XXXX"
+                      autoFocus
+                      className="input w-full text-center tracking-wider font-mono"
+                    />
+                    <p className="text-[10px] text-text-muted/40 text-center">
+                      Each recovery code can only be used once
+                    </p>
+                    {error && <ErrorBox msg={error} />}
+                    <motion.button
+                      type="submit"
+                      disabled={isLoading || recoveryCode.length < 8}
+                      className="btn w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
+                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                      {isLoading ? <Spinner /> : (<>Verify Recovery Code <ArrowRight className="w-4 h-4" /></>)}
+                    </motion.button>
+                  </form>
+
+                  <div className="mt-4 pt-4 border-t border-white/[0.06] text-center">
+                    <button onClick={() => switchMode('mfa')}
+                      className="text-xs text-text-muted/50 hover:text-accent transition-colors cursor-pointer">
+                      ← Back to authenticator code
+                    </button>
+                  </div>
+                </motion.div>
+              )}
 
               {/* ── FORGOT PASSWORD ──────────────────────────── */}
               {mode === 'forgot' && (
@@ -272,7 +382,7 @@ export function AuthScreen() {
               )}
 
               {/* ── LOGIN / REGISTER ─────────────────────────── */}
-              {mode !== 'forgot' && (
+              {(mode === 'login' || mode === 'register') && (
                 <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
                   {/* Tab switcher */}
@@ -289,22 +399,6 @@ export function AuthScreen() {
                         {tab === 'login' ? 'Login' : 'Register'}
                       </button>
                     ))}
-                  </div>
-
-                  {/* Google OAuth */}
-                  <motion.button type="button" onClick={handleGoogleLogin}
-                    className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl mb-4 text-sm text-text-primary transition-all cursor-pointer"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
-                    whileHover={{ background: 'rgba(255,255,255,0.085)' }} whileTap={{ scale: 0.99 }}>
-                    <GoogleIcon />
-                    Continue with Google
-                  </motion.button>
-
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
-                    <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>or</span>
-                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
                   </div>
 
                   {/* Form */}
@@ -357,7 +451,6 @@ export function AuthScreen() {
                                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted/50 hover:text-text-muted transition-colors">
                                 {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
                               </button>
-                              {/* Match indicator */}
                               {confirm && (
                                 <div className="absolute right-9 top-1/2 -translate-y-1/2">
                                   {password === confirm
@@ -404,6 +497,8 @@ export function AuthScreen() {
             <p className="text-center text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
               {mode === 'register'
                 ? 'By creating an account you agree to our terms of service'
+                : mode === 'mfa' || mode === 'recovery'
+                ? 'Secure two-factor authentication'
                 : 'Welcome back to your command center'}
             </p>
             <div className="flex items-center gap-4 text-[10px] text-text-muted/60">
@@ -436,16 +531,5 @@ function ErrorBox({ msg }: { msg: string }) {
       style={{ background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.18)', color: '#fca5a5' }}>
       {msg}
     </motion.div>
-  )
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M17.64 9.2045c0-.638-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9087C16.6582 14.254 17.64 11.9395 17.64 9.2045z" fill="#4285F4"/>
-      <path d="M9 18c2.43 0 4.4673-.8059 5.9564-2.1804l-2.9087-2.2581c-.8059.5409-1.8368.8618-3.0477.8618-2.3441 0-4.3282-1.5832-5.036-3.7104H.9574v2.3318C2.4382 15.9832 5.4818 18 9 18z" fill="#34A853"/>
-      <path d="M3.964 10.71c-.18-.5409-.2827-1.1182-.2827-1.71s.1027-1.1691.2827-1.71V4.9582H.9574C.3477 6.1732 0 7.5477 0 9s.3477 2.8268.9574 4.0418L3.964 10.71z" fill="#FBBC05"/>
-      <path d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346l2.5813-2.5814C13.4627.8918 11.4255 0 9 0 5.4818 0 2.4382 2.0168.9574 4.9582L3.964 7.29C4.6718 5.1627 6.6559 3.5795 9 3.5795z" fill="#EA4335"/>
-    </svg>
   )
 }
