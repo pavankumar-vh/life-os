@@ -180,7 +180,7 @@ describe('User isolation', () => {
 
 // ─── 7. API query param validation ───────────────────────────────────────────
 
-const VALID_TYPES = ['task', 'goal', 'note', 'journal', 'habit', 'capture', 'bookmark', 'book', 'project']
+const SEARCH_TYPES = ['task', 'goal', 'note', 'journal', 'habit', 'capture', 'bookmark', 'book', 'project']
 
 function validateSearchParams(params: Record<string, string>): { ok: boolean; error?: string } {
   const q = (params.q || '').trim()
@@ -189,8 +189,8 @@ function validateSearchParams(params: Record<string, string>): { ok: boolean; er
 
   if (params.types) {
     const requested = params.types.split(',').map(t => t.trim())
-    const valid = requested.filter(t => VALID_TYPES.includes(t))
-    if (valid.length === 0) return { ok: false, error: `types must be one or more of: ${VALID_TYPES.join(', ')}` }
+    const valid = requested.filter(t => SEARCH_TYPES.includes(t))
+    if (valid.length === 0) return { ok: false, error: `types must be one or more of: ${SEARCH_TYPES.join(', ')}` }
   }
   return { ok: true }
 }

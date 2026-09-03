@@ -35,6 +35,7 @@ import focusRoutes from './routes/focus'
 import uploadsRoutes from './routes/uploads'
 import vaultRoutes from './routes/vault'
 import searchRoutes from './routes/search'
+import todayRoutes from './routes/today'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -102,6 +103,7 @@ app.use('/api/focus', focusRoutes)
 app.use('/api/uploads', uploadsRoutes)
 app.use('/api/vault', vaultRoutes)
 app.use('/api/search', searchRoutes)
+app.use('/api/today', todayRoutes)
 
 async function start() {
   // Start server first so health check is immediately reachable
