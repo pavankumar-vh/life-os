@@ -138,6 +138,20 @@ export function NotesView() {
   const [editTitle, setEditTitle] = useState('')
   const [editFolder, setEditFolder] = useState('General')
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
+  const [persistedFolders, setPersistedFolders] = useState<string[]>([])
+  
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('lifeos_notes_folders')
+      if (stored) setPersistedFolders(JSON.parse(stored))
+    } catch (e) {}
+  }, [])
+
+  const savePersistedFolders = (newFolders: string[]) => {
+    setPersistedFolders(newFolders)
+    localStorage.setItem('lifeos_notes_folders', JSON.stringify(newFolders))
+  }
+
   const [editTags, setEditTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [editPinned, setEditPinned] = useState(false)
@@ -317,7 +331,11 @@ export function NotesView() {
     return () => window.removeEventListener('keydown', handler)
   }, [folderFilter])
 
-  const folders = useMemo(() => ['all', ...new Set(notes.map(n => n.folder))], [notes])
+  const folders = useMemo(() => {
+    const set = new Set(notes.map(n => n.folder))
+    persistedFolders.forEach(f => set.add(f))
+    return ['all', ...Array.from(set).sort()]
+  }, [notes, persistedFolders])
   const allTags = useMemo(() => [...new Set(notes.flatMap(n => n.tags))].sort(), [notes])
   const allTagsLower = useMemo(() => new Set(allTags.map(t => t.toLowerCase())), [allTags])
   const editTagsLower = useMemo(() => new Set(editTags.map(t => t.toLowerCase())), [editTags])
@@ -454,6 +472,8 @@ export function NotesView() {
     setModal(null)
     setModalInput('')
     if (!name) return
+    const updatedFolders = [...new Set([...persistedFolders, name])]
+    savePersistedFolders(updatedFolders)
     saveNote({ title: 'Untitled Note', content: '', folder: name, tags: [], pinned: false }).then(() => {
       setFolderFilter(name)
       setTimeout(() => {
@@ -461,6 +481,12 @@ export function NotesView() {
         if (newest) { selectNote(newest); setTimeout(() => titleRef.current?.focus(), 50) }
       }, 100)
     })
+  }
+
+  const deleteEmptyFolder = (folderName: string) => {
+    if (folderFilter === folderName) setFolderFilter('all')
+    const updated = persistedFolders.filter(f => f !== folderName)
+    savePersistedFolders(updated)
   }
 
   const confirmCreateTag = () => {
@@ -573,31 +599,43 @@ export function NotesView() {
           </div>
         </div>
         <div className="flex gap-1 px-4 py-2 overflow-x-auto no-scrollbar shrink-0">
-          {folders.map(f => (
-            <motion.button key={f} onClick={() => setFolderFilter(f)} 
-              layout
-              onDragOver={f !== 'all' ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
-              onDragEnter={f !== 'all' ? (e) => { e.preventDefault(); setDragOverFolder(f) } : undefined}
-              onDragLeave={f !== 'all' ? (e) => { e.preventDefault(); if (dragOverFolder === f) setDragOverFolder(null) } : undefined}
-              onDrop={f !== 'all' ? (e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                setDragOverFolder(null)
-                const noteId = e.dataTransfer.getData('text/plain')
-                if (noteId) handleMoveToFolder(noteId, f)
-              } : undefined}
-              animate={{ scale: dragOverFolder === f ? 1.05 : 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap flex items-center gap-1 font-medium relative z-10 ${
-                dragOverFolder === f 
-                  ? 'bg-accent text-white shadow-md'
-                  : folderFilter === f 
-                    ? 'bg-accent/15 text-accent' 
-                    : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'
-              }`}>
-              <Folder className="w-2.5 h-2.5" />{f === 'all' ? 'All' : f}
-            </motion.button>
-          ))}
+          {folders.map(f => {
+            const isEmpty = f !== 'all' && !notes.some(n => n.folder === f)
+            return (
+              <motion.button key={f} onClick={() => setFolderFilter(f)} 
+                layout
+                onDragOver={f !== 'all' ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
+                onDragEnter={f !== 'all' ? (e) => { e.preventDefault(); setDragOverFolder(f) } : undefined}
+                onDragLeave={f !== 'all' ? (e) => { e.preventDefault(); if (dragOverFolder === f) setDragOverFolder(null) } : undefined}
+                onDrop={f !== 'all' ? (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setDragOverFolder(null)
+                  const noteId = e.dataTransfer.getData('text/plain')
+                  if (noteId) {
+                    handleMoveToFolder(noteId, f)
+                    if (!persistedFolders.includes(f)) savePersistedFolders([...persistedFolders, f])
+                  }
+                } : undefined}
+                animate={{ scale: dragOverFolder === f ? 1.05 : 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className={`px-2.5 py-1 text-xs rounded-md whitespace-nowrap flex items-center gap-1.5 font-medium relative z-10 ${
+                  dragOverFolder === f 
+                    ? 'bg-accent text-white shadow-md'
+                    : folderFilter === f 
+                      ? 'bg-accent/15 text-accent' 
+                      : 'text-text-muted hover:text-text-secondary hover:bg-white/[0.04]'
+                }`}>
+                <Folder className="w-2.5 h-2.5 shrink-0" />
+                <span>{f === 'all' ? 'All' : f}</span>
+                {isEmpty && (
+                  <div onClick={(e) => { e.stopPropagation(); deleteEmptyFolder(f) }} className="p-0.5 rounded hover:bg-white/[0.1] text-text-muted hover:text-red-soft transition-colors ml-1">
+                    <X className="w-2.5 h-2.5" />
+                  </div>
+                )}
+              </motion.button>
+            )
+          })}
           <button onClick={createFolder} title="New Folder" className="px-2 py-1 text-xs rounded-md whitespace-nowrap transition-colors flex items-center gap-1 font-medium text-text-muted hover:text-accent hover:bg-accent/[0.06] border border-dashed border-white/[0.08] hover:border-accent/30">
             <FolderPlus className="w-2.5 h-2.5" />New
           </button>
