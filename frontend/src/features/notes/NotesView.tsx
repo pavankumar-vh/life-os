@@ -151,6 +151,7 @@ export function NotesView() {
   const [modal, setModal] = useState<{ type: 'folder' | 'delete' | 'tag'; deleteId?: string } | null>(null)
   const [tagSuggestIdx, setTagSuggestIdx] = useState(0)
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+  const [showFolderDropdown, setShowFolderDropdown] = useState(false)
   const [tagInputActive, setTagInputActive] = useState(false)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const tagContainerRef = useRef<HTMLDivElement>(null)
@@ -651,12 +652,30 @@ export function NotesView() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-text-secondary">
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-text-secondary relative z-[100]">
               <Folder className="w-3 h-3 shrink-0" />
-              <input type="text" list="folder-options" value={editFolder} onChange={e => onFolderChange(e.target.value)} className="bg-transparent outline-none w-24 text-text-secondary placeholder:text-text-muted font-medium" placeholder="Folder" />
-              <datalist id="folder-options">
-                {folders.filter(f => f !== 'all').map(f => <option key={f} value={f} />)}
-              </datalist>
+              <input type="text" value={editFolder} onChange={e => onFolderChange(e.target.value)} 
+                onFocus={() => setShowFolderDropdown(true)}
+                onBlur={() => setTimeout(() => setShowFolderDropdown(false), 200)}
+                className="bg-transparent outline-none w-24 text-text-secondary placeholder:text-text-muted font-medium" 
+                placeholder="Folder" 
+              />
+              <AnimatePresence>
+                {showFolderDropdown && (
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
+                    className="absolute top-full left-0 mt-2 w-48 bg-[rgba(22,22,24,0.98)] backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl py-1 overflow-hidden">
+                     <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider font-semibold">Move to folder</div>
+                     <div className="h-px bg-white/[0.06] mx-2 my-0.5" />
+                     {folders.filter(f => f !== 'all').map(f => (
+                       <button key={f} onMouseDown={(e) => { e.preventDefault(); onFolderChange(f); setShowFolderDropdown(false); }} 
+                         className="w-full text-left px-3 py-2 text-[11px] text-text-secondary hover:bg-accent/10 hover:text-accent transition-colors flex items-center gap-2">
+                         <Folder className="w-3 h-3" />
+                         {f}
+                       </button>
+                     ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
             {/* Attachment / image upload button */}
