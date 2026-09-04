@@ -239,13 +239,17 @@ Keyword search across all Life OS collections.
 
 ## 6. Resources
 
-Resources are read-only snapshots. They use **UTC** (no timezone argument). For timezone-aware queries, use the `get_today` tool.
+**Not implemented in v1.**
 
-### `life://today`
-Today's Life OS summary — tasks, habits, goals, journal, inbox, projects.
+MCP Resources require a static URI at registration time, but Life OS data is strictly user-scoped. There is no safe way to serve a resource like `life://today` without knowing which user to query — and the resource read callback has no mechanism to receive a token.
 
-### `life://inbox`
-Up to 50 unprocessed captures (inbox items).
+The `get_today` tool (returns today's overview) and `get_captures` tool (returns inbox) cover the same functionality with proper per-user JWT authentication.
+
+The resource implementations are prepared in `src/mcp/resources/` for future use. A future version can expose them using a `ResourceTemplate` approach such as:
+```
+life://users/{token}/today
+life://users/{token}/inbox
+```
 
 ---
 

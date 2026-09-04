@@ -28,15 +28,18 @@ jest.mock('../lib/SearchService')
 jest.mock('../lib/db', () => ({ connectDB: jest.fn() }))
 jest.mock('../lib/env', () => {})
 
-// Mock JWT so we can control token verification
-jest.mock('jsonwebtoken', () => ({
-  sign: jest.fn(() => 'mock-token'),
-  verify: jest.fn((token: string) => {
+// Mock lib/auth to prevent module-level process.exit(1) from JWT_SECRET guard.
+// We control verifyToken directly rather than mocking jsonwebtoken under it.
+jest.mock('../lib/auth', () => ({
+  verifyToken: jest.fn((token: string) => {
     if (token === 'valid-token-user1') return { userId: 'user1', email: 'u1@test.com' }
     if (token === 'valid-token-user2') return { userId: 'user2', email: 'u2@test.com' }
     if (token === 'mfa-challenge-token') return { userId: 'user1', email: 'u1@test.com', mfaChallenge: true }
-    throw new Error('invalid token')
+    return null
   }),
+  signToken: jest.fn(() => 'mock-token'),
+  authMiddleware: jest.fn(),
+  isDemoUser: jest.fn(() => false),
 }))
 
 import { verifyMcpToken } from '../mcp/auth'

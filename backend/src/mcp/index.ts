@@ -38,12 +38,19 @@ import { registerProjectTools } from './tools/projects'
 import { registerTodayTool }    from './tools/today'
 import { registerSearchTool }   from './tools/search'
 
-// ── Resource registrations ────────────────────────────────────────────────────
-// Resources require userId context — they are registered after token resolution
-// in this MVP by accepting token as a parameter.
-// Note: Static resources using a placeholder userId are registered at startup.
-// For full per-user resource isolation a future version should use dynamic
-// resource templates or require all resource reads to go through tools.
+// ── Resources ─────────────────────────────────────────────────────────────────
+// Resources are NOT registered in v1.
+//
+// MCP Resources require a static URI at registration time, but Life OS resources
+// need per-request user identity (token) to scope queries. This creates a
+// fundamental mismatch: the resource URI cannot carry auth context.
+//
+// The get_today and get_captures tools cover the same functionality with proper
+// per-user authentication.
+//
+// Future improvement: ResourceTemplate with token in the URI path, e.g.
+//   life://users/{token}/today
+// See the resource files in src/mcp/resources/ for the prepared implementations.
 
 // ── Package version ───────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -61,7 +68,11 @@ async function main() {
     {
       capabilities: {
         tools: {},
-        resources: {},
+        // Note: Resources are not advertised in v1.
+        // MCP Resources require a static URI without per-call auth context.
+        // The get_today and get_captures tools cover the same functionality
+        // with proper per-user token authentication.
+        // See MCP.md for the future ResourceTemplate approach.
       },
       instructions: [
         'This is the Life OS MCP server. It gives you access to your personal second-brain.',
