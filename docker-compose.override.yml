@@ -1,0 +1,43 @@
+# Development Overrides
+# This file is automatically merged with docker-compose.yml by `docker compose up`.
+# It overrides the production settings to support hot-reloading and local databases.
+
+services:
+  backend:
+    # Use the development command
+    command: ["npm", "run", "dev"]
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongo:27017/life-os-dev
+    volumes:
+      # Map the local source code into the container for hot-reloading
+      - ./backend:/app
+      # Hide the local node_modules so the container uses its own Linux-compiled modules
+      - /app/node_modules
+    depends_on:
+      - mongo
+
+  frontend:
+    # Use the development command
+    command: ["npm", "run", "dev"]
+    environment:
+      - NODE_ENV=development
+      # Tell Next.js where the backend API is inside the Docker network, and externally
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+  # Local MongoDB for offline bug fixing and development
+  mongo:
+    image: mongo:6.0
+    container_name: life-os-mongo-dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
