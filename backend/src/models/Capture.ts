@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
-export type CaptureSource = 'manual' | 'api' | 'import' | 'automation' | 'future_mcp' | 'future_agent'
+export type CaptureSource = 'manual' | 'api' | 'import' | 'automation' | 'mcp' | 'future_mcp' | 'future_agent'
 export type CaptureType = 'thought' | 'idea' | 'todo' | 'reminder'
 
 export interface ICapture extends Document {
@@ -22,7 +22,7 @@ const CaptureSchema = new Schema<ICapture>({
   type:      { type: String, enum: ['thought', 'idea', 'todo', 'reminder'], default: 'thought' },
   source:    {
     type: String,
-    enum: ['manual', 'api', 'import', 'automation', 'future_mcp', 'future_agent'],
+    enum: ['manual', 'api', 'import', 'automation', 'mcp', 'future_mcp', 'future_agent'],
     default: 'manual',
   },
   processed: { type: Boolean, default: false, index: true },

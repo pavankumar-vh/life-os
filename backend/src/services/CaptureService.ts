@@ -9,7 +9,7 @@ import { isValidObjectId } from '../lib/utils'
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 export const VALID_CAPTURE_SOURCES: CaptureSource[] = [
-  'manual', 'api', 'import', 'automation', 'future_mcp', 'future_agent'
+  'manual', 'api', 'import', 'automation', 'mcp', 'future_mcp', 'future_agent'
 ]
 export const VALID_CAPTURE_TYPES: CaptureType[] = ['thought', 'idea', 'todo', 'reminder']
 
