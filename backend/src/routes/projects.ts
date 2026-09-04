@@ -28,7 +28,12 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.json({ _id: `demo-${Date.now()}`, ...body, userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
     }
     const item = await Project.create({ ...body, userId })
-    audit(userId, 'create', 'projects', item._id, { after: item.toJSON() })
+    audit(userId, 'create', 'projects', item._id, {
+      after: item.toJSON(),
+      eventType: 'project.created',
+      source: 'manual',
+      metadata: { name: item.name },
+    })
     return res.status(201).json(item)
   } catch (e) {
     console.error('POST /api/projects error:', e)
@@ -47,7 +52,13 @@ router.put('/:id', async (req: AuthRequest, res) => {
     }
     const item = await Project.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
     if (!item) return res.status(404).json({ error: 'Not found' })
-    audit(userId, 'update', 'projects', id, { after: item.toJSON(), changes: updates as Record<string, unknown> })
+    audit(userId, 'update', 'projects', id, {
+      after: item.toJSON(),
+      changes: updates as Record<string, unknown>,
+      eventType: 'project.updated',
+      source: 'manual',
+      metadata: { name: item.name, status: item.status },
+    })
     return res.json(item)
   } catch (e) {
     console.error('PUT /api/projects error:', e)
@@ -61,7 +72,14 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
     const item = await Project.findOne({ _id: id, userId })
-    if (item) audit(userId, 'delete', 'projects', id, { before: item.toJSON() })
+    if (item) {
+      audit(userId, 'delete', 'projects', id, {
+        before: item.toJSON(),
+        eventType: 'project.deleted',
+        source: 'manual',
+        metadata: { name: item.name },
+      })
+    }
     await Project.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

@@ -34,6 +34,9 @@ export interface IUser extends Document {
     aiModels: Record<string, string>
     aiKeys: Record<string, EncryptedField | string>  // encrypted
     lastBackup: string | null
+    lastAutoBackup: string | null
+    lastBackupStatus: 'success' | 'failed' | 'partial' | null
+    backupScheduleEnabled: boolean
   }
   passwordResetToken?: string
   passwordResetExpires?: Date
@@ -71,6 +74,9 @@ const UserSchema = new Schema<IUser>({
       aiModels: {},
       aiKeys: {},
       lastBackup: null,
+      lastAutoBackup: null,
+      lastBackupStatus: null,
+      backupScheduleEnabled: false,
     },
   },
   passwordResetToken: { type: String, select: false },

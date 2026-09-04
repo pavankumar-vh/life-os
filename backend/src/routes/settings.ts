@@ -50,7 +50,7 @@ router.put('/', async (req: AuthRequest, res) => {
     const userId = req.user!.userId
     if (isDemoUser(userId)) return res.json(req.body)
 
-    const allowed = ['accentColor', 'goals', 'aiProvider', 'aiModels', 'aiKeys', 'lastBackup']
+    const allowed = ['accentColor', 'goals', 'aiProvider', 'aiModels', 'aiKeys', 'lastBackup', 'lastAutoBackup', 'lastBackupStatus', 'backupScheduleEnabled']
     const updates: Record<string, unknown> = {}
     for (const key of allowed) {
       if (req.body[key] !== undefined) {

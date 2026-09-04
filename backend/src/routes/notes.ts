@@ -42,10 +42,20 @@ router.post('/', async (req: AuthRequest, res) => {
         { new: true }
       )
       if (!note) return res.status(404).json({ error: 'Note not found' })
-      audit(userId, 'update', 'notes', bodyId, { after: note.toJSON() })
+      audit(userId, 'update', 'notes', bodyId, {
+        after: note.toJSON(),
+        eventType: 'note.updated',
+        source: 'manual',
+        metadata: { title: note.title, folder: note.folder },
+      })
     } else {
       note = await Note.create({ ...data, userId })
-      audit(userId, 'create', 'notes', note._id, { after: note.toJSON() })
+      audit(userId, 'create', 'notes', note._id, {
+        after: note.toJSON(),
+        eventType: 'note.created',
+        source: 'manual',
+        metadata: { title: note.title, folder: note.folder },
+      })
     }
     return res.json(note)
   } catch (e) {
@@ -60,7 +70,14 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
     const note = await Note.findOne({ _id: id, userId })
-    if (note) audit(userId, 'delete', 'notes', id, { before: note.toJSON() })
+    if (note) {
+      audit(userId, 'delete', 'notes', id, {
+        before: note.toJSON(),
+        eventType: 'note.deleted',
+        source: 'manual',
+        metadata: { title: note.title },
+      })
+    }
     await Note.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {

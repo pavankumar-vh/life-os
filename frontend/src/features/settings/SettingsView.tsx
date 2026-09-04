@@ -426,6 +426,11 @@ export function SettingsView() {
   const [driveBackupLoading, setDriveBackupLoading] = useState(false)
   const [driveBackups, setDriveBackups] = useState<Array<{ id: string; name: string; createdAt: string; size?: string; link?: string }> | null>(null)
   const [backupsLoading, setBackupsLoading] = useState(false)
+  const [scheduleEnabled, setScheduleEnabled] = useState(false)
+  const [restoreFileId, setRestoreFileId] = useState<string | null>(null)
+  const [restoreValidation, setRestoreValidation] = useState<{ valid: boolean; errors: string[]; manifest?: any; collectionSummary?: Record<string, number>; checksumValid?: boolean } | null>(null)
+  const [restoreLoading, setRestoreLoading] = useState(false)
+  const [restoreConfirmLoading, setRestoreConfirmLoading] = useState(false)
   const fitnessLoading = useGoogleFitnessStore(s => s.isLoading)
   const fitnessData = useGoogleFitnessStore(s => s.days)
   const fitnessError = useGoogleFitnessStore(s => s.error)
@@ -939,11 +944,11 @@ export function SettingsView() {
                 {driveBackups !== null && (
                   <div>
                     <p className="text-xs font-medium text-text-secondary mb-2">
-                      {backupsLoading ? 'Loading backups...' : `${driveBackups.length} backup${driveBackups.length !== 1 ? 's' : ''} in Drive`}
+                      {backupsLoading ? 'Loading backups...' : `${driveBackups.filter(b => !b.name.includes('safety_checkpoint')).length} backup${driveBackups.filter(b => !b.name.includes('safety_checkpoint')).length !== 1 ? 's' : ''} in Drive`}
                     </p>
-                    {driveBackups.length > 0 && (
+                    {driveBackups.filter(b => !b.name.includes('safety_checkpoint')).length > 0 && (
                       <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                        {driveBackups.map(b => (
+                        {driveBackups.filter(b => !b.name.includes('safety_checkpoint')).map(b => (
                           <div key={b.id} className="flex items-center gap-2 p-2.5 bg-bg-elevated rounded-lg">
                             <FileJson2 className="w-4 h-4 text-accent shrink-0" />
                             <div className="flex-1 min-w-0">
@@ -953,18 +958,125 @@ export function SettingsView() {
                                 {b.size ? ` · ${Math.round(parseInt(b.size) / 1024)} KB` : ''}
                               </p>
                             </div>
-                            {b.link && (
-                              <a href={b.link} target="_blank" rel="noopener noreferrer"
-                                className="p-1 rounded hover:bg-bg-hover transition-colors text-text-muted hover:text-accent">
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {b.link && (
+                                <a href={b.link} target="_blank" rel="noopener noreferrer"
+                                  className="p-1 rounded hover:bg-bg-hover transition-colors text-text-muted hover:text-accent">
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  setRestoreFileId(b.id)
+                                  setRestoreValidation(null)
+                                  setRestoreLoading(true)
+                                  try {
+                                    const r = await fetch(`${apiBase}/api/backup/restore/validate`, {
+                                      method: 'POST',
+                                      headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ fileId: b.id })
+                                    })
+                                    const data = await r.json()
+                                    setRestoreValidation(data)
+                                  } catch { toast.error('Failed to validate backup') }
+                                  setRestoreLoading(false)
+                                }}
+                                className="p-1 rounded hover:bg-bg-hover transition-colors text-text-muted hover:text-blue-soft text-[10px] flex items-center gap-0.5"
+                                title="Validate & Restore"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                 )}
+
+                {/* Restore Validation Preview */}
+                {restoreValidation && restoreFileId && (
+                  <div className={`p-3 rounded-xl border text-xs space-y-2 ${
+                    restoreValidation.valid ? 'bg-blue-soft/5 border-blue-soft/20' : 'bg-red-soft/5 border-red-soft/20'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium flex items-center gap-1.5">
+                        {restoreValidation.valid
+                          ? <><ShieldCheck className="w-3.5 h-3.5 text-blue-soft" /> Backup Valid</>  
+                          : <><AlertTriangle className="w-3.5 h-3.5 text-red-soft" /> Validation Issues</>
+                        }
+                      </p>
+                      <button onClick={() => { setRestoreValidation(null); setRestoreFileId(null) }} className="text-text-muted hover:text-text-primary">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {restoreValidation.manifest && (
+                      <div className="space-y-1 text-text-muted">
+                        <p>Backup date: <span className="text-text-primary">{new Date(restoreValidation.manifest.createdAt).toLocaleString()}</span></p>
+                        <p>Format v{restoreValidation.manifest.formatVersion} · {restoreValidation.manifest.totalRecords} records</p>
+                        <p>Checksum: <span className={restoreValidation.checksumValid ? 'text-green-soft' : 'text-red-soft'}>{restoreValidation.checksumValid ? '✓ Valid' : '⚠ Mismatch'}</span></p>
+                      </div>
+                    )}
+                    {restoreValidation.errors.length > 0 && (
+                      <div className="space-y-0.5">
+                        {restoreValidation.errors.map((e, i) => <p key={i} className="text-red-soft">{e}</p>)}
+                      </div>
+                    )}
+                    {restoreValidation.valid && (
+                      <div className="pt-2 border-t border-border/30">
+                        <p className="text-[10px] text-text-muted mb-2">⚠️ A safety checkpoint will be created before restoring. This is a merge-restore — existing data is preserved.</p>
+                        <button
+                          onClick={async () => {
+                            setRestoreConfirmLoading(true)
+                            try {
+                              const r = await fetch(`${apiBase}/api/backup/restore/confirm`, {
+                                method: 'POST',
+                                headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ fileId: restoreFileId, confirm: true })
+                              })
+                              const data = await r.json()
+                              if (data.success) {
+                                toast.success(`Restored ${data.restoredCount} records successfully`)
+                                setRestoreValidation(null)
+                                setRestoreFileId(null)
+                              } else {
+                                toast.error(data.errors?.[0] || 'Restore failed')
+                              }
+                            } catch { toast.error('Restore failed') }
+                            setRestoreConfirmLoading(false)
+                          }}
+                          disabled={restoreConfirmLoading}
+                          className="btn w-full py-2 text-xs font-medium bg-blue-soft/10 text-blue-soft hover:bg-blue-soft/20 rounded-lg transition-colors"
+                        >
+                          {restoreConfirmLoading ? 'Restoring...' : '⚡ Confirm Restore'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Scheduled Backup Toggle */}
+                <div className="flex items-center justify-between p-3 bg-bg-elevated rounded-xl">
+                  <div>
+                    <p className="text-xs font-medium">Automatic Backups</p>
+                    <p className="text-[10px] text-text-muted mt-0.5">Back up daily to Drive automatically</p>
+                  </div>
+                  <Toggle
+                    on={scheduleEnabled}
+                    onToggle={async () => {
+                      const newVal = !scheduleEnabled
+                      setScheduleEnabled(newVal)
+                      try {
+                        await fetch(`${apiBase}/api/settings`, {
+                          method: 'PUT',
+                          headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ backupScheduleEnabled: newVal })
+                        })
+                        toast.success(newVal ? 'Automatic backups enabled' : 'Automatic backups disabled')
+                      } catch { toast.error('Failed to save setting') }
+                    }}
+                  />
+                </div>
               </div>
             ) : (
               <div className="p-3 bg-bg-elevated rounded-lg">

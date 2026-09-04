@@ -28,7 +28,12 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.json({ _id: `demo-${Date.now()}`, ...body, userId, createdAt: new Date().toISOString() })
     }
     const item = await Expense.create({ ...body, userId })
-    audit(userId, 'create', 'expenses', item._id, { after: item.toJSON() })
+    audit(userId, 'create', 'expenses', item._id, {
+      after: item.toJSON(),
+      eventType: 'expense.logged',
+      source: 'manual',
+      metadata: { description: item.description, amount: item.amount, category: item.category },
+    })
     return res.status(201).json(item)
   } catch (e) {
     console.error('POST /api/expenses error:', e)
@@ -42,7 +47,14 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     const { id } = req.params
     if (isDemoUser(userId)) return res.json({ success: true })
     const item = await Expense.findOne({ _id: id, userId })
-    if (item) audit(userId, 'delete', 'expenses', id, { before: item.toJSON() })
+    if (item) {
+      audit(userId, 'delete', 'expenses', id, {
+        before: item.toJSON(),
+        eventType: 'expense.deleted',
+        source: 'manual',
+        metadata: { description: item.description, amount: item.amount },
+      })
+    }
     await Expense.findOneAndDelete({ _id: id, userId })
     return res.json({ success: true })
   } catch (e) {
