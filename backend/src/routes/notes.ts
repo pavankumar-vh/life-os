@@ -4,86 +4,78 @@ import { sanitizeBody } from '../lib/sanitize'
 import { Note } from '../models/Note'
 import { audit } from '../lib/audit'
 import { DEMO_NOTES } from '../lib/demo-data'
+import { asyncHandler } from '../middleware/asyncHandler'
+import { isValidObjectId } from '../lib/utils'
+import { ValidationError, NotFoundError } from '../lib/errors'
 
 const router = Router()
 router.use(authMiddleware)
 
-router.get('/', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    if (isDemoUser(userId)) return res.json(DEMO_NOTES)
-    const notes = await Note.find({ userId }).sort({ updatedAt: -1 })
-    return res.json(notes)
-  } catch (e) {
-    console.error('GET /api/notes error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.get('/', asyncHandler(async (req: AuthRequest, res) => {
+  const userId = req.user!.userId
+  if (isDemoUser(userId)) return res.json(DEMO_NOTES)
+  const notes = await Note.find({ userId }).sort({ updatedAt: -1 }).limit(200)
+  return res.json(notes)
+}))
 
-router.post('/', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const bodyId = req.body._id
-    const data = sanitizeBody(req.body)
-    if (isDemoUser(userId)) {
-      return res.json({
-        _id: bodyId || `demo-${Date.now()}`,
-        ...data,
-        userId,
-        createdAt: (data as any).createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-    }
-    let note
-    if (bodyId) {
-      note = await Note.findOneAndUpdate(
-        { _id: bodyId, userId },
-        { ...data, userId },
-        { new: true }
-      )
-      if (!note) return res.status(404).json({ error: 'Note not found' })
-      audit(userId, 'update', 'notes', bodyId, {
-        after: note.toJSON(),
-        eventType: 'note.updated',
-        source: 'manual',
-        metadata: { title: note.title, folder: note.folder },
-      })
-    } else {
-      note = await Note.create({ ...data, userId })
-      audit(userId, 'create', 'notes', note._id, {
-        after: note.toJSON(),
-        eventType: 'note.created',
-        source: 'manual',
-        metadata: { title: note.title, folder: note.folder },
-      })
-    }
-    return res.json(note)
-  } catch (e) {
-    console.error('POST /api/notes error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.post('/', asyncHandler(async (req: AuthRequest, res) => {
+  const userId = req.user!.userId
+  const bodyId = req.body._id as string | undefined
+  const data = sanitizeBody(req.body)
 
-router.delete('/:id', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const { id } = req.params
-    if (isDemoUser(userId)) return res.json({ success: true })
-    const note = await Note.findOne({ _id: id, userId })
-    if (note) {
-      audit(userId, 'delete', 'notes', id, {
-        before: note.toJSON(),
-        eventType: 'note.deleted',
-        source: 'manual',
-        metadata: { title: note.title },
-      })
-    }
-    await Note.findOneAndDelete({ _id: id, userId })
-    return res.json({ success: true })
-  } catch (e) {
-    console.error('DELETE /api/notes error:', e)
-    return res.status(500).json({ error: 'Server error' })
+  if (isDemoUser(userId)) {
+    return res.json({
+      _id: bodyId || `demo-${Date.now()}`,
+      ...data,
+      userId,
+      createdAt: (data as Record<string, unknown>).createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
   }
-})
+
+  let note
+  if (bodyId) {
+    if (!isValidObjectId(bodyId)) throw new ValidationError('Invalid note ID')
+    note = await Note.findOneAndUpdate(
+      { _id: bodyId, userId },
+      { ...data, userId },
+      { new: true }
+    )
+    if (!note) throw new NotFoundError('Note not found')
+    audit(userId, 'update', 'notes', bodyId, {
+      after: note.toJSON(),
+      eventType: 'note.updated',
+      source: 'manual',
+      metadata: { title: note.title, folder: note.folder },
+    })
+  } else {
+    note = await Note.create({ ...data, userId })
+    audit(userId, 'create', 'notes', note._id, {
+      after: note.toJSON(),
+      eventType: 'note.created',
+      source: 'manual',
+      metadata: { title: note.title, folder: note.folder },
+    })
+  }
+  return res.json(note)
+}))
+
+router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  const userId = req.user!.userId
+  const id = String(req.params.id)
+  if (!isValidObjectId(id)) throw new ValidationError('Invalid note ID')
+  if (isDemoUser(userId)) return res.json({ success: true })
+  const note = await Note.findOne({ _id: id, userId })
+  if (note) {
+    audit(userId, 'delete', 'notes', id, {
+      before: note.toJSON(),
+      eventType: 'note.deleted',
+      source: 'manual',
+      metadata: { title: note.title },
+    })
+  }
+  await Note.findOneAndDelete({ _id: id, userId })
+  return res.json({ success: true })
+}))
 
 export default router

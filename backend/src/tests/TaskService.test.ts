@@ -1,3 +1,11 @@
+// Prevent lib/auth.ts module-level process.exit(1) from firing when JWT_SECRET is not set
+jest.mock('../lib/auth', () => ({
+  verifyToken: jest.fn(),
+  signToken: jest.fn(),
+  authMiddleware: jest.fn(),
+  isDemoUser: jest.fn(() => false),
+}))
+
 import { TaskService } from '../services/TaskService'
 import { Task } from '../models/Task'
 import { NotFoundError, ValidationError } from '../lib/errors'
