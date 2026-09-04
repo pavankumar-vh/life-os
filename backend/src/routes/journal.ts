@@ -1,71 +1,26 @@
 import { Router } from 'express'
-import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
-import { sanitizeBody } from '../lib/sanitize'
-import { Journal } from '../models/Journal'
-import { audit } from '../lib/audit'
-import { DEMO_JOURNAL } from '../lib/demo-data'
+import { authMiddleware, AuthRequest } from '../lib/auth'
+import { JournalService } from '../services/JournalService'
+import { asyncHandler } from '../middleware/asyncHandler'
 
 const router = Router()
 router.use(authMiddleware)
 
-router.get('/', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    if (isDemoUser(userId)) return res.json(DEMO_JOURNAL)
-    const entries = await Journal.find({ userId }).sort({ date: -1 }).limit(100)
-    return res.json(entries)
-  } catch (e) {
-    console.error('GET /api/journal error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.get('/', asyncHandler(async (req: AuthRequest, res) => {
+  const rawLimit = parseInt(req.query.limit as string, 10)
+  const limit = isNaN(rawLimit) ? 100 : rawLimit
+  const entries = await JournalService.getEntries(req.user!.userId, limit)
+  return res.json(entries)
+}))
 
-router.post('/', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const bodyId = req.body._id
-    const body = sanitizeBody(req.body)
-    if (isDemoUser(userId)) {
-      return res.json({ _id: bodyId || `demo-${Date.now()}`, ...body, userId })
-    }
-    const entry = await Journal.findOneAndUpdate(
-      { userId, date: (body as any).date },
-      { ...body, userId },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    )
-    audit(userId, 'update', 'journal', entry._id, {
-      after: entry.toJSON(),
-      eventType: 'journal.updated',
-      source: 'manual',
-      metadata: { title: entry.title, date: entry.date },
-    })
-    return res.json(entry)
-  } catch (e) {
-    console.error('POST /api/journal error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.post('/', asyncHandler(async (req: AuthRequest, res) => {
+  const entry = await JournalService.saveEntry(req.user!.userId, req.body)
+  return res.json(entry)
+}))
 
-router.delete('/:id', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const { id } = req.params
-    if (isDemoUser(userId)) return res.json({ success: true })
-    const entry = await Journal.findOne({ _id: id, userId })
-    if (entry) {
-      audit(userId, 'delete', 'journal', id, {
-        before: entry.toJSON(),
-        eventType: 'journal.deleted',
-        source: 'manual',
-        metadata: { title: entry.title, date: entry.date },
-      })
-    }
-    await Journal.findOneAndDelete({ _id: id, userId })
-    return res.json({ success: true })
-  } catch (e) {
-    console.error('DELETE /api/journal error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  await JournalService.deleteEntry(req.user!.userId, String(req.params.id))
+  return res.json({ success: true })
+}))
 
 export default router

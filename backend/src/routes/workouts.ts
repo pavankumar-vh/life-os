@@ -1,95 +1,29 @@
 import { Router } from 'express'
-import { authMiddleware, isDemoUser, AuthRequest } from '../lib/auth'
-import { sanitizeBody } from '../lib/sanitize'
-import { Workout } from '../models/Workout'
-import { User } from '../models/User'
-import { audit } from '../lib/audit'
-import { DEMO_WORKOUTS } from '../lib/demo-data'
+import { authMiddleware, AuthRequest } from '../lib/auth'
+import { WorkoutService } from '../services/WorkoutService'
+import { asyncHandler } from '../middleware/asyncHandler'
 
 const router = Router()
 router.use(authMiddleware)
 
-router.get('/', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    if (isDemoUser(userId)) return res.json(DEMO_WORKOUTS)
-    const workouts = await Workout.find({ userId }).sort({ date: -1 }).limit(100)
-    return res.json(workouts)
-  } catch (e) {
-    console.error('GET /api/workouts error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.get('/', asyncHandler(async (req: AuthRequest, res) => {
+  const workouts = await WorkoutService.getWorkouts(req.user!.userId)
+  return res.json(workouts)
+}))
 
-router.post('/', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const body = sanitizeBody(req.body)
-    if (isDemoUser(userId)) {
-      return res.status(201).json({ _id: `demo-${Date.now()}`, ...body, userId })
-    }
-    const workout = await Workout.create({ ...body, userId })
-    audit(userId, 'create', 'workouts', workout._id, {
-      after: workout.toJSON(),
-      eventType: 'workout.logged',
-      source: 'manual',
-      metadata: { name: workout.name, duration: workout.duration },
-    })
-    if (workout) {
-      await User.findByIdAndUpdate(userId, { $inc: { xp: 25 } })
-    }
-    return res.status(201).json(workout)
-  } catch (e) {
-    console.error('POST /api/workouts error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.post('/', asyncHandler(async (req: AuthRequest, res) => {
+  const workout = await WorkoutService.logWorkout(req.user!.userId, req.body)
+  return res.status(201).json(workout)
+}))
 
-router.put('/:id', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const { id } = req.params
-    const updates = sanitizeBody(req.body)
-    if (isDemoUser(userId)) {
-      const existing = DEMO_WORKOUTS.find(w => w._id === id)
-      return res.json({ ...(existing || {}), ...updates, _id: id, userId })
-    }
-    const workout = await Workout.findOneAndUpdate({ _id: id, userId }, updates, { new: true })
-    if (!workout) return res.status(404).json({ error: 'Not found' })
-    audit(userId, 'update', 'workouts', id, {
-      after: workout.toJSON(),
-      changes: updates as Record<string, unknown>,
-      eventType: 'workout.updated',
-      source: 'manual',
-      metadata: { name: workout.name },
-    })
-    return res.json(workout)
-  } catch (e) {
-    console.error('PUT /api/workouts error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.put('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  const workout = await WorkoutService.updateWorkout(req.user!.userId, String(req.params.id), req.body)
+  return res.json(workout)
+}))
 
-router.delete('/:id', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.userId
-    const { id } = req.params
-    if (isDemoUser(userId)) return res.json({ success: true })
-    const workout = await Workout.findOne({ _id: id, userId })
-    if (workout) {
-      audit(userId, 'delete', 'workouts', id, {
-        before: workout.toJSON(),
-        eventType: 'workout.deleted',
-        source: 'manual',
-        metadata: { name: workout.name },
-      })
-    }
-    await Workout.findOneAndDelete({ _id: id, userId })
-    return res.json({ success: true })
-  } catch (e) {
-    console.error('DELETE /api/workouts error:', e)
-    return res.status(500).json({ error: 'Server error' })
-  }
-})
+router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  await WorkoutService.deleteWorkout(req.user!.userId, String(req.params.id))
+  return res.json({ success: true })
+}))
 
 export default router
