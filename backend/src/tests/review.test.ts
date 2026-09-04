@@ -1,10 +1,22 @@
+// Prevent lib/auth.ts module-level process.exit(1) — mock before any imports.
+// authMiddleware stub injects req.user so protected route logic works without JWT_SECRET.
+const mockUserId = 'mock-user-123'
+jest.mock('../lib/auth', () => ({
+  authMiddleware: jest.fn((req: any, _res: any, next: any) => {
+    req.user = { userId: 'mock-user-123', email: 'test@test.com' }
+    next()
+  }),
+  isDemoUser: jest.fn(() => false),
+  verifyToken: jest.fn(),
+  signToken: jest.fn(),
+}))
+
 import request from 'supertest'
 import express from 'express'
 import reviewRoutes from '../routes/review'
 import { Task } from '../models/Task'
 import { Habit } from '../models/Habit'
 import { Workout } from '../models/Workout'
-import jwt from 'jsonwebtoken'
 
 jest.mock('../models/Task', () => ({ Task: { find: jest.fn() } }))
 jest.mock('../models/Habit', () => ({ Habit: { find: jest.fn() } }))
@@ -20,8 +32,9 @@ const app = express()
 app.use(express.json())
 app.use('/api/review', reviewRoutes)
 
-const mockUserId = 'mock-user-123'
-const token = jwt.sign({ userId: mockUserId }, process.env.JWT_SECRET || 'test-secret', { expiresIn: '1h' })
+// Placeholder — authMiddleware is mocked and ignores the header value
+const token = 'mock-bearer-token'
+
 
 describe('Weekly Review API', () => {
   beforeEach(() => {

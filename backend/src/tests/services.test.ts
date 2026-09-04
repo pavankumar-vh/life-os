@@ -10,6 +10,14 @@
  * Runs WITHOUT a real MongoDB connection — all DB calls are mocked.
  */
 
+// Prevent lib/auth.ts module-level process.exit(1) from firing when JWT_SECRET is not set
+jest.mock('../lib/auth', () => ({
+  verifyToken: jest.fn(),
+  signToken: jest.fn(),
+  authMiddleware: jest.fn(),
+  isDemoUser: jest.fn(() => false),
+}))
+
 import { GoalService } from '../services/GoalService'
 import { CaptureService } from '../services/CaptureService'
 import { WorkoutService } from '../services/WorkoutService'
