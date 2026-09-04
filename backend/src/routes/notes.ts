@@ -46,7 +46,7 @@ router.post('/', async (req: AuthRequest, res) => {
         after: note.toJSON(),
         eventType: 'note.updated',
         source: 'manual',
-        metadata: { title: note.title, folderId: note.folderId },
+        metadata: { title: note.title, folder: note.folder },
       })
     } else {
       note = await Note.create({ ...data, userId })
@@ -54,7 +54,7 @@ router.post('/', async (req: AuthRequest, res) => {
         after: note.toJSON(),
         eventType: 'note.created',
         source: 'manual',
-        metadata: { title: note.title, folderId: note.folderId },
+        metadata: { title: note.title, folder: note.folder },
       })
     }
     return res.json(note)

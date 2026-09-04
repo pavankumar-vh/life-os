@@ -32,7 +32,7 @@ router.post('/', async (req: AuthRequest, res) => {
       after: item.toJSON(),
       eventType: 'expense.logged',
       source: 'manual',
-      metadata: { title: item.title, amount: item.amount, category: item.category },
+      metadata: { description: item.description, amount: item.amount, category: item.category },
     })
     return res.status(201).json(item)
   } catch (e) {
@@ -52,7 +52,7 @@ router.delete('/:id', async (req: AuthRequest, res) => {
         before: item.toJSON(),
         eventType: 'expense.deleted',
         source: 'manual',
-        metadata: { title: item.title, amount: item.amount },
+        metadata: { description: item.description, amount: item.amount },
       })
     }
     await Expense.findOneAndDelete({ _id: id, userId })

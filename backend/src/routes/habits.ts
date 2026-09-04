@@ -20,27 +20,27 @@ router.post('/', asyncHandler(async (req: AuthRequest, res) => {
 
 router.put('/:id', asyncHandler(async (req: AuthRequest, res) => {
   const userId = req.user!.userId
-  const habit = await HabitService.updateHabit(userId, req.params.id, req.body)
+  const habit = await HabitService.updateHabit(userId, String(req.params.id), req.body)
   return res.json(habit)
 }))
 
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
   const userId = req.user!.userId
-  await HabitService.deleteHabit(userId, req.params.id)
+  await HabitService.deleteHabit(userId, String(req.params.id))
   return res.json({ success: true })
 }))
 
 router.post('/:id/log', asyncHandler(async (req: AuthRequest, res) => {
   const userId = req.user!.userId
   const { date } = req.body
-  const habit = await HabitService.logCompletion(userId, req.params.id, date)
+  const habit = await HabitService.logCompletion(userId, String(req.params.id), date)
   return res.json(habit)
 }))
 
 router.post('/:id/unlog', asyncHandler(async (req: AuthRequest, res) => {
   const userId = req.user!.userId
   const { date } = req.body
-  const habit = await HabitService.unlogCompletion(userId, req.params.id, date)
+  const habit = await HabitService.unlogCompletion(userId, String(req.params.id), date)
   return res.json(habit)
 }))
 

@@ -20,13 +20,13 @@ router.post('/', asyncHandler(async (req: AuthRequest, res) => {
 
 router.put('/:id', asyncHandler(async (req: AuthRequest, res) => {
   const userId = req.user!.userId
-  const task = await TaskService.updateTask(userId, req.params.id, req.body)
+  const task = await TaskService.updateTask(userId, String(req.params.id), req.body)
   return res.json(task)
 }))
 
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
   const userId = req.user!.userId
-  await TaskService.deleteTask(userId, req.params.id)
+  await TaskService.deleteTask(userId, String(req.params.id))
   return res.json({ success: true })
 }))
 
