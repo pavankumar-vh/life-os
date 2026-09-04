@@ -1,0 +1,38 @@
+name: life-os
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: life-os-backend
+    container_name: life-os-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+    # Depends on mongo only if you add a mongo service later for self-hosting.
+    # Production defaults to MongoDB Atlas, so no local DB dependency here.
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: life-os-frontend
+    container_name: life-os-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env.local
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      # Overrides the .env.local to route Docker frontend to Docker backend internally if needed,
+      # but NEXT_PUBLIC_ variables usually resolve in the browser, so it should point to the public domain.
+    depends_on:
+      - backend
