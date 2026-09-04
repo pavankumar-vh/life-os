@@ -142,6 +142,53 @@ async function start() {
   } catch (err) {
     console.error('DB connection failed — server still running, health will report degraded:', err)
   }
+
+  // ─── Scheduled Automatic Backups ──────────────────────────────────────────
+  // Runs on configurable interval (default: 24h). Lightweight — uses setInterval,
+  // no external job scheduler required. Suitable for 1 vCPU / 1 GB RAM deployment.
+  const BACKUP_INTERVAL_HOURS = parseInt(process.env.BACKUP_INTERVAL_HOURS || '24')
+  const BACKUP_INTERVAL_MS = BACKUP_INTERVAL_HOURS * 60 * 60 * 1000
+
+  setInterval(async () => {
+    if (!dbReady) {
+      console.log('[Scheduler] Skipping backup: DB not ready')
+      return
+    }
+
+    console.log('[Scheduler] Starting scheduled backups...')
+    try {
+      const { User } = await import('./models/User')
+      const { runBackupForUser } = await import('./lib/BackupService')
+
+      // Find all users who have Google connected and have backupScheduleEnabled
+      const users = await User.find({
+        'settings.backupScheduleEnabled': true,
+        'googleTokens.access_token': { $exists: true },
+      }).select('_id').lean()
+
+      if (users.length === 0) {
+        console.log('[Scheduler] No users with scheduled backups enabled')
+        return
+      }
+
+      for (const user of users) {
+        try {
+          const result = await runBackupForUser(String(user._id), 'scheduled')
+          if (result.status === 'success') {
+            console.log(`[Scheduler] Backup succeeded for user ${user._id}`)
+          } else {
+            console.error(`[Scheduler] Backup failed for user ${user._id}: ${result.error}`)
+          }
+        } catch (e) {
+          console.error(`[Scheduler] Unexpected error for user ${user._id}:`, e)
+        }
+      }
+    } catch (err) {
+      console.error('[Scheduler] Scheduled backup run failed:', err)
+    }
+  }, BACKUP_INTERVAL_MS)
+
+  console.log(`[Scheduler] Automatic backups scheduled every ${BACKUP_INTERVAL_HOURS}h`)
 }
 
 start().catch(console.error)

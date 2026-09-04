@@ -9,6 +9,7 @@ export type ActivitySource =
   | 'import'
   | 'sync'
   | 'automation'
+  | 'scheduled'
   | 'mcp'
   | 'agent'
 
@@ -55,6 +56,9 @@ export type ActivityEventType =
   | 'project.created'
   | 'project.updated'
   | 'project.deleted'
+  // Backup & Restore
+  | 'backup.created'
+  | 'backup.restored'
   // Generic fallback — preserves backward-compat with pre-enrichment audit rows
   | 'generic.create'
   | 'generic.update'
