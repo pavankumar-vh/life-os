@@ -5,6 +5,7 @@ import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { getOAuth2Client, getAuthUrl, getAuthedClient } from '../lib/google'
 import { encrypt, decrypt, isEncrypted } from '../lib/crypto'
 import { audit } from '../lib/audit'
+import { runBackupForUser } from '../lib/BackupService'
 
 const router = Router()
 router.use(authMiddleware)
@@ -428,119 +429,27 @@ router.delete('/calendar/events/:eventId', async (req: AuthRequest, res: Respons
 
 // ─── Google Drive Backup ──────────────────────────
 
-// POST /api/google/drive/backup — backs up all user data to Drive
+// POST /api/google/drive/backup — delegates to BackupService (versioned manifest + retention)
 router.post('/drive/backup', async (req: AuthRequest, res: Response) => {
   try {
     if (isDemoUser(req.user!.userId)) {
       return res.status(400).json({ error: 'Demo user cannot backup to Drive' })
     }
 
-    const client = await getUserClient(req.user!.userId)
-    const drive = google.drive({ version: 'v3', auth: client })
-    const userId = req.user!.userId
-
-    // Gather all data (import models dynamically to avoid circular deps)
-    const { Habit } = await import('../models/Habit')
-    const { Task } = await import('../models/Task')
-    const { Goal } = await import('../models/Goal')
-    const { Journal } = await import('../models/Journal')
-    const { Workout } = await import('../models/Workout')
-    const { Meal } = await import('../models/Meal')
-    const { WaterLog } = await import('../models/WaterLog')
-    const { SleepLog } = await import('../models/SleepLog')
-    const { BodyLog } = await import('../models/BodyLog')
-    const { Note } = await import('../models/Note')
-    const { Expense } = await import('../models/Expense')
-    const { Book } = await import('../models/Book')
-    const { Bookmark } = await import('../models/Bookmark')
-    const { Capture } = await import('../models/Capture')
-    const { Flashcard } = await import('../models/Flashcard')
-    const { Project } = await import('../models/Project')
-    const { Gratitude } = await import('../models/Gratitude')
-    const { WishlistItem } = await import('../models/WishlistItem')
-    const { Whiteboard } = await import('../models/Whiteboard')
-    const { VaultFile } = await import('../models/VaultFile')
-    const { Photo } = await import('../models/Photo')
-
-    const q = { userId }
-    const data = {
-      exportedAt: new Date().toISOString(),
-      version: '2.0',
-      habits: await Habit.find(q).lean(),
-      tasks: await Task.find(q).lean(),
-      goals: await Goal.find(q).lean(),
-      journal: await Journal.find(q).lean(),
-      workouts: await Workout.find(q).lean(),
-      meals: await Meal.find(q).lean(),
-      water: await WaterLog.find(q).lean(),
-      sleep: await SleepLog.find(q).lean(),
-      body: await BodyLog.find(q).lean(),
-      notes: await Note.find(q).lean(),
-      expenses: await Expense.find(q).lean(),
-      books: await Book.find(q).lean(),
-      bookmarks: await Bookmark.find(q).lean(),
-      captures: await Capture.find(q).lean(),
-      flashcards: await Flashcard.find(q).lean(),
-      projects: await Project.find(q).lean(),
-      gratitude: await Gratitude.find(q).lean(),
-      wishlist: await WishlistItem.find(q).lean(),
-      whiteboards: await Whiteboard.find(q).lean(),
-      vault: await VaultFile.find(q).lean(),
-      photos: await Photo.find(q).lean(),
+    const result = await runBackupForUser(req.user!.userId, 'manual')
+    if (result.status === 'failed') {
+      return res.status(500).json({ error: result.error || 'Backup failed' })
     }
 
-    const fileName = `lifeos-backup-${new Date().toISOString().split('T')[0]}.json`
-    const fileContent = JSON.stringify(data, null, 2)
-
-    // Check if LifeOS folder exists, create if not
-    const folderSearch = await drive.files.list({
-      q: "name='LifeOS Backups' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-      fields: 'files(id)',
-      spaces: 'drive',
-    })
-
-    let folderId: string
-    if (folderSearch.data.files && folderSearch.data.files.length > 0) {
-      folderId = folderSearch.data.files[0].id!
-    } else {
-      const folder = await drive.files.create({
-        requestBody: {
-          name: 'LifeOS Backups',
-          mimeType: 'application/vnd.google-apps.folder',
-        },
-        fields: 'id',
-      })
-      folderId = folder.data.id!
-    }
-
-    // Upload backup file
-    const file = await drive.files.create({
-      requestBody: {
-        name: fileName,
-        parents: [folderId],
-        mimeType: 'application/json',
-      },
-      media: {
-        mimeType: 'application/json',
-        body: fileContent,
-      },
-      fields: 'id,name,webViewLink,size',
-    })
-
-    const result = {
+    return res.json({
       success: true,
       file: {
-        id: file.data.id,
-        name: file.data.name,
-        link: file.data.webViewLink,
-        size: file.data.size,
+        id: result.fileId,
+        name: result.fileName,
+        link: result.fileLink,
+        totalRecords: result.totalRecords,
       },
-    }
-    audit(userId, 'create', 'google_drive_backup', file.data.id || 'unknown', {
-      after: { fileName, folderId, size: file.data.size },
     })
-    console.log(`[Google Drive] Backup created for user ${userId}: ${fileName}`)
-    return res.json(result)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     if (msg === 'Google not connected') return res.status(400).json({ error: msg })
@@ -567,7 +476,8 @@ router.get('/drive/backups', async (req: AuthRequest, res: Response) => {
 
     const folderId = folderSearch.data.files[0].id!
     const files = await drive.files.list({
-      q: `'${folderId}' in parents and name contains 'lifeos-backup' and trashed=false`,
+      // Match both old format (lifeos-backup-*) and new format (LifeOS_*)
+      q: `'${folderId}' in parents and (name contains 'lifeos-backup' or name contains 'LifeOS_') and trashed=false`,
       fields: 'files(id,name,createdTime,size,webViewLink)',
       orderBy: 'createdTime desc',
       pageSize: 20,
