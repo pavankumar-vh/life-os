@@ -20,8 +20,8 @@ export function registerGoalTools(server: McpServer): void {
       token: z.string().describe('Life OS JWT token'),
       status: z.enum(['active', 'completed', 'paused']).optional()
         .describe('Filter by status. Omit to return all goals.'),
-    },
-  }, async ({ token, status }) => {
+    } as any,
+  }, async ({ token, status }: { token: string; status?: 'active' | 'completed' | 'paused' }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const goals = await GoalService.getGoals(userId)

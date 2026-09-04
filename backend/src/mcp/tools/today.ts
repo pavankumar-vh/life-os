@@ -35,8 +35,8 @@ export function registerTodayTool(server: McpServer): void {
       token: z.string().describe('Life OS JWT token'),
       tz: z.number().int().min(-840).max(840).optional()
         .describe('Timezone offset in minutes ahead of UTC (e.g. 330 for UTC+5:30). Defaults to 0 (UTC).'),
-    },
-  }, async ({ token, tz }) => {
+    } as any,
+  }, async ({ token, tz }: { token: string; tz?: number }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const userObjId = new mongoose.Types.ObjectId(userId)

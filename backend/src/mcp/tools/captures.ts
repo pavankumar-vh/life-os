@@ -28,8 +28,8 @@ export function registerCaptureTools(server: McpServer): void {
         .describe('Type of capture. Defaults to "thought".'),
       tags: z.array(z.string().max(50)).max(10).optional()
         .describe('Optional tags (max 10, each max 50 chars)'),
-    },
-  }, async ({ token, text, type, tags }) => {
+    } as any,
+  }, async ({ token, text, type, tags }: { token: string; text: string; type?: 'thought' | 'idea' | 'todo' | 'reminder'; tags?: string[] }) => {
     try {
       const { userId } = verifyMcpToken(token)
 
@@ -74,8 +74,8 @@ export function registerCaptureTools(server: McpServer): void {
         .describe('Filter by capture type'),
       limit: z.number().int().min(1).max(100).optional()
         .describe('Maximum number of results (default 50, max 100)'),
-    },
-  }, async ({ token, processed, type, limit }) => {
+    } as any,
+  }, async ({ token, processed, type, limit }: { token: string; processed?: boolean; type?: 'thought' | 'idea' | 'todo' | 'reminder'; limit?: number }) => {
     try {
       const { userId } = verifyMcpToken(token)
 

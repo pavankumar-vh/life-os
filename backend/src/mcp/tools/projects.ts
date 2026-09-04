@@ -20,8 +20,8 @@ export function registerProjectTools(server: McpServer): void {
       token: z.string().describe('Life OS JWT token'),
       status: z.enum(['active', 'completed', 'paused', 'archived']).optional()
         .describe('Filter by project status. Omit for all projects.'),
-    },
-  }, async ({ token, status }) => {
+    } as any,
+  }, async ({ token, status }: { token: string; status?: 'active' | 'completed' | 'paused' | 'archived' }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const projects = await ProjectService.getProjects(userId)

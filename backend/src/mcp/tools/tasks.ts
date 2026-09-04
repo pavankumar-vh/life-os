@@ -29,8 +29,8 @@ export function registerTaskTools(server: McpServer): void {
       token: z.string().describe('Life OS JWT token'),
       status: z.enum(['todo', 'in_progress', 'done']).optional()
         .describe('Filter by status (optional). Omit to return all tasks.'),
-    },
-  }, async ({ token, status }) => {
+    } as any,
+  }, async ({ token, status }: { token: string; status?: 'todo' | 'in_progress' | 'done' }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const tasks = await TaskService.getTasks(userId)
@@ -69,8 +69,8 @@ export function registerTaskTools(server: McpServer): void {
       dueDate: z.string().optional().describe('Due date in YYYY-MM-DD format'),
       tags: z.array(z.string().max(50)).max(10).optional().describe('Tags (max 10)'),
       notes: z.string().max(5000).optional().describe('Additional notes'),
-    },
-  }, async ({ token, title, priority, dueDate, tags, notes }) => {
+    } as any,
+  }, async ({ token, title, priority, dueDate, tags, notes }: { token: string; title: string; priority?: 'low' | 'medium' | 'high'; dueDate?: string; tags?: string[]; notes?: string }) => {
     try {
       const { userId } = verifyMcpToken(token)
 
@@ -114,8 +114,8 @@ export function registerTaskTools(server: McpServer): void {
     inputSchema: {
       token: z.string().describe('Life OS JWT token'),
       task_id: z.string().length(24).describe('The 24-character MongoDB task ID'),
-    },
-  }, async ({ token, task_id }) => {
+    } as any,
+  }, async ({ token, task_id }: { token: string; task_id: string }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const task = await TaskService.updateTask(userId, task_id, { status: 'done' } as never)

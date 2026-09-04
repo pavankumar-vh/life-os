@@ -24,8 +24,8 @@ export function registerHabitTools(server: McpServer): void {
     description: 'Returns all habits for the authenticated Life OS user, with their completion dates.',
     inputSchema: {
       token: z.string().describe('Life OS JWT token'),
-    },
-  }, async ({ token }) => {
+    } as any,
+  }, async ({ token }: { token: string }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const habits = await HabitService.getHabits(userId)
@@ -56,8 +56,8 @@ export function registerHabitTools(server: McpServer): void {
       habit_id: z.string().length(24).describe('The 24-character MongoDB habit ID'),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
         .describe('Date in YYYY-MM-DD format. Defaults to today (UTC).'),
-    },
-  }, async ({ token, habit_id, date }) => {
+    } as any,
+  }, async ({ token, habit_id, date }: { token: string; habit_id: string; date?: string }) => {
     try {
       const { userId } = verifyMcpToken(token)
       const targetDate = date ?? toISODate()

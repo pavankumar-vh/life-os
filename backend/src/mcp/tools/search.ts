@@ -32,8 +32,8 @@ export function registerSearchTool(server: McpServer): void {
       ])).optional().describe('Limit to specific entity types. Omit to search all.'),
       limit: z.number().int().min(1).max(50).optional()
         .describe('Maximum number of results (default 20, max 50)'),
-    },
-  }, async ({ token, query, types, limit }) => {
+    } as any,
+  }, async ({ token, query, types, limit }: { token: string; query: string; types?: string[]; limit?: number }) => {
     try {
       const { userId } = verifyMcpToken(token)
 
