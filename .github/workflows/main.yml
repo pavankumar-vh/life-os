@@ -1,0 +1,21 @@
+name: Deploy SSH Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test SSH connection
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.LIFEOS_DEPLOY_HOST }}
+          username: ${{ secrets.LIFEOS_DEPLOY_USER }}
+          key: ${{ secrets.LIFEOS_DEPLOY_KEY }}
+          script: |
+            echo "DEPLOY_SSH_OK"
+            whoami
+            hostname
+            pwd
