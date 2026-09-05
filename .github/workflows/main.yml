@@ -8,14 +8,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test SSH connection
-        uses: appleboy/ssh-action@v1.2.2
+      - name: Check deploy key secret exists
+        env:
+          DEPLOY_KEY: ${{ secrets.LIFEOS_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "ERROR: LIFEOS_DEPLOY_KEY is empty or unavailable"
+            exit 1
+          fi
+
+          echo "LIFEOS_DEPLOY_KEY is present"
+          echo "Key length: ${#DEPLOY_KEY}"
+
+      - name: Validate SSH private key
+        env:
+          DEPLOY_KEY: ${{ secrets.LIFEOS_DEPLOY_KEY }}
+        run: |
+          printf '%s\n' "$DEPLOY_KEY" > deploy_key
+
+          chmod 600 deploy_key
+
+          ssh-keygen -y -f deploy_key > derived_public_key
+
+          echo "Private key parsed successfully"
+
+          echo "Derived public key fingerprint:"
+          ssh-keygen -lf derived_public_key
+
+          rm -f deploy_key derived_public_key
+
+      - name: Install deploy key
+        uses: webfactory/ssh-agent@v0.9.1
         with:
-          host: ${{ secrets.LIFEOS_DEPLOY_HOST }}
-          username: ${{ secrets.LIFEOS_DEPLOY_USER }}
-          key: ${{ secrets.LIFEOS_DEPLOY_KEY }}
-          script: |
-            echo "DEPLOY_SSH_OK"
-            whoami
-            hostname
-            pwd
+          ssh-private-key: ${{ secrets.LIFEOS_DEPLOY_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.LIFEOS_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=no \
+            "${{ secrets.LIFEOS_DEPLOY_USER }}@${{ secrets.LIFEOS_DEPLOY_HOST }}" \
+            'echo DEPLOY_SSH_OK && whoami && hostname && pwd'
