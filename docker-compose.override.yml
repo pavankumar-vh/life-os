@@ -5,7 +5,7 @@
 services:
   backend:
     # Use the development command
-    command: ["npm", "run", "dev"]
+    command: sh -c "npm install && npm run dev"
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongo:27017/life-os-dev

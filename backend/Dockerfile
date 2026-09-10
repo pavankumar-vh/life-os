@@ -12,6 +12,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Increase Node JS memory limit to prevent 'heap out of memory' errors during build
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 # Build the TypeScript project
 RUN npm run build
 
