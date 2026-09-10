@@ -63,7 +63,11 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
 ]
 
 function getStoredProvider(): string {
-  return useSettingsStore.getState().aiProvider || 'openai'
+  const state = useSettingsStore.getState()
+  if (state.aiProvider) return state.aiProvider
+  // Default to the first provider that has an API key configured
+  const configured = PROVIDERS.find(p => !!state.aiKeys[p.id])
+  return configured ? configured.id : 'openai'
 }
 function getStoredModel(provider: string): string {
   return useSettingsStore.getState().aiModels[provider] || PROVIDERS.find(p => p.id === provider)?.models[0]?.id || ''
@@ -90,6 +94,10 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 
   useEffect(() => {
     if (open) {
+      // Sync local state with settings store on open
+      const p = getStoredProvider()
+      setProvider(p)
+      setModel(getStoredModel(p))
       fetchMessages().catch(() => { /* chat history load failure is non-critical */ })
       setTimeout(() => inputRef.current?.focus(), 350)
     }
