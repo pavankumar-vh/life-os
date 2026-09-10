@@ -15,6 +15,7 @@ export interface IVaultFile extends Document {
   tags: string[]
   starred: boolean
   encrypted: boolean    // future: client-side encryption flag
+  visibility: 'standard' | 'private'
   createdAt: Date
   updatedAt: Date
 }
@@ -47,6 +48,7 @@ const VaultFileSchema = new Schema<IVaultFile>({
   tags: [{ type: String }],
   starred: { type: Boolean, default: false },
   encrypted: { type: Boolean, default: false },
+  visibility: { type: String, enum: ['standard', 'private'], default: 'standard' },
 }, { timestamps: true })
 
 VaultFileSchema.static('detectFileType', detectFileType)

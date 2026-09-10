@@ -1,7 +1,7 @@
 import { Router, Response } from 'express'
 import multer from 'multer'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
-import { uploadToB2, deleteFromB2 } from '../lib/b2'
+import { uploadToB2, deleteFromB2, generatePresignedDownloadUrl } from '../lib/b2'
 import { Photo } from '../models/Photo'
 import { audit } from '../lib/audit'
 
@@ -61,12 +61,16 @@ router.post('/photo', upload.single('photo'), async (req: AuthRequest, res: Resp
     audit(req.user!.userId, 'create', 'photos', photo._id, {
       after: { filename: req.file.originalname, context, sizeBytes: req.file.size },
     })
+    
+    const photoObj = photo.toObject()
+    photoObj.url = await generatePresignedDownloadUrl(photo.key)
+    
     return res.status(201).json({
-      id: photo._id,
-      url,
-      key,
-      filename: req.file.originalname,
-      sizeBytes: req.file.size,
+      id: photoObj._id,
+      url: photoObj.url,
+      key: photoObj.key,
+      filename: photoObj.filename,
+      sizeBytes: photoObj.sizeBytes,
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
@@ -81,20 +85,25 @@ router.get('/photos', async (req: AuthRequest, res: Response) => {
   try {
     if (isDemoUser(req.user!.userId)) return res.json([])
     const { context, refId } = req.query
-    const query: Record<string, unknown> = { userId: req.user!.userId }
+    const query: Record<string, unknown> = { userId: req.user!.userId, visibility: 'standard' }
     if (context) query.context = context
     if (refId) query.refId = refId
     const photos = await Photo.find(query).sort({ createdAt: -1 }).lean()
-    return res.json(photos.map(p => ({
-      id: p._id,
-      url: p.url,
-      key: p.key,
-      filename: p.filename,
-      sizeBytes: p.sizeBytes,
-      context: p.context,
-      refId: p.refId,
-      createdAt: p.createdAt,
-    })))
+    
+    const withUrls = await Promise.all(
+      photos.map(async p => ({
+        id: p._id,
+        url: await generatePresignedDownloadUrl(p.key),
+        key: p.key,
+        filename: p.filename,
+        sizeBytes: p.sizeBytes,
+        context: p.context,
+        refId: p.refId,
+        createdAt: p.createdAt,
+      }))
+    )
+    
+    return res.json(withUrls)
   } catch (error) {
     console.error('List photos error:', error)
     return res.status(500).json({ error: 'Failed to list photos' })
@@ -108,7 +117,7 @@ router.delete('/photo/:id', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Demo user cannot delete photos' })
     }
 
-    const photo = await Photo.findOne({ _id: req.params.id, userId: req.user!.userId })
+    const photo = await Photo.findOne({ _id: req.params.id, userId: req.user!.userId, visibility: 'standard' })
     if (!photo) return res.status(404).json({ error: 'Photo not found' })
 
     // Delete from B2 first, then remove record

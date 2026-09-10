@@ -8,8 +8,9 @@ import {
   Shield, Upload, FolderPlus, Star, StarOff, Trash2, Download,
   Search, Grid, List, File, FileImage, FileText, FileVideo,
   FileAudio, Archive, X, FolderOpen, ChevronRight, Eye,
-  MoreHorizontal, Edit2, FolderSymlink, Tag, Lock,
+  MoreHorizontal, Edit2, FolderSymlink, Tag, Lock
 } from 'lucide-react'
+import { PrivateZoneModal } from './PrivateZoneModal'
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ interface VaultFile {
   folder: string
   tags: string[]
   starred: boolean
+  visibility: 'standard' | 'private'
   createdAt: string
   updatedAt: string
 }
@@ -88,30 +90,53 @@ export function VaultView() {
   const [deletingFolder, setDeletingFolder] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const [privateZoneToken, setPrivateZoneToken] = useState<string | null>(() => typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('privateZoneToken') : null)
+  const [showPrivateModal, setShowPrivateModal] = useState(false)
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
 
   const load = useCallback(async () => {
     setIsLoading(true)
     try {
-      const headers = { Authorization: `Bearer ${token}` }
+      const isPrivate = activeFolder === '🔒 Private Zone'
+      
+      if (isPrivate && !privateZoneToken) {
+        setIsLoading(false)
+        return // Wait for unlock
+      }
+
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+      if (isPrivate) headers['x-private-zone-token'] = privateZoneToken!
+
+      const url = isPrivate ? `/api/vault/private/files` : `/api/vault`
       const [filesRes, foldersRes] = await Promise.all([
-        fetchApi(`/api/vault`, { headers }),
-        fetchApi(`/api/vault/folders`, { headers }),
+        fetchApi(url, { headers }),
+        isPrivate ? Promise.resolve(new Response('["🔒 Private Zone"]')) : fetchApi(`/api/vault/folders`, { headers }),
       ])
       
-      if (!filesRes.ok || !foldersRes.ok) throw new Error('Failed to fetch')
+      if (!filesRes.ok) throw new Error('Failed to fetch files')
       
       setFiles(await filesRes.json())
-      setFolders(await foldersRes.json())
+      if (!isPrivate) {
+        setFolders(await foldersRes.json())
+      }
     } catch {
       toast.error('Failed to load vault')
     } finally {
       setIsLoading(false)
     }
-  }, [token])
+  }, [token, activeFolder, privateZoneToken])
 
   useEffect(() => { load() }, [load])
+
+  const handlePrivateZoneClick = () => {
+    setActiveFolder('🔒 Private Zone')
+    setShowStarred(false)
+    if (!privateZoneToken) {
+      setShowPrivateModal(true)
+    }
+  }
 
   const uploadFile = useCallback(async (file: File) => {
     const form = new FormData()
@@ -122,9 +147,13 @@ export function VaultView() {
     setUploading(true)
     setUploadProgress(0)
     try {
+      const isPrivate = activeFolder === '🔒 Private Zone'
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+      if (isPrivate) headers['x-private-zone-token'] = privateZoneToken!
+
       const res = await fetchApi(`/api/vault/upload`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         body: form,
       })
       if (!res.ok) {
@@ -152,9 +181,12 @@ export function VaultView() {
   const deleteFile = async (f: VaultFile) => {
     setMenuOpen(null)
     try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+      if (activeFolder === '🔒 Private Zone') headers['x-private-zone-token'] = privateZoneToken!
+      
       const res = await fetchApi(`/api/vault/${f._id}`, { 
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers
       })
       if (!res.ok) { toast.error('Failed to delete'); return }
       setFiles(prev => prev.filter(x => x._id !== f._id))
@@ -167,9 +199,12 @@ export function VaultView() {
   const toggleStar = async (f: VaultFile) => {
     setMenuOpen(null)
     try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      if (activeFolder === '🔒 Private Zone') headers['x-private-zone-token'] = privateZoneToken!
+
       const res = await fetchApi(`/api/vault/${f._id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ starred: !f.starred }),
       })
       if (!res.ok) return
@@ -177,6 +212,41 @@ export function VaultView() {
       setFiles(prev => prev.map(x => x._id === updated._id ? updated : x))
     } catch {
       toast.error('Failed to update star')
+    }
+  }
+
+  const toggleVisibility = async (f: VaultFile) => {
+    setMenuOpen(null)
+    try {
+      const newVisibility = f.visibility === 'private' ? 'standard' : 'private'
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      
+      // If we are currently in standard mode, to move it to private we don't strictly need the token 
+      // per backend design, but if we do, the backend accepts it. If we are in private mode moving out, we DO need it.
+      if (privateZoneToken) {
+        headers['x-private-zone-token'] = privateZoneToken
+      } else if (newVisibility === 'standard') {
+        // Can't move from private to standard without token
+        toast.error('Private Zone must be unlocked to do this')
+        return
+      }
+
+      const res = await fetchApi(`/api/vault/private/${f._id}/visibility`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ visibility: newVisibility })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to change visibility')
+      }
+
+      // Remove it from the current view!
+      setFiles(prev => prev.filter(x => x._id !== f._id))
+      toast.success(newVisibility === 'private' ? 'Moved to Private Zone' : 'Moved to Standard Vault')
+    } catch (e: any) {
+      toast.error(e.message)
     }
   }
 
@@ -390,6 +460,22 @@ export function VaultView() {
               )}
             </div>
           ))}
+
+          {/* Private Zone Folder */}
+          <div className="pt-2 mt-2 border-t border-border/50">
+            <button
+              onClick={handlePrivateZoneClick}
+              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all text-left ${
+                activeFolder === '🔒 Private Zone'
+                  ? 'bg-red-500/10 text-red-400 font-medium'
+                  : 'text-text-secondary hover:bg-white/[0.04] hover:text-text-primary'
+              }`}
+            >
+              {privateZoneToken ? <Lock className="w-3.5 h-3.5 shrink-0" /> : <Shield className="w-3.5 h-3.5 shrink-0" />}
+              <span className="truncate">Private Zone</span>
+              {!privateZoneToken && <Lock className="ml-auto w-3 h-3 text-text-muted" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -399,10 +485,19 @@ export function VaultView() {
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 text-xs text-text-muted">
-            <Lock className="w-3 h-3" />
-            <span>Vault</span>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-text-primary font-medium">{showStarred ? '⭐ Starred' : activeFolder}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-text-secondary">Vault</span>
+              <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
+              <span className="text-text-primary font-medium">{showStarred ? 'Starred' : activeFolder.replace('🔒 ', '')}</span>
+              {activeFolder === '🔒 Private Zone' && privateZoneToken && (
+                <button
+                  onClick={() => { setPrivateZoneToken(null); sessionStorage.removeItem('privateZoneToken'); setActiveFolder('Root') }}
+                  className="ml-2 px-2 py-0.5 text-[10px] bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded border border-red-500/20 transition-colors"
+                >
+                  Lock
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Search */}
@@ -558,7 +653,8 @@ export function VaultView() {
                         onStar={() => toggleStar(f)}
                         onRename={() => { setRenaming(f._id); setRenameVal(f.name); setMenuOpen(null) }}
                         onMove={() => { setMovingFile(f); setMenuOpen(null) }}
-                        onDelete={() => deleteFile(f)} />
+                        onDelete={() => deleteFile(f)} 
+                        onToggleVisibility={() => toggleVisibility(f)} />
                     )}
                   </AnimatePresence>
                 </motion.div>
@@ -593,6 +689,10 @@ export function VaultView() {
                     <button onClick={() => toggleStar(f)} title={f.starred ? 'Unstar' : 'Star'}
                       className="p-1.5 rounded-md text-text-muted hover:text-accent hover:bg-accent/10 transition-colors">
                       {f.starred ? <StarOff className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
+                    </button>
+                    <button onClick={() => toggleVisibility(f)} title={f.visibility === 'private' ? 'Make Public' : 'Make Private'}
+                      className="p-1.5 rounded-md text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                      {f.visibility === 'private' ? <Shield className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                     </button>
                     <a href={f.url} download={f.name}
                       className="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-white/[0.06] transition-colors">
@@ -665,6 +765,13 @@ export function VaultView() {
         )}
       </AnimatePresence>
 
+      <PrivateZoneModal 
+        isOpen={showPrivateModal} 
+        onClose={() => { setShowPrivateModal(false); setActiveFolder('Root') }} 
+        onUnlocked={(t) => { setPrivateZoneToken(t); sessionStorage.setItem('privateZoneToken', t); setShowPrivateModal(false) }}
+        token={privateZoneToken}
+      />
+
       {/* Close menu on background click */}
       {menuOpen && <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(null)} />}
     </div>
@@ -673,13 +780,14 @@ export function VaultView() {
 
 // ─── Context Menu ─────────────────────────────────────────────────────────────
 
-function ContextMenu({ file, onClose, onStar, onRename, onMove, onDelete }: {
+function ContextMenu({ file, onClose, onStar, onRename, onMove, onDelete, onToggleVisibility }: {
   file: VaultFile
   onClose: () => void
   onStar: () => void
   onRename: () => void
   onMove: () => void
   onDelete: () => void
+  onToggleVisibility: () => void
 }) {
   return (
     <motion.div
@@ -687,7 +795,7 @@ function ContextMenu({ file, onClose, onStar, onRename, onMove, onDelete }: {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.93, y: -4 }}
       transition={{ duration: 0.12 }}
-      className="absolute right-1 top-10 z-40 w-44 rounded-xl border border-white/[0.08] py-1 shadow-2xl overflow-hidden"
+      className="absolute right-1 top-10 z-40 w-48 rounded-xl border border-white/[0.08] py-1 shadow-2xl overflow-hidden"
       style={{ background: 'rgba(22,22,24,0.98)', backdropFilter: 'blur(20px)' }}
     >
       <a href={file.url} download={file.name} className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-text-secondary hover:bg-white/[0.06] transition-colors">
@@ -701,6 +809,9 @@ function ContextMenu({ file, onClose, onStar, onRename, onMove, onDelete }: {
       </button>
       <button onClick={onStar} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-text-secondary hover:bg-white/[0.06] transition-colors">
         {file.starred ? <><StarOff className="w-3.5 h-3.5" /> Unstar</> : <><Star className="w-3.5 h-3.5" /> Star</>}
+      </button>
+      <button onClick={onToggleVisibility} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-text-secondary hover:bg-white/[0.06] transition-colors">
+        {file.visibility === 'private' ? <><Shield className="w-3.5 h-3.5" /> Make Public</> : <><Lock className="w-3.5 h-3.5" /> Move to Private Zone</>}
       </button>
       <div className="h-px bg-white/[0.06] mx-2 my-0.5" />
       <button onClick={onDelete} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-red-400 hover:bg-red-400/10 transition-colors">

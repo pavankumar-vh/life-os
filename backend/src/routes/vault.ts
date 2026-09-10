@@ -1,7 +1,7 @@
 import { Router, Response } from 'express'
 import multer from 'multer'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
-import { uploadToB2, deleteFromB2 } from '../lib/b2'
+import { uploadToB2, deleteFromB2, generatePresignedDownloadUrl } from '../lib/b2'
 import { VaultFile, detectFileType } from '../models/VaultFile'
 import { audit } from '../lib/audit'
 
@@ -18,12 +18,20 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     if (isDemoUser(req.user!.userId)) return res.json([])
     const { folder, starred, search } = req.query
-    const query: Record<string, unknown> = { userId: req.user!.userId }
+    const query: Record<string, unknown> = { userId: req.user!.userId, visibility: 'standard' }
     if (folder) query.folder = folder
     if (starred === 'true') query.starred = true
     if (search) query.name = { $regex: search, $options: 'i' }
     const files = await VaultFile.find(query).sort({ starred: -1, createdAt: -1 }).lean()
-    return res.json(files)
+    
+    // Inject short-lived presigned download URLs
+    const withPresignedUrls = await Promise.all(
+      files.map(async f => ({
+        ...f,
+        url: await generatePresignedDownloadUrl(f.key)
+      }))
+    )
+    return res.json(withPresignedUrls)
   } catch (e) {
     console.error('GET /api/vault error:', e)
     return res.status(500).json({ error: 'Failed to list vault files' })
@@ -34,7 +42,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.get('/folders', async (req: AuthRequest, res: Response) => {
   try {
     if (isDemoUser(req.user!.userId)) return res.json(['Root'])
-    const folders = await VaultFile.distinct('folder', { userId: req.user!.userId })
+    const folders = await VaultFile.distinct('folder', { userId: req.user!.userId, visibility: 'standard' })
     return res.json(['Root', ...folders.filter(f => f !== 'Root').sort()])
   } catch (e) {
     return res.status(500).json({ error: 'Failed to list folders' })
@@ -80,7 +88,11 @@ router.post('/upload', upload.single('file'), async (req: AuthRequest, res: Resp
     audit(req.user!.userId, 'create', 'vault', vaultFile._id, {
       after: { name: displayName, folder, mimeType: req.file.mimetype, sizeBytes: req.file.size },
     })
-    return res.status(201).json(vaultFile)
+    
+    const vaultFileObj = vaultFile.toObject()
+    vaultFileObj.url = await generatePresignedDownloadUrl(vaultFile.key)
+    
+    return res.status(201).json(vaultFileObj)
   } catch (e) {
     console.error('POST /api/vault/upload error:', e)
     return res.status(500).json({ error: 'Failed to upload file' })
@@ -98,10 +110,10 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
     if (tags !== undefined) updates.tags = tags
 
     const file = await VaultFile.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user!.userId },
+      { _id: req.params.id, userId: req.user!.userId, visibility: 'standard' },
       { $set: updates },
       { new: true }
-    )
+    ).lean()
     if (!file) return res.status(404).json({ error: 'File not found' })
     audit(req.user!.userId, 'update', 'vault', req.params.id, {
       changes: updates,
@@ -118,7 +130,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (isDemoUser(req.user!.userId)) {
       return res.status(400).json({ error: 'Demo user cannot delete vault files' })
     }
-    const file = await VaultFile.findOne({ _id: req.params.id, userId: req.user!.userId })
+    const file = await VaultFile.findOne({ _id: req.params.id, userId: req.user!.userId, visibility: 'standard' })
     if (!file) return res.status(404).json({ error: 'File not found' })
 
     await deleteFromB2(file.key)

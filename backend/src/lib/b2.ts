@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'crypto'
 
 function getB2Client(): S3Client {
@@ -38,10 +39,9 @@ export async function uploadToB2(
   folder = 'photos'
 ): Promise<UploadResult> {
   const bucket = process.env.B2_BUCKET_NAME
-  const publicUrl = process.env.B2_PUBLIC_URL
 
-  if (!bucket || !publicUrl) {
-    throw new Error('B2_BUCKET_NAME and B2_PUBLIC_URL must be set')
+  if (!bucket) {
+    throw new Error('B2_BUCKET_NAME must be set')
   }
 
   const ext = originalName.split('.').pop() || 'jpg'
@@ -53,13 +53,32 @@ export async function uploadToB2(
     Key: key,
     Body: buffer,
     ContentType: mimeType,
-    // Public read — B2 bucket must have public download enabled
+    // Note: Omitted 'ACL: public-read' because the bucket is strictly private.
   }))
 
   return {
-    url: `${publicUrl}/${key}`,
+    url: '', // Frontend won't use this directly, it will use the presigned URL dynamically
     key,
   }
+}
+
+/**
+ * Generate a short-lived presigned GET URL for secure frontend downloading.
+ * @param key The B2 object key
+ * @param expiresIn Seconds until expiration (default: 3600 = 1 hour)
+ */
+export async function generatePresignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+  const bucket = process.env.B2_BUCKET_NAME
+  if (!bucket) throw new Error('B2_BUCKET_NAME must be set')
+
+  const client = getB2Client()
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+  })
+
+  // getSignedUrl locally computes the AWS Signature V4 without network calls
+  return getSignedUrl(client as any, command as any, { expiresIn })
 }
 
 /**

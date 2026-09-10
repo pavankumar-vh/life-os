@@ -45,6 +45,9 @@ export interface IUser extends Document {
   mfaSecret?: string           // encrypted TOTP secret (active)
   mfaPendingSecret?: string    // encrypted TOTP secret during enrollment (cleared after activation)
   mfaRecoveryCodes?: string[]  // array of bcrypt-hashed one-time recovery codes
+  // Private Zone
+  privateZonePasswordHash?: string
+  privateZoneRecoveryHash?: string
   createdAt: Date
 }
 
@@ -86,6 +89,9 @@ const UserSchema = new Schema<IUser>({
   mfaSecret: { type: String, select: false },
   mfaPendingSecret: { type: String, select: false },
   mfaRecoveryCodes: { type: [String], select: false },
+  // Private Zone
+  privateZonePasswordHash: { type: String, select: false },
+  privateZoneRecoveryHash: { type: String, select: false },
 }, { timestamps: true })
 
 export const User = mongoose.model<IUser>('User', UserSchema)

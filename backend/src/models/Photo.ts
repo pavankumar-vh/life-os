@@ -9,6 +9,7 @@ export interface IPhoto extends Document {
   filename: string
   sizeBytes: number
   mimeType: string
+  visibility: 'standard' | 'private'
   createdAt: Date
 }
 
@@ -25,6 +26,7 @@ const PhotoSchema = new Schema<IPhoto>({
   filename: { type: String, required: true },
   sizeBytes: { type: Number, required: true },
   mimeType: { type: String, required: true },
+  visibility: { type: String, enum: ['standard', 'private'], default: 'standard' },
 }, { timestamps: true })
 
 export const Photo = mongoose.model<IPhoto>('Photo', PhotoSchema)

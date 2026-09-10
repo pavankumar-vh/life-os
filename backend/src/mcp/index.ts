@@ -37,6 +37,7 @@ import { registerGoalTools }    from './tools/goals'
 import { registerProjectTools } from './tools/projects'
 import { registerTodayTool }    from './tools/today'
 import { registerSearchTool }   from './tools/search'
+import { registerVaultTools }   from './tools/vault'
 
 // ── Resources ─────────────────────────────────────────────────────────────────
 // Resources are NOT registered in v1.
@@ -92,6 +93,7 @@ async function main() {
   registerProjectTools(server)
   registerTodayTool(server)
   registerSearchTool(server)
+  registerVaultTools(server)
 
   // Connect to stdio transport
   const transport = new StdioServerTransport()

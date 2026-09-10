@@ -35,8 +35,10 @@ import googleRoutes from './routes/google'
 import settingsRoutes from './routes/settings'
 import focusRoutes from './routes/focus'
 import uploadsRoutes from './routes/uploads'
-import vaultRoutes from './routes/vault'
-import searchRoutes from './routes/search'
+import wishlistRouter from './routes/wishlist'
+import vaultRouter from './routes/vault'
+import privateZoneRouter from './routes/private-zone'
+import searchRouter from './routes/search'
 import todayRoutes from './routes/today'
 import activityRoutes from './routes/activity'
 import reviewRoutes from './routes/review'
@@ -110,7 +112,6 @@ app.use('/api/bookmarks', bookmarksRoutes)
 app.use('/api/captures', capturesRoutes)
 app.use('/api/flashcards', flashcardsRoutes)
 app.use('/api/projects', projectsRoutes)
-app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/whiteboards', whiteboardsRoutes)
 app.use('/api/timeline', timelineRoutes)
 app.use('/api/backup', backupRoutes)
@@ -119,8 +120,10 @@ app.use('/api/google', googleRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/focus', focusRoutes)
 app.use('/api/uploads', uploadsRoutes)
-app.use('/api/vault', vaultRoutes)
-app.use('/api/search', searchRoutes)
+app.use('/api/wishlist', wishlistRouter)
+app.use('/api/vault', vaultRouter)
+app.use('/api/vault/private', privateZoneRouter)
+app.use('/api/search', searchRouter)
 app.use('/api/today', todayRoutes)
 app.use('/api/activity', activityRoutes)
 app.use('/api/review', reviewRoutes)
