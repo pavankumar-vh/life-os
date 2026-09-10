@@ -144,7 +144,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
       })
     } else if (provider === 'groq') {
       // Groq uses OpenAI-compatible API
-      const groqModel = model || 'llama-3.3-70b-versatile'  // stable production model on Groq
+      const groqModel = model || 'openai/gpt-oss-120b'  // stable production model on Groq
       providerResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },

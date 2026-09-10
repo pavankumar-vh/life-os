@@ -54,10 +54,10 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
     id: 'groq', label: 'Groq', icon: '⚡',
     models: [
       // Source: console.groq.com/docs/models (live, Sept 2026)
-      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (Fastest)' },
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-      { id: 'deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Qwen 32B' },
-      { id: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Llama 70B' },
+      { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B (Fast)' },
+      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
+      { id: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B' },
+      { id: 'minimaxai/minimax-m2.7', label: 'MiniMax M2.7' },
     ],
   },
 ]
