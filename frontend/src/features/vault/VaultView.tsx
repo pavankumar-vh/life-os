@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from '@/components/Toast'
-import { getApiBaseUrl } from '@/lib/api'
+import { fetchApi } from '@/lib/api'
 import {
   Shield, Upload, FolderPlus, Star, StarOff, Trash2, Download,
   Search, Grid, List, File, FileImage, FileText, FileVideo,
@@ -69,7 +69,6 @@ function FileIcon({ type, className = 'w-5 h-5' }: { type: FileType; className?:
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export function VaultView() {
-  const apiBase = getApiBaseUrl()
   const [files, setFiles] = useState<VaultFile[]>([])
   const [folders, setFolders] = useState<string[]>(['Root'])
   const [isLoading, setIsLoading] = useState(true)
@@ -85,24 +84,16 @@ export function VaultView() {
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [newFolderVal, setNewFolderVal] = useState('')
   const [previewFile, setPreviewFile] = useState<VaultFile | null>(null)
-  const [dragOver, setDragOver] = useState(false)
+  const [movingFile, setMovingFile] = useState<VaultFile | null>(null)
+  const [deletingFolder, setDeletingFolder] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const token = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
-
-  const authFetch = useCallback((url: string, opts: RequestInit = {}) => {
-    return fetch(url, {
-      ...opts,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
-    })
-  }, [token])
 
   const load = useCallback(async () => {
     setIsLoading(true)
     try {
       const [filesRes, foldersRes] = await Promise.all([
-        authFetch(`${apiBase}/api/vault`),
-        authFetch(`${apiBase}/api/vault/folders`),
+        fetchApi(`/api/vault`),
+        fetchApi(`/api/vault/folders`),
       ])
       setFiles(await filesRes.json())
       setFolders(await foldersRes.json())
@@ -111,7 +102,7 @@ export function VaultView() {
     } finally {
       setIsLoading(false)
     }
-  }, [apiBase, authFetch])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -124,9 +115,8 @@ export function VaultView() {
     setUploading(true)
     setUploadProgress(0)
     try {
-      const res = await fetch(`${apiBase}/api/vault/upload`, {
+      const res = await fetchApi(`/api/vault/upload`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: form,
       })
       if (!res.ok) {
@@ -144,7 +134,7 @@ export function VaultView() {
       setUploading(false)
       setUploadProgress(null)
     }
-  }, [apiBase, token, activeFolder, folders])
+  }, [activeFolder, folders])
 
   const handleFiles = (fileList: FileList | null) => {
     if (!fileList?.length) return
@@ -154,7 +144,7 @@ export function VaultView() {
   const deleteFile = async (f: VaultFile) => {
     setMenuOpen(null)
     try {
-      const res = await authFetch(`${apiBase}/api/vault/${f._id}`, { method: 'DELETE' })
+      const res = await fetchApi(`/api/vault/${f._id}`, { method: 'DELETE' })
       if (!res.ok) { toast.error('Failed to delete'); return }
       setFiles(prev => prev.filter(x => x._id !== f._id))
       toast.success('File deleted')
@@ -166,8 +156,9 @@ export function VaultView() {
   const toggleStar = async (f: VaultFile) => {
     setMenuOpen(null)
     try {
-      const res = await authFetch(`${apiBase}/api/vault/${f._id}`, {
+      const res = await fetchApi(`/api/vault/${f._id}`, {
         method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ starred: !f.starred }),
       })
       if (!res.ok) return
@@ -182,8 +173,9 @@ export function VaultView() {
     if (!renameVal.trim()) return
     setRenaming(null)
     try {
-      const res = await authFetch(`${apiBase}/api/vault/${f._id}`, {
+      const res = await fetchApi(`/api/vault/${f._id}`, {
         method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: renameVal.trim() }),
       })
       const updated = await res.json()
@@ -191,6 +183,39 @@ export function VaultView() {
       toast.success('Renamed')
     } catch {
       toast.error('Failed to rename')
+    }
+  }
+
+  const moveFile = async (f: VaultFile, targetFolder: string) => {
+    setMovingFile(null)
+    try {
+      const res = await fetchApi(`/api/vault/${f._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: targetFolder }),
+      })
+      if (!res.ok) { toast.error('Failed to move'); return }
+      const updated = await res.json()
+      setFiles(prev => prev.map(x => x._id === updated._id ? updated : x))
+      if (!folders.includes(targetFolder)) setFolders(prev => [...prev, targetFolder])
+      toast.success('File moved')
+    } catch {
+      toast.error('Failed to move')
+    }
+  }
+
+  const deleteFolder = async (folderName: string) => {
+    try {
+      const res = await fetchApi(`/api/vault/folder/${encodeURIComponent(folderName)}`, { method: 'DELETE' })
+      if (!res.ok) { toast.error('Failed to delete folder'); return }
+      setFiles(prev => prev.filter(x => x.folder !== folderName))
+      setFolders(prev => prev.filter(x => x !== folderName))
+      if (activeFolder === folderName) setActiveFolder('Root')
+      toast.success('Folder deleted')
+    } catch {
+      toast.error('Failed to delete folder')
+    } finally {
+      setDeletingFolder(null)
     }
   }
 
@@ -206,8 +231,11 @@ export function VaultView() {
   const filtered = useMemo(() => {
     return files.filter(f => {
       if (showStarred && !f.starred) return false
+      // Global search when searching
+      if (search) {
+        return f.name.toLowerCase().includes(search.toLowerCase())
+      }
       if (!showStarred && f.folder !== activeFolder) return false
-      if (search && !f.name.toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
   }, [files, activeFolder, search, showStarred])
@@ -322,21 +350,31 @@ export function VaultView() {
 
         <div className="space-y-0.5 px-3">
           {folders.map(folder => (
-            <button
-              key={folder}
-              onClick={() => { setActiveFolder(folder); setShowStarred(false) }}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all text-left ${
-                !showStarred && activeFolder === folder
-                  ? 'bg-accent/[0.08] text-accent font-medium'
-                  : 'text-text-secondary hover:bg-white/[0.04] hover:text-text-primary'
-              }`}
-            >
-              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{folder}</span>
-              <span className="ml-auto text-[10px] text-text-muted tabular-nums">
-                {files.filter(f => f.folder === folder).length}
-              </span>
-            </button>
+            <div key={folder} className="relative group">
+              <button
+                onClick={() => { setActiveFolder(folder); setShowStarred(false) }}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all text-left pr-8 ${
+                  !showStarred && activeFolder === folder
+                    ? 'bg-accent/[0.08] text-accent font-medium'
+                    : 'text-text-secondary hover:bg-white/[0.04] hover:text-text-primary'
+                }`}
+              >
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{folder}</span>
+                <span className="ml-auto text-[10px] text-text-muted tabular-nums">
+                  {files.filter(f => f.folder === folder).length}
+                </span>
+              </button>
+              {folder !== 'Root' && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeletingFolder(folder) }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-red-500/10 hover:text-red-400 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete folder"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -505,6 +543,7 @@ export function VaultView() {
                       <ContextMenu file={f} onClose={() => setMenuOpen(null)}
                         onStar={() => toggleStar(f)}
                         onRename={() => { setRenaming(f._id); setRenameVal(f.name); setMenuOpen(null) }}
+                        onMove={() => { setMovingFile(f); setMenuOpen(null) }}
                         onDelete={() => deleteFile(f)} />
                     )}
                   </AnimatePresence>
@@ -568,6 +607,50 @@ export function VaultView() {
         )}
       </AnimatePresence>
 
+      {/* Moving File Modal */}
+      <AnimatePresence>
+        {movingFile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)' }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-bg-elevated border border-border rounded-xl p-5 w-full max-w-sm shadow-2xl"
+            >
+              <h3 className="text-text-primary font-medium mb-3">Move "{movingFile.name}"</h3>
+              <div className="space-y-1 max-h-48 overflow-y-auto mb-4">
+                {folders.map(f => (
+                  <button key={f} onClick={() => moveFile(movingFile, f)}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-text-secondary hover:bg-white/[0.04] hover:text-text-primary flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4" /> {f}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setMovingFile(null)} className="px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary">Cancel</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Folder Modal */}
+      <AnimatePresence>
+        {deletingFolder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)' }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-bg-elevated border border-border rounded-xl p-5 w-full max-w-sm shadow-2xl"
+            >
+              <h3 className="text-text-primary font-medium mb-2">Delete Folder</h3>
+              <p className="text-sm text-text-secondary mb-4">Are you sure you want to delete the "{deletingFolder}" folder? All files inside will be permanently deleted.</p>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setDeletingFolder(null)} className="px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary bg-white/[0.04] rounded-lg">Cancel</button>
+                <button onClick={() => deleteFolder(deletingFolder)} className="px-3 py-1.5 text-xs text-white bg-red-500 hover:bg-red-600 rounded-lg">Delete Permanently</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Close menu on background click */}
       {menuOpen && <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(null)} />}
     </div>
@@ -576,11 +659,12 @@ export function VaultView() {
 
 // ─── Context Menu ─────────────────────────────────────────────────────────────
 
-function ContextMenu({ file, onClose, onStar, onRename, onDelete }: {
+function ContextMenu({ file, onClose, onStar, onRename, onMove, onDelete }: {
   file: VaultFile
   onClose: () => void
   onStar: () => void
   onRename: () => void
+  onMove: () => void
   onDelete: () => void
 }) {
   return (
@@ -597,6 +681,9 @@ function ContextMenu({ file, onClose, onStar, onRename, onDelete }: {
       </a>
       <button onClick={onRename} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-text-secondary hover:bg-white/[0.06] transition-colors">
         <Edit2 className="w-3.5 h-3.5" /> Rename
+      </button>
+      <button onClick={onMove} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-text-secondary hover:bg-white/[0.06] transition-colors">
+        <FolderSymlink className="w-3.5 h-3.5" /> Move to Folder
       </button>
       <button onClick={onStar} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-text-secondary hover:bg-white/[0.06] transition-colors">
         {file.starred ? <><StarOff className="w-3.5 h-3.5" /> Unstar</> : <><Star className="w-3.5 h-3.5" /> Star</>}
