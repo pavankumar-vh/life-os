@@ -10,6 +10,9 @@ function normalizeApiBase(raw) {
 }
 
 function getConfiguredApiBase() {
+  const internal = normalizeApiBase(process.env.INTERNAL_API_URL)
+  if (internal) return internal
+
   const primary = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL)
   if (primary) return primary
 

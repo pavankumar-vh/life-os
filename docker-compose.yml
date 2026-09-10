@@ -34,5 +34,6 @@ services:
       - NEXT_TELEMETRY_DISABLED=1
       # Overrides the .env.local to route Docker frontend to Docker backend internally if needed,
       # but NEXT_PUBLIC_ variables usually resolve in the browser, so it should point to the public domain.
+      - INTERNAL_API_URL=http://backend:4000
     depends_on:
       - backend
