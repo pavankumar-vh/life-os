@@ -86,6 +86,7 @@ export function VaultView() {
   const [previewFile, setPreviewFile] = useState<VaultFile | null>(null)
   const [movingFile, setMovingFile] = useState<VaultFile | null>(null)
   const [deletingFolder, setDeletingFolder] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
