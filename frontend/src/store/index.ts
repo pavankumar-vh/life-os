@@ -1455,31 +1455,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ messages: [...get().messages, assistantMsg] })
 
       if (reader) {
+        // Buffer accumulates partial SSE lines across network packet boundaries
+        let sseBuffer = ''
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n').filter(l => l.startsWith('data: '))
-          for (const line of lines) {
+          sseBuffer += decoder.decode(value, { stream: true })
+          const lines = sseBuffer.split('\n')
+          // Keep the last (potentially incomplete) line in the buffer
+          sseBuffer = lines.pop() || ''
+          for (const rawLine of lines) {
+            const line = rawLine.trim()
+            if (!line.startsWith('data: ')) continue
             const data = line.slice(6)
             if (data === '[DONE]') continue
             try {
               const parsed = JSON.parse(data)
               if (parsed.content) {
                 assistantContent += parsed.content
-                const msgs = [...get().messages]
-                const last = msgs[msgs.length - 1]
-                if (last.role === 'assistant') {
-                  last.content = assistantContent
-                  set({ messages: [...msgs] })
-                }
+                // Update assistant message in-place by matching the temp ID
+                set({
+                  messages: get().messages.map(m =>
+                    m._id === assistantMsg._id ? { ...m, content: assistantContent } : m
+                  ),
+                })
               }
               if (parsed.savedMessages) {
-                const msgs = get().messages
-                const updated = [...msgs.slice(0, -2), ...parsed.savedMessages]
-                set({ messages: updated })
+                // Replace temp user + assistant messages with the server-persisted ones
+                // Match by temp ID prefix rather than fragile slice index
+                const [savedUser, savedAssistant] = parsed.savedMessages as ChatMessageData[]
+                set({
+                  messages: get().messages.map(m => {
+                    if (m._id === userMsg._id && savedUser) return savedUser
+                    if (m._id === assistantMsg._id && savedAssistant) return savedAssistant
+                    return m
+                  }),
+                })
               }
-            } catch {}
+            } catch { /* ignore malformed SSE frames */ }
           }
         }
       }
@@ -1498,7 +1511,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearChat: async () => {
     await api('/chat', { method: 'DELETE' })
-    set({ messages: [] })
+    set({ messages: [], hasMore: false, isLoadingMore: false })
   },
 }))
 

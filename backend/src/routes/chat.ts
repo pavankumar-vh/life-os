@@ -5,6 +5,7 @@ import { ChatMessage } from '../models/ChatMessage'
 import { audit } from '../lib/audit'
 import { User } from '../models/User'
 import { buildSmartContext } from '../lib/contextEngine'
+import { decrypt, isEncrypted } from '../lib/crypto'
 
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -91,11 +92,22 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Chat is not available in demo mode' })
     }
 
-    // Read API key from user settings in DB (never from client)
+    // Read API key from user settings in DB (never from client) and decrypt it
     const user = await User.findById(userId).select('settings.aiKeys').lean()
-    const key = (user?.settings as any)?.aiKeys?.[provider] || process.env.OPENAI_API_KEY
+    const rawKey = (user?.settings as any)?.aiKeys?.[provider]
+    let key: string | undefined
+    if (rawKey) {
+      try {
+        key = isEncrypted(rawKey) ? decrypt(rawKey) : String(rawKey)
+      } catch {
+        return res.status(500).json({ error: 'Failed to decrypt API key. Please re-save your key in Settings.' })
+      }
+    }
+    // Fall back to server-side env key only for openai (self-hosting convenience)
+    if (!key && provider === 'openai') key = process.env.OPENAI_API_KEY
+    if (!key && provider === 'gemini') key = process.env.GEMINI_API_KEY
     if (!key) {
-      return res.status(400).json({ error: 'No API key configured. Add your API key in settings.' })
+      return res.status(400).json({ error: 'No API key configured. Add your API key in Settings → AI Assistant.' })
     }
 
     const history = await ChatMessage.find({ userId }).sort({ createdAt: -1 }).limit(20).lean()

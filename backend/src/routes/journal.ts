@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authMiddleware, AuthRequest } from '../lib/auth'
 import { JournalService } from '../services/JournalService'
 import { asyncHandler } from '../middleware/asyncHandler'
+import { invalidateContextCache } from '../lib/contextEngine'
 
 const router = Router()
 router.use(authMiddleware)
@@ -15,11 +16,13 @@ router.get('/', asyncHandler(async (req: AuthRequest, res) => {
 
 router.post('/', asyncHandler(async (req: AuthRequest, res) => {
   const entry = await JournalService.saveEntry(req.user!.userId, req.body)
+  invalidateContextCache(req.user!.userId)
   return res.json(entry)
 }))
 
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
   await JournalService.deleteEntry(req.user!.userId, String(req.params.id))
+  invalidateContextCache(req.user!.userId)
   return res.json({ success: true })
 }))
 

@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useChatStore, useSettingsStore } from '@/store'
+import { useChatStore, useSettingsStore, useAppStore } from '@/store'
 import { ListSkeleton } from '@/components/Skeletons'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Trash2, Bot, User, Sparkles, MessageSquare, Key, ArrowDown } from 'lucide-react'
+import { Send, Trash2, Bot, User, Sparkles, MessageSquare, Settings, ArrowDown } from 'lucide-react'
 
 const SUGGESTIONS = [
   'How has my mood been this week?',
@@ -112,17 +112,12 @@ export function ChatView() {
           {!hasApiKey && (
             <button
               onClick={() => {
-                const key = prompt('Enter your API key:')
-                if (key?.trim()) {
-                  const s = useSettingsStore.getState()
-                  const provider = s.aiProvider || 'openai'
-                  s.updateSettings({ aiKeys: { ...s.aiKeys, [provider]: key.trim() } })
-                }
+                useAppStore.getState().setActiveView('settings')
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"
             >
-              <Key className="w-3.5 h-3.5" />
-              Add API Key
+              <Settings className="w-3.5 h-3.5" />
+              Add API Key in Settings
             </button>
           )}
           {messages.length > 0 && (
