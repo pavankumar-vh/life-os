@@ -124,7 +124,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
     let providerResponse: Response
 
     if (provider === 'gemini') {
-      const geminiModel = model || 'gemini-3.7-flash'  // current stable Gemini 3 model
+      const geminiModel = model || 'gemini-3.5-flash'  // confirmed in ai.google.dev/gemini-api/docs/models
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${key}`
       const contents = [
         ...historyMessages.map((m: any) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),

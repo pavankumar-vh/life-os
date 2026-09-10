@@ -18,26 +18,32 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
   {
     id: 'openai', label: 'OpenAI', icon: '⬡',
     models: [
+      // Source: platform.openai.com/docs/models (live, Sept 2026)
       { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna (Fast)' },
-      { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+      { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra (Balanced)' },
       { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol (Pro)' },
       { id: 'gpt-6-astra', label: 'GPT-6 Astra (Flagship)' },
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+      { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano (Cheapest)' },
       { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Legacy)' },
     ],
   },
   {
     id: 'gemini', label: 'Gemini', icon: '✦',
     models: [
-      { id: 'gemini-3.5-flash-lite', label: '3.5 Flash-Lite (Fast)' },
-      { id: 'gemini-3.6-flash', label: '3.6 Flash' },
-      { id: 'gemini-3.7-flash', label: '3.7 Flash' },
-      { id: 'gemini-3.8-flash', label: '3.8 Flash (Latest)' },
-      { id: 'gemini-3.1-pro', label: '3.1 Pro' },
+      // Source: ai.google.dev/gemini-api/docs/models (live, Sept 2026)
+      { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (Fastest)' },
+      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+      { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+      { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Latest)' },
+      { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
     ],
   },
   {
     id: 'anthropic', label: 'Claude', icon: '◈',
     models: [
+      // Source: platform.claude.com/docs/en/models/overview (live, Sept 2026)
       { id: 'claude-haiku-4-5', label: 'Haiku 4.5 (Fast)' },
       { id: 'claude-sonnet-5', label: 'Sonnet 5' },
       { id: 'claude-opus-5', label: 'Opus 5 (Pro)' },
@@ -47,10 +53,11 @@ const PROVIDERS: { id: string; label: string; icon: string; models: { id: string
   {
     id: 'groq', label: 'Groq', icon: '⚡',
     models: [
+      // Source: console.groq.com/docs/models (live, Sept 2026)
       { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (Fastest)' },
       { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-      { id: 'deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 32B' },
-      { id: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B' },
+      { id: 'deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Qwen 32B' },
+      { id: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Llama 70B' },
     ],
   },
 ]
