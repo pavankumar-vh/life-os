@@ -124,7 +124,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
     let providerResponse: Response
 
     if (provider === 'gemini') {
-      const geminiModel = model || 'gemini-2.5-flash'  // valid stable model per Google AI docs
+      const geminiModel = model || 'gemini-3.7-flash'  // current stable Gemini 3 model
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${key}`
       const contents = [
         ...historyMessages.map((m: any) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
@@ -136,7 +136,7 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
         body: JSON.stringify({ system_instruction: { parts: [{ text: systemContent }] }, contents, generationConfig: { temperature: 0.7, maxOutputTokens: 1500 } }),
       })
     } else if (provider === 'anthropic') {
-      const claudeModel = model || 'claude-sonnet-4-5'  // valid alias per Anthropic docs
+      const claudeModel = model || 'claude-sonnet-5'  // current Claude 5 generation
       providerResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -144,15 +144,15 @@ router.post('/', chatLimiter, async (req: AuthRequest, res) => {
       })
     } else if (provider === 'groq') {
       // Groq uses OpenAI-compatible API
-      const groqModel = model || 'llama-3.3-70b-versatile'
+      const groqModel = model || 'llama-3.3-70b-versatile'  // stable production model on Groq
       providerResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify({ model: groqModel, messages: [{ role: 'system', content: systemContent }, ...historyMessages, { role: 'user', content: message }], stream: true, max_tokens: 1500, temperature: 0.7 }),
       })
     } else {
-      // OpenAI — use gpt-4o-mini as the default (widely available, stable)
-      const openaiModel = model || 'gpt-4o-mini'
+      // OpenAI — use gpt-5.6-luna as default (fast, cost-effective, current generation)
+      const openaiModel = model || 'gpt-5.6-luna'
       providerResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
