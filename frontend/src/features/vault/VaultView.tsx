@@ -89,13 +89,19 @@ export function VaultView() {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const token = typeof window !== 'undefined' ? localStorage.getItem('lifeos-token') : null
+
   const load = useCallback(async () => {
     setIsLoading(true)
     try {
+      const headers = { Authorization: `Bearer ${token}` }
       const [filesRes, foldersRes] = await Promise.all([
-        fetchApi(`/api/vault`),
-        fetchApi(`/api/vault/folders`),
+        fetchApi(`/api/vault`, { headers }),
+        fetchApi(`/api/vault/folders`, { headers }),
       ])
+      
+      if (!filesRes.ok || !foldersRes.ok) throw new Error('Failed to fetch')
+      
       setFiles(await filesRes.json())
       setFolders(await foldersRes.json())
     } catch {
@@ -103,7 +109,7 @@ export function VaultView() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [token])
 
   useEffect(() => { load() }, [load])
 
@@ -118,6 +124,7 @@ export function VaultView() {
     try {
       const res = await fetchApi(`/api/vault/upload`, {
         method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
         body: form,
       })
       if (!res.ok) {
@@ -145,7 +152,10 @@ export function VaultView() {
   const deleteFile = async (f: VaultFile) => {
     setMenuOpen(null)
     try {
-      const res = await fetchApi(`/api/vault/${f._id}`, { method: 'DELETE' })
+      const res = await fetchApi(`/api/vault/${f._id}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
       if (!res.ok) { toast.error('Failed to delete'); return }
       setFiles(prev => prev.filter(x => x._id !== f._id))
       toast.success('File deleted')
@@ -159,7 +169,7 @@ export function VaultView() {
     try {
       const res = await fetchApi(`/api/vault/${f._id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ starred: !f.starred }),
       })
       if (!res.ok) return
@@ -176,7 +186,7 @@ export function VaultView() {
     try {
       const res = await fetchApi(`/api/vault/${f._id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: renameVal.trim() }),
       })
       const updated = await res.json()
@@ -192,7 +202,7 @@ export function VaultView() {
     try {
       const res = await fetchApi(`/api/vault/${f._id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder: targetFolder }),
       })
       if (!res.ok) { toast.error('Failed to move'); return }
@@ -207,7 +217,10 @@ export function VaultView() {
 
   const deleteFolder = async (folderName: string) => {
     try {
-      const res = await fetchApi(`/api/vault/folder/${encodeURIComponent(folderName)}`, { method: 'DELETE' })
+      const res = await fetchApi(`/api/vault/folder/${encodeURIComponent(folderName)}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
       if (!res.ok) { toast.error('Failed to delete folder'); return }
       setFiles(prev => prev.filter(x => x.folder !== folderName))
       setFolders(prev => prev.filter(x => x !== folderName))
