@@ -82,7 +82,9 @@ export function VaultView() {
   const [draggedFile, setDraggedFile] = useState<VaultFile | null>(null)
   const [folderDragOver, setFolderDragOver] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const newFolderInputRef = useRef<HTMLInputElement>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   const [privateZoneToken, setPrivateZoneToken] = useState<string | null>(() =>
     typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('privateZoneToken') : null
@@ -366,6 +368,13 @@ export function VaultView() {
     return folders.filter(f => f !== 'Root' && f !== '🔒 Private Zone')
   }, [folders, activeFolder, search, showStarred])
 
+  const openCtxMenu = (e: React.MouseEvent) => {
+    // Only on the content area, not on file/folder cards
+    if ((e.target as HTMLElement).closest('[data-no-ctx]')) return
+    e.preventDefault()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }
+
   return (
     <div
       className="flex h-full gap-0 relative"
@@ -599,8 +608,8 @@ export function VaultView() {
           </span>
         </div>
 
-        {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Scrollable content area — right-click for context menu */}
+        <div className="flex-1 overflow-y-auto" onContextMenu={openCtxMenu}>
           {/* Folder cards — Root only, Drive-style */}
           {visibleFolderCards.length > 0 && (
             <div className="px-5 pt-4 pb-2">
@@ -866,6 +875,59 @@ export function VaultView() {
       />
 
       {menuOpen && <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(null)} />}
+
+      {/* ── Right-click context menu ── */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null) }} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            style={{ position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, background: 'rgba(20,20,22,0.98)', backdropFilter: 'blur(20px)', zIndex: 50 }}
+            className="w-52 rounded-xl border border-white/[0.08] py-1.5 shadow-2xl overflow-hidden"
+          >
+            <button
+              onClick={() => {
+                setCtxMenu(null)
+                setNewFolderOpen(true)
+                setTimeout(() => newFolderInputRef.current?.focus(), 50)
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-secondary hover:bg-white/[0.06] hover:text-text-primary transition-colors"
+            >
+              <FolderPlus className="w-3.5 h-3.5 text-accent/70" />
+              New folder
+            </button>
+            <div className="h-px bg-white/[0.06] mx-3 my-1" />
+            <button
+              onClick={() => { setCtxMenu(null); fileInputRef.current?.click() }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-secondary hover:bg-white/[0.06] hover:text-text-primary transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload files
+            </button>
+            <button
+              onClick={() => { setCtxMenu(null); folderInputRef.current?.click() }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-secondary hover:bg-white/[0.06] hover:text-text-primary transition-colors"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              Upload folder
+            </button>
+          </motion.div>
+        </>
+      )}
+
+      {/* Hidden folder input for folder upload */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-ignore — webkitdirectory is non-standard
+        webkitdirectory=""
+        multiple
+        className="hidden"
+        onChange={e => { handleFiles(e.target.files); e.target.value = '' }}
+      />
     </div>
   )
 }
