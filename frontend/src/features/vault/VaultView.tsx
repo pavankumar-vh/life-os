@@ -359,10 +359,11 @@ export function VaultView() {
     }
   }, [files, filtered, activeFolder, showStarred, search])
 
-  // Subfolders to show as cards in main area (all folders except current)
+  // Folder cards: only visible when at Root — like Google Drive "My Drive".
+  // Inside a folder you see only that folder's files.
   const visibleFolderCards = useMemo(() => {
-    if (search || showStarred || activeFolder === '🔒 Private Zone') return []
-    return folders.filter(f => f !== activeFolder && f !== '🔒 Private Zone')
+    if (search || showStarred || activeFolder !== 'Root') return []
+    return folders.filter(f => f !== 'Root' && f !== '🔒 Private Zone')
   }, [folders, activeFolder, search, showStarred])
 
   return (
@@ -600,30 +601,29 @@ export function VaultView() {
 
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto">
-          {/* Folder cards */}
+          {/* Folder cards — Root only, Drive-style */}
           {visibleFolderCards.length > 0 && (
-            <div className="px-5 pt-4 pb-1">
-              <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-2">Folders</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+            <div className="px-5 pt-4 pb-2">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-3">Folders</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {visibleFolderCards.map(folder => (
                   <div
                     key={folder}
                     onDragOver={e => { e.preventDefault(); e.stopPropagation(); setFolderDragOver(folder) }}
                     onDragLeave={() => setFolderDragOver(null)}
                     onDrop={e => { e.stopPropagation(); handleFolderDrop(folder) }}
-                    onDoubleClick={() => { setActiveFolder(folder); setSearch('') }}
                     onClick={() => { setActiveFolder(folder); setSearch('') }}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all select-none ${
                       folderDragOver === folder
                         ? 'border-accent/60 bg-accent/10 scale-[1.02]'
                         : 'border-border bg-bg-elevated hover:border-accent/30 hover:bg-white/[0.04]'
                     }`}
                   >
-                    <FolderOpen className="w-4 h-4 text-accent/70 shrink-0" />
-                    <span className="text-xs text-text-primary truncate font-medium">{folder}</span>
-                    <span className="ml-auto text-[10px] text-text-muted tabular-nums shrink-0">
-                      {folderFileCount[folder] || 0}
-                    </span>
+                    <FolderOpen className="w-5 h-5 text-accent/70 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-text-primary font-medium truncate">{folder}</p>
+                      <p className="text-[10px] text-text-muted">{folderFileCount[folder] || 0} files</p>
+                    </div>
                   </div>
                 ))}
               </div>
