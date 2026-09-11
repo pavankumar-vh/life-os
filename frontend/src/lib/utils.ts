@@ -30,11 +30,19 @@ export function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' | 'night' {
   return 'night'
 }
 
+/**
+ * Day Progress: measures progress through waking hours (6 AM → 11 PM).
+ * Returns 0 before 6 AM, 100 after 11 PM, linear 0–100 in between.
+ */
 export function getDayProgress(): number {
   const now = new Date()
-  const hours = now.getHours()
-  const minutes = now.getMinutes()
-  return Math.round(((hours * 60 + minutes) / 1440) * 100)
+  const totalMinutes = now.getHours() * 60 + now.getMinutes()
+  const DAY_START = 6 * 60   // 6:00 AM in minutes
+  const DAY_END   = 23 * 60  // 11:00 PM in minutes
+  const WINDOW    = DAY_END - DAY_START // 1020 min = 17 hours
+  if (totalMinutes <= DAY_START) return 0
+  if (totalMinutes >= DAY_END) return 100
+  return Math.round(((totalMinutes - DAY_START) / WINDOW) * 100)
 }
 
 export function toISODate(date: Date = new Date()): string {
