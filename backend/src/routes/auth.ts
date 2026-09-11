@@ -70,15 +70,38 @@ router.post('/register', authLimiter, async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Email already registered' })
 
     const requireApproval = process.env.REQUIRE_ACCOUNT_APPROVAL === 'true'
-    const isApproved = !requireApproval
+    let isApproved = !requireApproval
 
     const hashed = await bcrypt.hash(password, 12)
     const user   = await User.create({ 
       name: sanitizedName, 
       email: sanitizedEmail, 
       password: hashed,
-      isApproved 
+      isApproved,
+      isAdmin: false
     })
+
+    // FIRST-RUN INSTANCE INITIALIZATION
+    // Atomically attempt to acquire the bootstrap lock.
+    // The first user to succeed becomes the host admin.
+    try {
+      const mongoose = require('mongoose')
+      await mongoose.connection.collection('system_locks').insertOne({ 
+        _id: 'first_admin_bootstrap', 
+        userId: user._id,
+        createdAt: new Date()
+      })
+      // Lock acquired! Promote this user.
+      user.isAdmin = true
+      user.isApproved = true
+      await user.save()
+      isApproved = true // Update local variable for the response
+    } catch (err: any) {
+      // E11000 duplicate key error means the instance is already bootstrapped.
+      if (err.code !== 11000) {
+        console.error('Error during first-run bootstrap check:', err)
+      }
+    }
 
     // Non-blocking — don't fail registration if email fails
     sendWelcomeEmail(user.email, user.name).catch(() => {})

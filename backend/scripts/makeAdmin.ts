@@ -1,3 +1,6 @@
+import dotenv from 'dotenv'
+dotenv.config()
+
 import mongoose from 'mongoose'
 import { connectDB } from '../src/lib/db'
 import { User } from '../src/models/User'

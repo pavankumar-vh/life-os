@@ -97,6 +97,16 @@ The backend is fully containerized for production environments.
 - **Port**: Exposes `4000` natively.
 - **Health Checks**: Provides a dedicated `/api/health` endpoint used by deployment scripts to verify successful rollouts.
 
+### First-Run Instance Initialization
+When you start a fresh instance with an empty database, the very first account registered through the UI is automatically promoted to the Host Administrator (`isAdmin=true`, `isApproved=true`). This bootstrap is atomic—only the first successful registration claims the role.
+
+Once the first account is created, all subsequent signups will follow your `REQUIRE_ACCOUNT_APPROVAL` setting and must be manually approved by the admin. 
+
+*Emergency Recovery*: If you lose access to all admin accounts, you can bootstrap an existing user to admin via CLI:
+```bash
+npx tsx backend/scripts/makeAdmin.ts your@email.com
+```
+
 ### Deployment Flow
 1. Code is pushed to the `main` branch.
 2. GitHub Actions builds the Docker image and publishes it to GHCR (`ghcr.io`).
@@ -150,13 +160,6 @@ The backend is fully containerized for production environments.
    npm run dev
    ```
    *Frontend runs on `http://localhost:3000` | Backend runs on `http://localhost:4000`*
-
-5. **Bootstrap your First Admin**:
-   Register a new account in the UI, then run the following script to grant it Admin privileges and auto-approve it:
-   ```bash
-   cd backend
-   npx tsx scripts/makeAdmin.ts your@email.com
-   ```
 
 ---
 
