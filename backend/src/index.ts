@@ -43,6 +43,9 @@ import todayRoutes from './routes/today'
 import activityRoutes from './routes/activity'
 import reviewRoutes from './routes/review'
 import exportRoutes from './routes/export'
+import adminRoutes from './routes/admin'
+import mcpTokensRoutes from './routes/mcp-tokens'
+import mcpRoutes from './routes/mcp'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -128,7 +131,9 @@ app.use('/api/today', todayRoutes)
 app.use('/api/activity', activityRoutes)
 app.use('/api/review', reviewRoutes)
 app.use('/api/export', exportRoutes)
-
+app.use('/api/admin', adminRoutes)
+app.use('/api/mcp-tokens', mcpTokensRoutes)
+app.use('/api/mcp', mcpRoutes)
 // Error Handler MUST be the last middleware
 app.use(errorHandler)
 

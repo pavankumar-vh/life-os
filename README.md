@@ -6,130 +6,89 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
-**Life OS** is a comprehensive, full-stack personal operating system and "second brain." It brings productivity, life tracking, knowledge management, and third-party integrations into a single, cohesive platform. 
+**Life OS** is a comprehensive, production-grade personal operating system and "second brain." It brings productivity, life tracking, knowledge management, and AI interoperability into a single, cohesive, self-hostable platform.
 
-Life OS is built to be **self-hostable**, **Dockerized**, **production-oriented**, and **MCP-enabled**, allowing seamless interoperability with modern AI agents.
-
----
-
-## Why Life OS?
-
-- **Consolidation**: Replaces dozens of fragmented tracking apps with one unified dashboard.
-- **Privacy & Ownership**: Self-hostable, meaning you retain complete control over your personal data.
-- **AI-Ready**: Designed from the ground up to integrate with AI agents via the Model Context Protocol (MCP), turning your life data into context for intelligent workflows.
-
-## Core Capabilities
-
-Life OS implements a massive suite of working modules, cleanly integrated into a single user experience.
-
-### Productivity & Planning
-- **Tasks & Goals**: Hierarchical goal tracking and daily task management.
-- **Projects**: Kanban-style project tracking.
-- **Habits**: Daily habit tracking with streak calculations.
-- **Focus / Pomodoro**: Built-in focus timers with activity logging.
-- **Weekly Review**: Guided weekly reflection and analytics.
-- **Calendar**: Event management with Google Calendar sync.
-
-### Health & Personal Logging
-- **Journal**: Rich daily journaling.
-- **Workouts**: Gym session and exercise tracking.
-- **Diet & Meals**: Nutrition and meal logging.
-- **Sleep, Body, & Water**: Daily physical metrics and hydration tracking.
-- **Gratitude & Expenses**: Mindfulness logs and financial tracking.
-
-### Knowledge & Creative Tools
-- **Notes**: Rich text editor for long-form knowledge management.
-- **Flashcards**: Spaced repetition studying with AI generation.
-- **Whiteboard**: Canvas for visual brainstorming.
-- **Reading & Bookmarks**: Reading list management and web bookmarking.
-- **Captures & Wishlist**: Quick idea capture and wishlists.
-- **Vault**: Secure file uploads, storage, and management.
+Built with security and scalability in mind, Life OS allows individuals or small groups to consolidate their digital lives into a private ecosystem, while seamlessly exposing their context to modern AI agents.
 
 ---
 
-## Architecture
+## 🚀 Key Features
 
-Life OS uses a modern, decoupled client-server architecture with a shared service layer that gracefully handles both REST UI requests and MCP tool executions.
+### Complete Personal Ecosystem
+Consolidate dozens of tracking apps into one unified dashboard.
+- **Productivity**: Hierarchical Tasks, Goals, Kanban Projects, and Daily Habit tracking.
+- **Health & Wellness**: Gym Workouts, Diet & Meals, Sleep Logs, Body Metric Tracking, and Google Fitness Integration.
+- **Knowledge Base**: Rich Text Notes, Spaced-Repetition Flashcards, Visual Whiteboards, and Web Bookmarking.
+- **Capture & Storage**: Quick idea Captures, Wishlists, and a secure File Vault powered by Backblaze B2.
+
+### Host Control Center & Security
+Designed for secure, multi-user self-hosting for family, friends, or a small team.
+- **Registration Controls**: Toggle open registration, require admin approval (`REQUIRE_ACCOUNT_APPROVAL`), and set instance-wide user limits (`MAX_USERS`).
+- **Storage Quotas**: Enforce maximum storage limits per user (`MAX_VAULT_BYTES_PER_USER`).
+- **Role-Based Access**: Dedicated Admin dashboard to approve pending accounts, disable malicious users, and monitor instance health.
+- **Audit Logging**: Comprehensive security audit trail for user and token lifecycle events.
+- **Authentication**: JWT sessions, Bcrypt password hashing, and Multi-Factor Authentication (TOTP + Recovery Codes).
+
+### Native AI Integration (Model Context Protocol)
+Life OS is natively **MCP-enabled**, turning your personal data into rich context for AI agents like Claude Desktop, OpenClaw, or Cursor.
+- **Dual Transport Support**: Connect locally via CLI Stdio (`npx tsx backend/src/mcp/index.ts`) or remotely via Server-Sent Events (SSE) over HTTP (`/api/mcp/sse`).
+- **Dedicated MCP Tokens**: Generate, manage, and instantly revoke dedicated access tokens for your AI agents directly from the UI.
+- **Safe Execution**: MCP tools route through the same authorized, user-isolated business logic as the Web UI. Agents cannot bypass database constraints or access other users' data.
+
+---
+
+## 🏗 Architecture
+
+Life OS uses a modern, decoupled client-server architecture. The shared service layer gracefully handles both REST UI requests and MCP tool executions.
 
 ```mermaid
 graph TD
     UI[Next.js Web UI] -->|REST API| API[Express API Server]
-    Agent[MCP Client] -->|MCP Protocol| API
+    Agent[MCP Client] -->|MCP Protocol / SSE| API
+    CLI[Local Agent] -->|MCP Stdio| Local[MCP Node Script]
     
     API --> Services[Life OS Service Layer]
-    Services --> DB[(MongoDB)]
-    Services --> External[External APIs]
+    Local --> Services
+    
+    Services --> DB[(MongoDB Atlas)]
+    Services --> B2[(Backblaze B2 Storage)]
+    Services --> External[Google APIs]
 ```
 
-### Deployment Architecture
-
-The backend is fully containerized and deployed automatically via GitHub Actions to an Oracle VPS, while the frontend is deployed via Vercel.
-
-```mermaid
-graph TD
-    GH[GitHub Repository] -->|Push to Main| GHA[GitHub Actions]
-    GHA -->|Build & Push| GHCR[GitHub Container Registry]
-    GHCR -->|Pull Image| VPS[Oracle VPS]
-    VPS --> Backend[Life OS Backend Container]
-    Backend --> Atlas[(MongoDB Atlas)]
-    Backend --> B2[(Backblaze B2 Storage)]
-```
-
----
-
-## MCP & AI Agent Interoperability
-
-Life OS is natively **MCP-enabled**. It provides a client-neutral Model Context Protocol (MCP) interface designed to work directly with MCP-compatible clients such as Claude, OpenClaw, Cursor, and other compatible agents.
-
-- **Client-Neutral**: Not hardcoded to any specific AI provider.
-- **Secure by Design**: MCP requests utilize the existing authentication and service layer. All requests are strictly authorized and user-isolated.
-- **Safe Execution**: MCP tools do not have direct database access; they route through the same validated business logic as the Web UI.
-
-### Available MCP Tools
-The repository currently exposes the following validated MCP tools:
-- `search`: Global search across tasks, notes, journal, etc.
-- `today`: Retrieve the daily dashboard context.
-- `tasks` / `goals` / `projects` / `habits`: Manage productivity entities.
-- `captures`: Quickly capture fleeting thoughts or links.
-- `vault`: Search and retrieve metadata for stored files.
-
----
-
-## Technology Stack
+### Technology Stack
 
 **Frontend**
 - Next.js 15 (App Router)
 - React 19 + TypeScript
-- Zustand (State Management)
-- Tailwind CSS + Framer Motion
+- Zustand (Global State Management)
+- Tailwind CSS + Framer Motion (Fluid UI & Micro-animations)
 
 **Backend**
 - Node.js 22 + Express + TypeScript
-- MongoDB + Mongoose
+- MongoDB + Mongoose (Schema validation & aggregation)
+- Model Context Protocol (MCP) SDK (@modelcontextprotocol/sdk)
 
 **Storage & Integrations**
 - MongoDB Atlas (Primary Database)
 - Backblaze B2 (Vault File Storage)
-- Google APIs (OAuth, Calendar, Drive backups, Fitness)
+- Google APIs (OAuth, Calendar Sync, Drive Backups, Fitness Sync)
 
 ---
 
-## Security Architecture
+## 🔒 Security Architecture
 
 Life OS implements industry-standard security practices to protect personal data:
 
-- **Authentication**: JWT-based session handling.
-- **Password Security**: Bcrypt password hashing.
-- **Protection**: Express rate limiting, Helmet security headers, and strict CORS policies.
-- **Data Isolation**: Strict user-level authorization checks at the service layer.
-- **Private Zone**: Secondary authentication layer for sensitive Vault files.
-- **MCP Security**: API token-based authentication for agent connections.
-
-*(Note: Secrets are managed entirely via environment variables and are never committed to the repository).*
+- **Authentication**: Stateless JWT-based session handling.
+- **MFA / 2FA**: Time-based One-Time Passwords (TOTP) utilizing RFC 6238, plus one-time recovery codes.
+- **Password Security**: Strong Bcrypt hashing.
+- **Protection**: Express rate limiting, Helmet security headers, strict CORS policies, and request payload validation.
+- **Data Isolation**: Strict user-level authorization checks at the repository layer. Even if an endpoint is compromised, data bleed is prevented by mandatory `userId` query scoping.
+- **Private Zone**: Secondary authentication layer for highly sensitive Vault files.
 
 ---
 
-## Docker & Deployment
+## 🐳 Docker & Deployment
 
 The backend is fully containerized for production environments.
 
@@ -141,46 +100,41 @@ The backend is fully containerized for production environments.
 ### Deployment Flow
 1. Code is pushed to the `main` branch.
 2. GitHub Actions builds the Docker image and publishes it to GHCR (`ghcr.io`).
-3. The Action connects to the target Oracle VPS via SSH, pulls the latest image, removes the old container, and starts the new one using the server's `.env` file.
+3. The Action connects to the target VPS via SSH, pulls the latest image, removes the old container, and starts the new one using the server's `.env` file.
 4. A curl-based polling health check ensures the container is ready before reporting success.
 
 ---
 
-## Environment Variables
+## ⚙️ Environment Configuration
 
 ### Backend (`backend/.env`)
 
-**Required:**
-- `PORT`
-- `MONGODB_URI`
-- `JWT_SECRET`
-- `FRONTEND_URL`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REDIRECT_URI`
+**Core Setup:**
+- `PORT=4000`
+- `MONGODB_URI=mongodb+srv://...`
+- `JWT_SECRET=your_super_secret_string`
+- `FRONTEND_URL=http://localhost:3000`
 
-**Optional / Feature-Specific:**
-- `FRONTEND_URLS` (For preview environments)
-- `APP_URL`
-- `ENCRYPTION_KEY`
-- `OPENAI_API_KEY` / `GEMINI_API_KEY` (For in-app AI features)
-- `MAILJET_API_KEY` / `MAILJET_API_SECRET` / `MAILJET_FROM_EMAIL` / `MAILJET_FROM_NAME` (For email recovery)
+**Host Control & Limits:**
+- `REGISTRATION_ENABLED=true`
+- `REQUIRE_ACCOUNT_APPROVAL=true`
+- `MAX_USERS=10`
+- `MAX_VAULT_BYTES_PER_USER=1073741824` (1GB in bytes)
+
+**Integrations:**
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI`
 - `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APP_KEY` / `B2_BUCKET_NAME` / `B2_REGION` (For Vault uploads)
+- `MAILJET_API_KEY` / `MAILJET_API_SECRET` / `MAILJET_FROM_EMAIL` (For email recovery)
 
 ### Frontend (`frontend/.env.local`)
-
-**Required:**
-- `NEXT_PUBLIC_API_URL`
-
-**Optional:**
-- `NEXT_PUBLIC_API_URLS`
+- `NEXT_PUBLIC_API_URL=http://localhost:4000`
 
 ---
 
-## Local Development Setup
+## 💻 Local Development Setup
 
 1. **Prerequisites**: Node.js 18+ (Node 22 recommended), npm, and a MongoDB instance.
-2. **Install**:
+2. **Install Dependencies**:
    ```bash
    npm install
    npm run install:all
@@ -189,45 +143,40 @@ The backend is fully containerized for production environments.
    ```bash
    cp backend/.env.example backend/.env
    cp frontend/.env.example frontend/.env.local
+   # Fill in the necessary values in both files
    ```
-   *(Fill in the necessary values)*
-4. **Run Stack**:
+4. **Start the Stack**:
    ```bash
    npm run dev
    ```
-   *Frontend runs on `http://localhost:3000` | Backend runs on `http://localhost:8080`*
+   *Frontend runs on `http://localhost:3000` | Backend runs on `http://localhost:4000`*
 
-## Testing / Build
+5. **Bootstrap your First Admin**:
+   Register a new account in the UI, then run the following script to grant it Admin privileges and auto-approve it:
+   ```bash
+   cd backend
+   npx tsx scripts/makeAdmin.ts your@email.com
+   ```
 
-To verify the TypeScript compilation and Next.js production build:
+---
 
-```bash
-npm run build
-```
-
-## Backup / Disaster Recovery
+## 🛡 Backup & Disaster Recovery
 
 Life OS supports robust backup mechanisms:
 - Automated MongoDB backups (if using Atlas).
 - Manual JSON exports of all user data via the UI.
 - Google Drive integration allowing users to push encrypted `.json` snapshots directly to their Drive.
+- Portable `import` system allowing users to migrate their entire Life OS dataset to a new self-hosted instance seamlessly.
 
 ---
 
-## Roadmap
-
-Future capabilities planned for Life OS:
-- WebAuthn / Passkey support.
-- Bi-directional sync for offline progressive web app (PWA) support.
-- Extended MCP tools for calendar and whiteboard operations.
-
-## Contributing
+## 🤝 Contributing
 
 1. Create a feature branch.
 2. Make focused, logical changes.
-3. Verify your work with `npm run build`.
-4. Open a PR with a clear summary.
+3. Verify your work with `npm run build` from both the `frontend/` and `backend/` directories.
+4. Open a Pull Request with a clear summary of your architectural decisions.
 
-## License
+## 📄 License
 
-This project is open-source. Please see the [LICENSE] file for more details.
+This project is open-source. Please see the LICENSE file for more details.

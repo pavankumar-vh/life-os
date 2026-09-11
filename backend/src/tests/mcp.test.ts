@@ -77,24 +77,24 @@ function mockProject(overrides = {}) {
 // ── Auth helper tests ─────────────────────────────────────────────────────────
 
 describe('verifyMcpToken', () => {
-  it('returns identity for a valid token', () => {
-    const id = verifyMcpToken('valid-token-user1')
+  it('returns identity for a valid token', async () => {
+    const id = await verifyMcpToken('valid-token-user1')
     expect(id.userId).toBe('user1')
     expect(id.email).toBe('u1@test.com')
   })
 
-  it('throws McpError for an invalid token', () => {
-    expect(() => verifyMcpToken('bad-token')).toThrow(McpError)
-    expect(() => verifyMcpToken('bad-token')).toThrow('Invalid or expired token')
+  it('throws McpError for an invalid token', async () => {
+    await expect(verifyMcpToken('bad-token')).rejects.toThrow(McpError)
+    await expect(verifyMcpToken('bad-token')).rejects.toThrow('Invalid or expired token')
   })
 
-  it('throws McpError when token is missing', () => {
-    expect(() => verifyMcpToken(undefined)).toThrow(McpError)
-    expect(() => verifyMcpToken('')).toThrow(McpError)
+  it('throws McpError when token is missing', async () => {
+    await expect(verifyMcpToken(undefined)).rejects.toThrow(McpError)
+    await expect(verifyMcpToken('')).rejects.toThrow(McpError)
   })
 
-  it('rejects MFA challenge tokens', () => {
-    expect(() => verifyMcpToken('mfa-challenge-token')).toThrow('MFA challenge tokens cannot be used for MCP access')
+  it('rejects MFA challenge tokens', async () => {
+    await expect(verifyMcpToken('mfa-challenge-token')).rejects.toThrow('MFA challenge tokens cannot be used for MCP access')
   })
 })
 
@@ -137,7 +137,7 @@ describe('TaskService tool handlers', () => {
   describe('get_tasks logic', () => {
     it('calls TaskService.getTasks with userId from token', async () => {
       ;(TaskService.getTasks as jest.Mock).mockResolvedValue([mockTask()])
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       const tasks = await TaskService.getTasks(userId)
       expect(TaskService.getTasks).toHaveBeenCalledWith('user1')
       expect(tasks).toHaveLength(1)
@@ -145,28 +145,28 @@ describe('TaskService tool handlers', () => {
 
     it('user2 cannot see user1 tasks', async () => {
       ;(TaskService.getTasks as jest.Mock).mockResolvedValue([])
-      const { userId } = verifyMcpToken('valid-token-user2')
+      const { userId } = await verifyMcpToken('valid-token-user2')
       await TaskService.getTasks(userId)
       expect(TaskService.getTasks).toHaveBeenCalledWith('user2')
       // user2 gets their own empty list — user1 data never passed
     })
 
-    it('rejects invalid token', () => {
-      expect(() => verifyMcpToken('expired-token')).toThrow(McpError)
+    it('rejects invalid token', async () => {
+      await expect(verifyMcpToken('expired-token')).rejects.toThrow(McpError)
     })
   })
 
   describe('create_task logic', () => {
     it('calls TaskService.createTask with correct userId', async () => {
       ;(TaskService.createTask as jest.Mock).mockResolvedValue(mockTask({ title: 'New task' }))
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await TaskService.createTask(userId, { title: 'New task' } as never)
       expect(TaskService.createTask).toHaveBeenCalledWith('user1', expect.objectContaining({ title: 'New task' }))
     })
 
     it('propagates ValidationError from service', async () => {
       ;(TaskService.createTask as jest.Mock).mockRejectedValue(new ValidationError('title required'))
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await expect(TaskService.createTask(userId, { title: '' } as never)).rejects.toThrow(ValidationError)
     })
   })
@@ -174,14 +174,14 @@ describe('TaskService tool handlers', () => {
   describe('complete_task logic', () => {
     it('calls TaskService.updateTask with status done', async () => {
       ;(TaskService.updateTask as jest.Mock).mockResolvedValue(mockTask({ status: 'done' }))
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await TaskService.updateTask(userId, REAL_ID, { status: 'done' } as never)
       expect(TaskService.updateTask).toHaveBeenCalledWith('user1', REAL_ID, expect.objectContaining({ status: 'done' }))
     })
 
     it('throws NotFoundError when task belongs to another user', async () => {
       ;(TaskService.updateTask as jest.Mock).mockRejectedValue(new NotFoundError('task not found'))
-      const { userId } = verifyMcpToken('valid-token-user2')
+      const { userId } = await verifyMcpToken('valid-token-user2')
       await expect(TaskService.updateTask(userId, REAL_ID, { status: 'done' } as never)).rejects.toThrow(NotFoundError)
     })
   })
@@ -195,7 +195,7 @@ describe('HabitService tool handlers', () => {
   describe('get_habits logic', () => {
     it('calls HabitService.getHabits with userId from token', async () => {
       ;(HabitService.getHabits as jest.Mock).mockResolvedValue([mockHabit()])
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       const habits = await HabitService.getHabits(userId)
       expect(HabitService.getHabits).toHaveBeenCalledWith('user1')
       expect(habits).toHaveLength(1)
@@ -205,14 +205,14 @@ describe('HabitService tool handlers', () => {
   describe('log_habit logic', () => {
     it('calls HabitService.logCompletion with correct params', async () => {
       ;(HabitService.logCompletion as jest.Mock).mockResolvedValue(mockHabit())
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await HabitService.logCompletion(userId, REAL_ID, '2026-09-04')
       expect(HabitService.logCompletion).toHaveBeenCalledWith('user1', REAL_ID, '2026-09-04')
     })
 
     it('throws NotFoundError when habit belongs to another user', async () => {
       ;(HabitService.logCompletion as jest.Mock).mockRejectedValue(new NotFoundError('habit not found'))
-      const { userId } = verifyMcpToken('valid-token-user2')
+      const { userId } = await verifyMcpToken('valid-token-user2')
       await expect(HabitService.logCompletion(userId, REAL_ID, '2026-09-04')).rejects.toThrow(NotFoundError)
     })
   })
@@ -226,7 +226,7 @@ describe('CaptureService tool handlers', () => {
   describe('quick_capture logic', () => {
     it('creates capture with source: mcp', async () => {
       ;(CaptureService.createCapture as jest.Mock).mockResolvedValue(mockCapture())
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await CaptureService.createCapture(userId, { text: 'hello', source: 'mcp', type: 'thought', tags: [] } as never)
       expect(CaptureService.createCapture).toHaveBeenCalledWith(
         'user1',
@@ -236,7 +236,7 @@ describe('CaptureService tool handlers', () => {
 
     it('propagates ValidationError for empty text', async () => {
       ;(CaptureService.createCapture as jest.Mock).mockRejectedValue(new ValidationError('text required'))
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await expect(CaptureService.createCapture(userId, { text: '' } as never)).rejects.toThrow(ValidationError)
     })
   })
@@ -244,14 +244,14 @@ describe('CaptureService tool handlers', () => {
   describe('get_captures logic', () => {
     it('calls CaptureService.getCaptures with userId from token', async () => {
       ;(CaptureService.getCaptures as jest.Mock).mockResolvedValue([mockCapture()])
-      const { userId } = verifyMcpToken('valid-token-user1')
+      const { userId } = await verifyMcpToken('valid-token-user1')
       await CaptureService.getCaptures(userId, { processed: 'false', limit: 50 })
       expect(CaptureService.getCaptures).toHaveBeenCalledWith('user1', expect.any(Object))
     })
 
     it('user2 gets their own captures — never user1 data', async () => {
       ;(CaptureService.getCaptures as jest.Mock).mockResolvedValue([])
-      const { userId } = verifyMcpToken('valid-token-user2')
+      const { userId } = await verifyMcpToken('valid-token-user2')
       await CaptureService.getCaptures(userId, {})
       expect(CaptureService.getCaptures).toHaveBeenCalledWith('user2', expect.any(Object))
     })
@@ -265,13 +265,13 @@ describe('GoalService tool handlers', () => {
 
   it('calls GoalService.getGoals with userId from token', async () => {
     ;(GoalService.getGoals as jest.Mock).mockResolvedValue([mockGoal()])
-    const { userId } = verifyMcpToken('valid-token-user1')
+    const { userId } = await verifyMcpToken('valid-token-user1')
     await GoalService.getGoals(userId)
     expect(GoalService.getGoals).toHaveBeenCalledWith('user1')
   })
 
-  it('rejects invalid token before calling service', () => {
-    expect(() => verifyMcpToken('garbage')).toThrow(McpError)
+  it('rejects invalid token before calling service', async () => {
+    await expect(verifyMcpToken('garbage')).rejects.toThrow(McpError)
     expect(GoalService.getGoals).not.toHaveBeenCalled()
   })
 })
@@ -283,7 +283,7 @@ describe('ProjectService tool handlers', () => {
 
   it('calls ProjectService.getProjects with userId from token', async () => {
     ;(ProjectService.getProjects as jest.Mock).mockResolvedValue([mockProject()])
-    const { userId } = verifyMcpToken('valid-token-user1')
+    const { userId } = await verifyMcpToken('valid-token-user1')
     await ProjectService.getProjects(userId)
     expect(ProjectService.getProjects).toHaveBeenCalledWith('user1')
   })
@@ -298,7 +298,7 @@ describe('SearchService tool handlers', () => {
     ;(SearchService.search as jest.Mock).mockResolvedValue({
       results: [], total: 0, query: 'gym', durationMs: 5,
     })
-    const { userId } = verifyMcpToken('valid-token-user1')
+    const { userId } = await verifyMcpToken('valid-token-user1')
     await SearchService.search({ q: 'gym', userId, limit: 20, skip: 0 })
     expect(SearchService.search).toHaveBeenCalledWith(
       expect.objectContaining({ q: 'gym', userId: 'user1' })
@@ -307,7 +307,7 @@ describe('SearchService tool handlers', () => {
 
   it('user isolation: user2 search uses user2 userId', async () => {
     ;(SearchService.search as jest.Mock).mockResolvedValue({ results: [], total: 0, query: 'test', durationMs: 1 })
-    const { userId } = verifyMcpToken('valid-token-user2')
+    const { userId } = await verifyMcpToken('valid-token-user2')
     await SearchService.search({ q: 'test', userId, limit: 20, skip: 0 })
     expect(SearchService.search).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user2' })
@@ -320,27 +320,27 @@ describe('SearchService tool handlers', () => {
 describe('User isolation — cross-user access', () => {
   beforeEach(() => jest.clearAllMocks())
 
-  it('user1 token → userId is user1 in all service calls', () => {
-    const { userId } = verifyMcpToken('valid-token-user1')
+  it('user1 token → userId is user1 in all service calls', async () => {
+    const { userId } = await verifyMcpToken('valid-token-user1')
     expect(userId).toBe('user1')
   })
 
-  it('user2 token → userId is user2 in all service calls', () => {
-    const { userId } = verifyMcpToken('valid-token-user2')
+  it('user2 token → userId is user2 in all service calls', async () => {
+    const { userId } = await verifyMcpToken('valid-token-user2')
     expect(userId).toBe('user2')
   })
 
-  it('cannot supply arbitrary userId — token determines identity', () => {
+  it('cannot supply arbitrary userId — token determines identity', async () => {
     // The tool handlers extract userId from the token, ignoring any client-supplied userId
     // This test documents the contract: token = identity
-    const { userId } = verifyMcpToken('valid-token-user1')
+    const { userId } = await verifyMcpToken('valid-token-user1')
     // Even if a malicious client sent userId: 'user2', we would use 'user1'
     expect(userId).toBe('user1')
     expect(userId).not.toBe('user2')
   })
 
-  it('invalid token prevents any service call', () => {
-    expect(() => verifyMcpToken('forged-token')).toThrow(McpError)
+  it('invalid token prevents any service call', async () => {
+    await expect(verifyMcpToken('forged-token')).rejects.toThrow(McpError)
     expect(TaskService.getTasks).not.toHaveBeenCalled()
     expect(CaptureService.createCapture).not.toHaveBeenCalled()
     expect(GoalService.getGoals).not.toHaveBeenCalled()
@@ -354,7 +354,7 @@ describe('MCP source tracking', () => {
 
   it('quick_capture passes source: mcp to CaptureService', async () => {
     ;(CaptureService.createCapture as jest.Mock).mockResolvedValue(mockCapture({ source: 'mcp' }))
-    const { userId } = verifyMcpToken('valid-token-user1')
+    const { userId } = await verifyMcpToken('valid-token-user1')
     await CaptureService.createCapture(userId, {
       text: 'an agent thought',
       source: 'mcp',

@@ -31,7 +31,7 @@ export function registerCaptureTools(server: McpServer): void {
     } as any,
   }, async ({ token, text, type, tags }: { token: string; text: string; type?: 'thought' | 'idea' | 'todo' | 'reminder'; tags?: string[] }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
 
       const item = await CaptureService.createCapture(userId, {
         text,
@@ -77,7 +77,7 @@ export function registerCaptureTools(server: McpServer): void {
     } as any,
   }, async ({ token, processed, type, limit }: { token: string; processed?: boolean; type?: 'thought' | 'idea' | 'todo' | 'reminder'; limit?: number }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
 
       const items = await CaptureService.getCaptures(userId, {
         processed: processed === undefined ? undefined : String(processed),

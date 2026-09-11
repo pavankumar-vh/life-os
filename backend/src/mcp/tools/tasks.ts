@@ -32,7 +32,7 @@ export function registerTaskTools(server: McpServer): void {
     } as any,
   }, async ({ token, status }: { token: string; status?: 'todo' | 'in_progress' | 'done' }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const tasks = await TaskService.getTasks(userId)
 
       const filtered = status
@@ -72,7 +72,7 @@ export function registerTaskTools(server: McpServer): void {
     } as any,
   }, async ({ token, title, priority, dueDate, tags, notes }: { token: string; title: string; priority?: 'low' | 'medium' | 'high'; dueDate?: string; tags?: string[]; notes?: string }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
 
       if (dueDate && !DATE_RE.test(dueDate)) {
         throw new Error('dueDate must be in YYYY-MM-DD format')
@@ -117,7 +117,7 @@ export function registerTaskTools(server: McpServer): void {
     } as any,
   }, async ({ token, task_id }: { token: string; task_id: string }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const task = await TaskService.updateTask(userId, task_id, { status: 'done' } as never)
 
       const t = task as unknown as Record<string, unknown>

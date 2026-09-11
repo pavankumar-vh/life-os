@@ -23,7 +23,7 @@ export function registerProjectTools(server: McpServer): void {
     } as any,
   }, async ({ token, status }: { token: string; status?: 'active' | 'completed' | 'paused' | 'archived' }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const projects = await ProjectService.getProjects(userId)
 
       const filtered = status

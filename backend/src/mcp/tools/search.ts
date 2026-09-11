@@ -35,7 +35,7 @@ export function registerSearchTool(server: McpServer): void {
     } as any,
   }, async ({ token, query, types, limit }: { token: string; query: string; types?: string[]; limit?: number }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
 
       const response = await SearchService.search({
         q: query,

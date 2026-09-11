@@ -87,7 +87,13 @@ export function AuthScreen() {
         await login(email, password)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      const msg = err instanceof Error ? err.message : 'Something went wrong'
+      if (msg === 'NEEDS_APPROVAL') {
+        toast.success('Account created! Pending administrator approval.')
+        switchMode('login')
+      } else {
+        setError(msg)
+      }
     }
   }
 

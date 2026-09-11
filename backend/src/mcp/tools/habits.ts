@@ -27,7 +27,7 @@ export function registerHabitTools(server: McpServer): void {
     } as any,
   }, async ({ token }: { token: string }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const habits = await HabitService.getHabits(userId)
 
       const result = (habits as Array<Record<string, unknown>>).map(h => ({
@@ -59,7 +59,7 @@ export function registerHabitTools(server: McpServer): void {
     } as any,
   }, async ({ token, habit_id, date }: { token: string; habit_id: string; date?: string }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const targetDate = date ?? toISODate()
       const habit = await HabitService.logCompletion(userId, habit_id, targetDate)
 

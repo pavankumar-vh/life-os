@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/Toast'
 import { getApiBaseUrl } from '@/lib/api'
+import { AdminView } from '../admin/AdminView'
+import { McpAgentsView } from '../mcp/McpAgentsView'
 
 const ACCENT_PRESETS = [
   // Warm
@@ -418,7 +420,7 @@ export function SettingsView() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'general' | 'goals' | 'security' | 'google' | 'data'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'goals' | 'security' | 'google' | 'data' | 'admin' | 'mcp'>('general')
 
   // Google integration state
   const [googleConnected, setGoogleConnected] = useState(false)
@@ -610,6 +612,8 @@ export function SettingsView() {
     { id: 'security' as const, label: 'Security' },
     { id: 'google' as const, label: 'Google' },
     { id: 'data' as const, label: 'Data' },
+    ...(user?.isAdmin ? [{ id: 'admin' as const, label: 'Host Admin' }] : []),
+    { id: 'mcp' as const, label: 'MCP Agents' },
   ]
 
   return (
@@ -1266,6 +1270,20 @@ export function SettingsView() {
               ))}
             </div>
           </div>
+        </motion.div>
+      )}
+
+      {/* ═══ ADMIN TAB ═══ */}
+      {user?.isAdmin && activeTab === 'admin' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <AdminView />
+        </motion.div>
+      )}
+
+      {/* ═══ MCP TAB ═══ */}
+      {activeTab === 'mcp' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <McpAgentsView />
         </motion.div>
       )}
     </div>

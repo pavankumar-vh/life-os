@@ -90,6 +90,9 @@ export interface UserData {
   name: string
   xp: number
   level: number
+  isAdmin?: boolean
+  isApproved?: boolean
+  isDisabled?: boolean
 }
 
 // ─── AUTH STORE ─────────────────────────────────────
@@ -197,6 +200,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
       const data = await parseResponseBody(res)
       if (!res.ok) throw new Error(data.error || 'Registration failed')
+      if (data.needsApproval) {
+        set({ isLoading: false })
+        throw new Error('NEEDS_APPROVAL')
+      }
       localStorage.setItem('lifeos-token', data.token)
       set({ user: data.user, token: data.token, isLoading: false })
     } catch (err) {

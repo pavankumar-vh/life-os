@@ -51,20 +51,47 @@ router.post('/register', authLimiter, async (req, res) => {
     const sanitizedEmail = email.trim().toLowerCase()
     const sanitizedName  = name.trim()
 
+    // Host Controls
+    if (process.env.REGISTRATION_ENABLED === 'false') {
+      return res.status(403).json({ error: 'Registration is currently disabled by the administrator' })
+    }
+
+    if (process.env.MAX_USERS) {
+      const maxUsers = parseInt(process.env.MAX_USERS, 10)
+      if (!isNaN(maxUsers)) {
+        const currentUserCount = await User.countDocuments()
+        if (currentUserCount >= maxUsers) {
+          return res.status(403).json({ error: 'This instance has reached its maximum user capacity' })
+        }
+      }
+    }
+
     const existing = await User.findOne({ email: sanitizedEmail })
     if (existing) return res.status(409).json({ error: 'Email already registered' })
 
-    const hashed = await bcrypt.hash(password, 12)
-    const user   = await User.create({ name: sanitizedName, email: sanitizedEmail, password: hashed })
+    const requireApproval = process.env.REQUIRE_ACCOUNT_APPROVAL === 'true'
+    const isApproved = !requireApproval
 
-    const token = signToken({ userId: user._id.toString(), email: user.email })
+    const hashed = await bcrypt.hash(password, 12)
+    const user   = await User.create({ 
+      name: sanitizedName, 
+      email: sanitizedEmail, 
+      password: hashed,
+      isApproved 
+    })
 
     // Non-blocking — don't fail registration if email fails
     sendWelcomeEmail(user.email, user.name).catch(() => {})
 
+    if (!isApproved) {
+      return res.status(201).json({ needsApproval: true })
+    }
+
+    const token = signToken({ userId: user._id.toString(), email: user.email })
+    
     return res.status(201).json({
       token,
-      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level },
+      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level, isAdmin: user.isAdmin, isApproved: user.isApproved },
     })
   } catch (error) {
     console.error('Register error:', error)
@@ -97,6 +124,14 @@ router.post('/login', authLimiter, async (req, res) => {
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
 
+    if (user.isDisabled) {
+      return res.status(403).json({ error: 'This account has been disabled by the administrator.' })
+    }
+
+    if (!user.isApproved) {
+      return res.status(403).json({ error: 'This account is pending administrator approval.' })
+    }
+
     // If MFA is enabled, issue a short-lived challenge token instead of a session
     if (user.mfaEnabled) {
       const mfaToken = signMfaToken({ userId: user._id.toString(), email: user.email })
@@ -106,7 +141,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const token = signToken({ userId: user._id.toString(), email: user.email })
     return res.json({
       token,
-      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level },
+      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level, isAdmin: user.isAdmin, isApproved: user.isApproved },
     })
   } catch (error) {
     console.error('Login error:', error)
@@ -200,6 +235,9 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
       name: user.name,
       xp: user.xp,
       level: user.level,
+      isAdmin: user.isAdmin,
+      isApproved: user.isApproved,
+      isDisabled: user.isDisabled,
       mfaEnabled: user.mfaEnabled,
       createdAt: user.createdAt,
     })
@@ -343,7 +381,7 @@ router.post('/mfa/verify', mfaLimiter, async (req, res) => {
     const token = signToken({ userId: user._id.toString(), email: user.email })
     return res.json({
       token,
-      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level },
+      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level, isAdmin: user.isAdmin, isApproved: user.isApproved },
     })
   } catch (error) {
     console.error('MFA verify error:', error)
@@ -387,7 +425,7 @@ router.post('/mfa/recovery', mfaLimiter, async (req, res) => {
     const token = signToken({ userId: user._id.toString(), email: user.email })
     return res.json({
       token,
-      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level },
+      user: { _id: user._id, email: user.email, name: user.name, xp: user.xp, level: user.level, isAdmin: user.isAdmin, isApproved: user.isApproved },
       remainingCodes: updatedCodes.filter(Boolean).length,
     })
   } catch (error) {

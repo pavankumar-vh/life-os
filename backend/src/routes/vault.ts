@@ -89,6 +89,20 @@ router.post('/upload', upload.single('file'), async (req: AuthRequest, res: Resp
     }
     if (!req.file) return res.status(400).json({ error: 'No file provided' })
 
+    if (process.env.MAX_VAULT_BYTES_PER_USER) {
+      const maxBytes = parseInt(process.env.MAX_VAULT_BYTES_PER_USER, 10)
+      if (!isNaN(maxBytes)) {
+        const result = await VaultFile.aggregate([
+          { $match: { userId: req.user!.userId } },
+          { $group: { _id: null, totalSize: { $sum: '$sizeBytes' } } }
+        ])
+        const currentSize = result[0]?.totalSize || 0
+        if (currentSize + req.file.size > maxBytes) {
+          return res.status(403).json({ error: 'Storage quota exceeded. Please delete some files before uploading.' })
+        }
+      }
+    }
+
     const folder = (req.body.folder as string) || 'Root'
     const displayName = (req.body.name as string) || req.file.originalname
     const b2Folder = `vault/${req.user!.userId}/${folder}`

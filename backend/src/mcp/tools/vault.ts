@@ -20,7 +20,7 @@ export function registerVaultTools(server: McpServer): void {
     } as any,
   }, async ({ token, folder, search, limit }: any) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
 
       // CRITICAL: Ensure Private Zone files are never returned
       const query: Record<string, unknown> = { userId, visibility: 'standard' }
@@ -65,7 +65,7 @@ export function registerVaultTools(server: McpServer): void {
     } as any,
   }, async ({ token, fileId }: any) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
 
       // CRITICAL: Ensure Private Zone files cannot be deleted via MCP
       const file = await VaultFile.findOne({ _id: fileId, userId, visibility: 'standard' })

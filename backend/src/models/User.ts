@@ -13,6 +13,9 @@ export interface IUser extends Document {
   name: string
   xp: number
   level: number
+  isAdmin: boolean
+  isApproved: boolean
+  isDisabled: boolean
   googleTokens?: {
     access_token: EncryptedField | string  // encrypted
     refresh_token?: EncryptedField | string // encrypted
@@ -63,6 +66,9 @@ const UserSchema = new Schema<IUser>({
   name: { type: String, required: true, trim: true },
   xp: { type: Number, default: 0 },
   level: { type: Number, default: 1 },
+  isAdmin: { type: Boolean, default: false },
+  isApproved: { type: Boolean, default: true },
+  isDisabled: { type: Boolean, default: false },
   googleTokens: {
     access_token: Schema.Types.Mixed,   // string or EncryptedField
     refresh_token: Schema.Types.Mixed,  // string or EncryptedField

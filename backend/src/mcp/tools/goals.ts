@@ -23,7 +23,7 @@ export function registerGoalTools(server: McpServer): void {
     } as any,
   }, async ({ token, status }: { token: string; status?: 'active' | 'completed' | 'paused' }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const goals = await GoalService.getGoals(userId)
 
       const filtered = status

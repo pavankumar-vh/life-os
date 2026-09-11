@@ -38,7 +38,7 @@ export function registerTodayTool(server: McpServer): void {
     } as any,
   }, async ({ token, tz }: { token: string; tz?: number }) => {
     try {
-      const { userId } = verifyMcpToken(token)
+      const { userId } = await verifyMcpToken(token)
       const userObjId = new mongoose.Types.ObjectId(userId)
       const tzOffset = tz ?? 0
       const today = localDateString(tzOffset)
