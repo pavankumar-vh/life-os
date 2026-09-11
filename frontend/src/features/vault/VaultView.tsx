@@ -89,6 +89,8 @@ export function VaultView() {
   const [movingFile, setMovingFile] = useState<VaultFile | null>(null)
   const [deletingFolder, setDeletingFolder] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [draggedFile, setDraggedFile] = useState<VaultFile | null>(null)
+  const [folderDragOver, setFolderDragOver] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [privateZoneToken, setPrivateZoneToken] = useState<string | null>(() => typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('privateZoneToken') : null)
@@ -306,17 +308,35 @@ export function VaultView() {
     }
   }
 
-  const createFolder = () => {
+  const createFolder = async () => {
     const name = newFolderVal.trim()
-    if (!name || folders.includes(name)) { setNewFolderOpen(false); return }
-    setFolders(prev => [...prev, name])
-    setActiveFolder(name)
+    if (!name) { setNewFolderOpen(false); return }
+    if (folders.includes(name)) { toast.error('Folder already exists'); return }
     setNewFolderOpen(false)
     setNewFolderVal('')
-    // Folders are virtual — they only persist once a file is uploaded into them.
-    // Trigger the file picker immediately so the user can populate it.
-    setTimeout(() => fileInputRef.current?.click(), 150)
-    toast.success(`Folder "${name}" ready — add a file to save it`)
+    try {
+      const res = await fetchApi('/api/vault/folders', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      setFolders(prev => [...prev, name].sort((a, b) => a === 'Root' ? -1 : b === 'Root' ? 1 : a.localeCompare(b)))
+      setActiveFolder(name)
+      toast.success(`Folder "${name}" created`)
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to create folder')
+    }
+  }
+
+  // Drag-drop: file onto folder card
+  const handleFileDragStart = (f: VaultFile) => setDraggedFile(f)
+  const handleFileDragEnd = () => { setDraggedFile(null); setFolderDragOver(null) }
+  const handleFolderDrop = async (folderName: string) => {
+    setFolderDragOver(null)
+    if (!draggedFile || draggedFile.folder === folderName) return
+    await moveFile(draggedFile, folderName)
+    setDraggedFile(null)
   }
 
   const filtered = useMemo(() => {
@@ -561,8 +581,42 @@ export function VaultView() {
           </span>
         </div>
 
+        {/* Folder cards — Drive-style */}
+        {(() => {
+          if (search || showStarred || activeFolder === '🔒 Private Zone') return null
+          const subFolders = folders.filter(f => f !== activeFolder && f !== '🔒 Private Zone')
+          if (subFolders.length === 0) return null
+          return (
+            <div className="px-5 pt-4">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-2">Folders</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 mb-4">
+                {subFolders.map(folder => (
+                  <div
+                    key={folder}
+                    onDragOver={e => { e.preventDefault(); setFolderDragOver(folder) }}
+                    onDragLeave={() => setFolderDragOver(null)}
+                    onDrop={() => handleFolderDrop(folder)}
+                    onClick={() => { setActiveFolder(folder); setSearch('') }}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+                      folderDragOver === folder
+                        ? 'border-accent/60 bg-accent/10 scale-[1.02]'
+                        : 'border-border bg-bg-elevated hover:border-accent/30 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <FolderOpen className="w-4 h-4 text-accent/70 shrink-0" />
+                    <span className="text-xs text-text-primary truncate font-medium">{folder}</span>
+                    <span className="ml-auto text-[10px] text-text-muted tabular-nums shrink-0">
+                      {files.filter(fi => fi.folder === folder).length}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* File area */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto px-5 pb-5">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
@@ -579,10 +633,10 @@ export function VaultView() {
               </div>
               <div className="text-center">
                 <p className="text-sm text-text-muted font-medium">
-                  {search ? `No files matching "${search}"` : showStarred ? 'No starred files' : 'Empty folder'}
+                  {search ? `No files matching "${search}"` : showStarred ? 'No starred files' : 'No files yet'}
                 </p>
                 <p className="text-xs text-text-muted mt-1">
-                  {!search && !showStarred && 'Drop files here or click Upload to add files'}
+                  {!search && !showStarred && 'Drop files here or click Upload'}
                 </p>
               </div>
               {!search && !showStarred && (
@@ -602,7 +656,12 @@ export function VaultView() {
                   layout
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="group relative rounded-xl border border-border bg-bg-elevated hover:border-accent/30 transition-all cursor-pointer p-3 flex flex-col gap-2"
+                  draggable
+                  onDragStart={() => handleFileDragStart(f)}
+                  onDragEnd={handleFileDragEnd}
+                  className={`group relative rounded-xl border border-border bg-bg-elevated hover:border-accent/30 transition-all cursor-pointer p-3 flex flex-col gap-2 ${
+                    draggedFile?._id === f._id ? 'opacity-50 scale-95' : ''
+                  }`}
                 >
                   {/* Thumbnail / icon */}
                   <div

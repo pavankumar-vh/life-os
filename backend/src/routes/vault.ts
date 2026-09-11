@@ -3,6 +3,7 @@ import multer from 'multer'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { uploadToB2, deleteFromB2, generatePresignedDownloadUrl } from '../lib/b2'
 import { VaultFile, detectFileType } from '../models/VaultFile'
+import { Folder } from '../models/Folder'
 import { audit } from '../lib/audit'
 
 const router = Router()
@@ -38,14 +39,42 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 })
 
-// GET /api/vault/folders — list unique folder paths for this user
+// GET /api/vault/folders — list unique folders (persistent + file-derived, deduped)
 router.get('/folders', async (req: AuthRequest, res: Response) => {
   try {
     if (isDemoUser(req.user!.userId)) return res.json(['Root'])
-    const folders = await VaultFile.distinct('folder', { userId: req.user!.userId, visibility: 'standard' })
-    return res.json(['Root', ...folders.filter(f => f !== 'Root').sort()])
+    const [folderDocs, fileFolders] = await Promise.all([
+      Folder.find({ userId: req.user!.userId }).distinct('name'),
+      VaultFile.distinct('folder', { userId: req.user!.userId, visibility: 'standard' }),
+    ])
+    const all = Array.from(new Set(['Root', ...folderDocs, ...fileFolders])).sort((a, b) =>
+      a === 'Root' ? -1 : b === 'Root' ? 1 : a.localeCompare(b)
+    )
+    return res.json(all)
   } catch (e) {
     return res.status(500).json({ error: 'Failed to list folders' })
+  }
+})
+
+// POST /api/vault/folders — create a persistent named folder
+router.post('/folders', async (req: AuthRequest, res: Response) => {
+  try {
+    if (isDemoUser(req.user!.userId)) return res.status(400).json({ error: 'Demo user cannot create folders' })
+    const { name } = req.body
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Folder name is required' })
+    }
+    const folderName = name.trim()
+    if (folderName === 'Root') return res.status(400).json({ error: 'Cannot create a folder named Root' })
+    // Upsert — idempotent
+    await Folder.findOneAndUpdate(
+      { userId: req.user!.userId, name: folderName },
+      { userId: req.user!.userId, name: folderName },
+      { upsert: true, new: true }
+    )
+    return res.status(201).json({ name: folderName })
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to create folder' })
   }
 })
 
@@ -147,7 +176,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   }
 })
 
-// DELETE /api/vault/folder/:name — delete all files in a folder
+// DELETE /api/vault/folder/:name — delete all files in a folder AND the folder doc
 router.delete('/folder/:name', async (req: AuthRequest, res: Response) => {
   try {
     if (isDemoUser(req.user!.userId)) {
@@ -156,6 +185,7 @@ router.delete('/folder/:name', async (req: AuthRequest, res: Response) => {
     const files = await VaultFile.find({ userId: req.user!.userId, folder: req.params.name })
     await Promise.all(files.map(f => deleteFromB2(f.key)))
     await VaultFile.deleteMany({ userId: req.user!.userId, folder: req.params.name })
+    await Folder.deleteOne({ userId: req.user!.userId, name: req.params.name })
     return res.json({ deleted: files.length })
   } catch (e) {
     return res.status(500).json({ error: 'Failed to delete folder' })
