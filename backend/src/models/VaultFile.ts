@@ -6,8 +6,8 @@ export interface IVaultFile extends Document {
   userId: mongoose.Types.ObjectId
   name: string          // display name (user can rename)
   originalName: string  // original filename
-  url: string           // B2 public URL
-  key: string           // B2 storage key (for deletion)
+  url: string           // deprecated: was B2 public URL; now generated dynamically as presigned URL
+  key: string           // B2 storage key (used to generate presigned URLs and for deletion)
   mimeType: string
   sizeBytes: number
   fileType: VaultFileType
@@ -35,7 +35,7 @@ const VaultFileSchema = new Schema<IVaultFile>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   name: { type: String, required: true },
   originalName: { type: String, required: true },
-  url: { type: String, required: true },
+  url: { type: String, default: '' }, // not stored — presigned URLs generated per-request
   key: { type: String, required: true },
   mimeType: { type: String, required: true },
   sizeBytes: { type: Number, required: true },
