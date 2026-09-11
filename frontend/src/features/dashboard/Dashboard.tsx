@@ -827,7 +827,7 @@ export function Dashboard() {
 
       {/* Bottom Stats */}
       <motion.div
-        className="grid grid-cols-3 gap-3 mb-6"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}

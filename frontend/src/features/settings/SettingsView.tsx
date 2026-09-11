@@ -849,7 +849,7 @@ export function SettingsView() {
                     <Unlink className="w-3 h-3" /> Disconnect
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 sm:grid-cols-3 gap-2">
                   {[
                     { icon: Calendar, label: 'Calendar', desc: 'Events synced' },
                     { icon: CloudUpload, label: 'Drive', desc: 'Backup ready' },

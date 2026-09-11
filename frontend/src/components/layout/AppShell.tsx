@@ -145,11 +145,11 @@ export function AppShell() {
       >
         {/* Notes & Whiteboard get full-bleed layout; everything else stays centered */}
         {activeView === 'notes' || activeView === 'whiteboard' || activeView === 'vault' ? (
-          <div key={activeView} className="h-full">
+          <div key={activeView} className="h-full pb-16 md:pb-0 flex flex-col">
             <ActiveView />
           </div>
         ) : (
-        <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 pb-24 md:pb-8">
+        <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-8 pb-24 md:pb-8">
           <div key={activeView}>
             <ActiveView />
           </div>
@@ -160,7 +160,7 @@ export function AppShell() {
       <CommandPalette />
       <QuickAddBar open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
 
-      {/* Floating AI Chat Button — hidden on whiteboard to avoid Excalidraw overlap */}
+      {/* Floating AI Chat Button */}
       <AnimatePresence>
         {!chatOpen && activeView !== 'whiteboard' && (
           <motion.button
@@ -169,7 +169,7 @@ export function AppShell() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             onClick={toggleChat}
-            className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-accent/20 md:bottom-8 md:right-8 group"
+            className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-accent/20 group"
             style={{
               background: 'linear-gradient(135deg, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.92), rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.70))',
               boxShadow: '0 4px 24px -4px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.45), 0 0 0 1px rgba(255,255,255,0.1) inset',

@@ -411,7 +411,7 @@ export function DietView() {
                 placeholder="What did you eat?" className="input w-full mb-3"
                 onKeyDown={(e) => e.key === 'Enter' && handleAdd()} autoFocus />
 
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                 <div>
                   <label className="text-[10px] text-text-secondary uppercase block mb-1">Calories</label>
                   <input type="number" value={calories || ''} onChange={(e) => setCalories(Number(e.target.value))}

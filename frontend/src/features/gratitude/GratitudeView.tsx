@@ -74,7 +74,7 @@ export function GratitudeView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="card text-center">
           <Sparkles className="w-4 h-4 text-accent mx-auto mb-1" />
           <p className="text-2xl font-bold text-accent">{stats.streak}</p>

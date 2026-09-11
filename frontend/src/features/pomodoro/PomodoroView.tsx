@@ -62,7 +62,7 @@ export function PomodoroView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         <div className="card text-center">
           <Zap className="w-4 h-4 text-accent mx-auto mb-1" />
           <p className="text-2xl font-bold text-accent">{sessionsToday}</p>

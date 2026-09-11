@@ -138,7 +138,7 @@ export function WishlistView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="card text-center">
           <p className="text-2xl font-bold text-accent">{stats.total}</p>
           <p className="text-[11px] text-text-secondary">Wants</p>
@@ -172,7 +172,7 @@ export function WishlistView() {
               </div>
 
               {/* Log Summary */}
-              <div className="grid grid-cols-4 gap-2 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                 <div className="p-2 rounded-lg bg-bg-elevated text-center">
                   <p className="text-sm font-bold text-accent">{logStats.addedThisMonth}</p>
                   <p className="text-[9px] text-text-muted">Added this mo.</p>
@@ -247,7 +247,7 @@ export function WishlistView() {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
             <div className="card space-y-3">
               <input className="input w-full" placeholder="What do you want?" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <select className="input" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as WishlistData['category'] }))}>
                   {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>

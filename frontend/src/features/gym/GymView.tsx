@@ -483,7 +483,7 @@ export function GymView() {
                     </div>
                   </div>
                   <p className="text-xs text-text-muted mb-3 flex items-center gap-1.5"><Ruler className="w-3 h-3 text-accent" /> Muscle Dimensions (cm)</p>
-                  <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                     {MEASUREMENT_FIELDS.map(f => (
                       <div key={f.key}>
                         <label className="text-xs text-text-secondary block mb-1">{f.label}</label>
@@ -509,7 +509,7 @@ export function GymView() {
                   </h3>
                   <span className="text-xs text-text-muted">{formatDate(measurementProgress.latest.date)}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {MEASUREMENT_FIELDS.map(f => {
                     const current = measurementProgress.latest.measurements?.[f.key as MeasurementKey]
                     const previous = measurementProgress.previous?.measurements?.[f.key as MeasurementKey]
@@ -688,7 +688,7 @@ export function GymView() {
             <h3 className="text-xs font-medium text-text-muted mb-3 flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5 text-accent" /> Last 30 Days
             </h3>
-            <div className="grid grid-cols-10 gap-1.5">
+            <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
               {Array.from({ length: 30 }, (_, i) => {
                 const d = new Date(); d.setDate(d.getDate() - (29 - i))
                 const date = toISODate(d)

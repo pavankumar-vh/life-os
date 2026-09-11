@@ -108,7 +108,7 @@ export function WaterTrackerView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="card text-center">
           <p className="text-2xl font-bold text-blue-soft">{stats.avg}</p>
           <p className="text-[11px] text-text-secondary">Avg/Day</p>

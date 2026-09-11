@@ -292,7 +292,7 @@ export function QuickCaptureView() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
           <div className="card text-center py-3">
             <p className="text-xl font-bold text-accent">{stats.total}</p>
             <p className="text-[11px] text-text-secondary">Total</p>

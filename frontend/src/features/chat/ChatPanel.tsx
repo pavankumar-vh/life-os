@@ -517,7 +517,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             </AnimatePresence>
 
             {/* Input Area */}
-            <div className="shrink-0 px-4 pb-4 pt-2">
+            <div className="shrink-0 px-4 pb-4 md:pb-4 pt-2" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
               {!hasKey ? (
                 <button
                   onClick={() => { onClose(); useAppStore.getState().setActiveView('settings') }}

@@ -136,7 +136,7 @@ export function WeeklyReviewView() {
           <h3 className="text-xs font-medium text-text-muted mb-3 flex items-center gap-1.5">
             <CheckSquare className="w-3.5 h-3.5 text-blue-soft" /> Tasks
           </h3>
-          <div className="grid grid-cols-3 gap-2 text-center mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center mb-3">
             <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-text-primary">{data.tasks?.completed || 0}</p>
               <p className="text-[10px] text-text-muted">Completed</p>
@@ -203,7 +203,7 @@ export function WeeklyReviewView() {
           <h3 className="text-xs font-medium text-text-muted mb-3 flex items-center gap-1.5">
             <Inbox className="w-3.5 h-3.5 text-purple-soft" /> Captures
           </h3>
-          <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center">
             <div className="p-2 bg-bg-elevated rounded-lg">
               <p className="text-lg font-bold text-text-primary">{data.captures?.count || 0}</p>
               <p className="text-[10px] text-text-muted">Items Captured</p>

@@ -85,6 +85,7 @@ export function VaultView() {
   const folderInputRef = useRef<HTMLInputElement>(null)
   const newFolderInputRef = useRef<HTMLInputElement>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   const [privateZoneToken, setPrivateZoneToken] = useState<string | null>(() =>
     typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('privateZoneToken') : null
@@ -399,10 +400,20 @@ export function VaultView() {
         )}
       </AnimatePresence>
 
-      {/* ── Left sidebar ── */}
+      {/* ── Left sidebar — hidden on mobile, shown via sheet ── */}
+      {/* Mobile sidebar backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
       <div
-        className="w-52 shrink-0 flex flex-col border-r border-border py-4 overflow-y-auto"
-        style={{ background: 'rgba(255,255,255,0.01)' }}
+        className={`${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0 fixed md:relative left-0 top-0 h-full z-50 md:z-auto w-60 md:w-52 shrink-0 flex flex-col border-r border-border py-4 overflow-y-auto transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]`}
+        style={{ background: 'rgba(12,12,14,0.98)' }}
       >
         {/* Header */}
         <div className="px-4 mb-4">
@@ -526,7 +537,15 @@ export function VaultView() {
       {/* ── Main area ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0">
+        <div className="flex items-center gap-2 px-3 md:px-5 py-3 border-b border-border shrink-0">
+          {/* Mobile: folder sidebar toggle */}
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="md:hidden p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/[0.06] transition-colors shrink-0"
+            title="Folders"
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 text-xs text-text-muted">
             <button

@@ -230,7 +230,7 @@ export function BodyTrackerView() {
                 <p className="text-[10px] uppercase text-text-muted tracking-wider mb-2 flex items-center gap-1.5">
                   <Ruler size={12} /> Core Measurements (cm)
                 </p>
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {[
                     { label: 'Neck', val: neck, set: setNeck },
                     { label: 'Shoulders', val: shoulders, set: setShoulders },
@@ -314,7 +314,7 @@ export function BodyTrackerView() {
           {/* Year picker */}
           {calView === 'years' && (
             <motion.div key="years" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               {Array.from({ length: 9 }, (_, i) => yearRangeStart + i).map(y => (
                 <button key={y} onClick={() => { setCalMonth(p => ({ ...p, year: y })); setCalView('months') }}
                   className={`py-2 rounded-lg text-xs font-medium transition-all ${
@@ -329,7 +329,7 @@ export function BodyTrackerView() {
           {/* Month picker */}
           {calView === 'months' && (
             <motion.div key="months" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }}>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               {MONTHS.map((m, i) => {
                 const isCurrent = calMonth.year === new Date().getFullYear() && i === new Date().getMonth()
                 return (

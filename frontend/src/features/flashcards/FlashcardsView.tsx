@@ -130,7 +130,7 @@ export function FlashcardsView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="card text-center">
           <p className="text-2xl font-bold text-accent">{stats.total}</p>
           <p className="text-[11px] text-text-secondary">Total</p>
