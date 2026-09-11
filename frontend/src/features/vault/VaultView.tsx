@@ -313,6 +313,10 @@ export function VaultView() {
     setActiveFolder(name)
     setNewFolderOpen(false)
     setNewFolderVal('')
+    // Folders are virtual — they only persist once a file is uploaded into them.
+    // Trigger the file picker immediately so the user can populate it.
+    setTimeout(() => fileInputRef.current?.click(), 150)
+    toast.success(`Folder "${name}" ready — add a file to save it`)
   }
 
   const filtered = useMemo(() => {
