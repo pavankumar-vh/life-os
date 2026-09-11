@@ -37,6 +37,16 @@ function privateZoneAuth(req: AuthRequest, res: Response, next: import('express'
   next()
 }
 
+// GET /api/vault/private/status
+router.get('/status', async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findById(req.user!.userId).select('+privateZonePasswordHash')
+    return res.json({ isSetup: !!user?.privateZonePasswordHash })
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to check status' })
+  }
+})
+
 // POST /api/vault/private/setup
 router.post('/setup', async (req: AuthRequest, res: Response) => {
   try {

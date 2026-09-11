@@ -118,7 +118,8 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
     audit(req.user!.userId, 'update', 'vault', req.params.id, {
       changes: updates,
     })
-    return res.json(file)
+    // Re-inject presigned URL since lean() won't have it
+    return res.json({ ...file, url: await generatePresignedDownloadUrl(file.key) })
   } catch (e) {
     return res.status(500).json({ error: 'Failed to update file' })
   }

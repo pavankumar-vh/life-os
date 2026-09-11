@@ -103,6 +103,7 @@ export function VaultView() {
       
       if (isPrivate && !privateZoneToken) {
         setIsLoading(false)
+        setShowPrivateModal(true)
         return // Wait for unlock
       }
 
@@ -141,7 +142,9 @@ export function VaultView() {
   const uploadFile = useCallback(async (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    form.append('folder', activeFolder)
+    // Private Zone uploads go to Root folder; visibility is set by the backend based on upload endpoint
+    const folderForUpload = activeFolder === '🔒 Private Zone' ? 'Root' : activeFolder
+    form.append('folder', folderForUpload)
     form.append('name', file.name)
 
     setUploading(true)
@@ -767,9 +770,8 @@ export function VaultView() {
 
       <PrivateZoneModal 
         isOpen={showPrivateModal} 
-        onClose={() => { setShowPrivateModal(false); setActiveFolder('Root') }} 
-        onUnlocked={(t) => { setPrivateZoneToken(t); sessionStorage.setItem('privateZoneToken', t); setShowPrivateModal(false) }}
-        token={privateZoneToken}
+        onClose={() => { setShowPrivateModal(false); if (!privateZoneToken) setActiveFolder('Root') }} 
+        onUnlocked={(t) => { setPrivateZoneToken(t); sessionStorage.setItem('privateZoneToken', t); setShowPrivateModal(false); load() }}
       />
 
       {/* Close menu on background click */}
