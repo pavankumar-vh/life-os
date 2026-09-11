@@ -94,8 +94,9 @@ router.post('/upload', upload.single('file'), async (req: AuthRequest, res: Resp
     
     return res.status(201).json(vaultFileObj)
   } catch (e) {
-    console.error('POST /api/vault/upload error:', e)
-    return res.status(500).json({ error: 'Failed to upload file' })
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('POST /api/vault/upload error:', msg)
+    return res.status(500).json({ error: `Upload failed: ${msg}` })
   }
 })
 

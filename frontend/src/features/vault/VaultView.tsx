@@ -168,8 +168,8 @@ export function VaultView() {
       setFiles(prev => [newFile, ...prev])
       if (!folders.includes(activeFolder)) setFolders(prev => [...prev, activeFolder])
       toast.success(`"${file.name}" uploaded`)
-    } catch {
-      toast.error('Upload failed')
+    } catch (e: any) {
+      toast.error(e?.message || 'Upload failed — check your connection')
     } finally {
       setUploading(false)
       setUploadProgress(null)
