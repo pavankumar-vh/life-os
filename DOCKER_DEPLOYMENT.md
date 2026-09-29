@@ -69,3 +69,63 @@ git pull origin main
 docker compose -f docker-compose.yml up -d --build
 ```
 Docker will gracefully swap the old containers with the new ones.
+
+---
+
+## 🔑 Admin Bootstrap / Recovery
+
+### When to use this
+
+This command is for the **self-hosting operator** only. Use it when:
+
+- Your account was created **before** the first-account-admin bootstrap was deployed, so it is still a regular user without admin access.
+- You need to recover host admin access after accidentally removing all admins.
+
+> **This is an operator-only, CLI-based recovery mechanism.** It has no HTTP endpoint and cannot be triggered remotely. Only someone with direct access to the running production container can execute it.
+
+### Command
+
+Run this from your VPS (SSH session) after the container is running:
+
+```bash
+docker exec lifeos-backend node dist/scripts/adminPromote.js your-email@example.com
+```
+
+Or using the npm script alias:
+
+```bash
+docker exec lifeos-backend npm run admin:promote -- your-email@example.com
+```
+
+### Expected success output
+
+```
+✅ Admin bootstrap successful!
+   User  : Pavan Kumar <pavankumarvh@outlook.com>
+   isAdmin    : false    → true
+   isApproved : false → true
+   isDisabled : false → false
+
+   The user can now log in and access the Host Control Center.
+```
+
+### Expected output for unknown email
+
+```
+❌ No user found with email: nobody@example.com
+   Check the email address and try again.
+```
+The command exits with code 1 on any failure (user not found, database error, missing argument).
+
+### How it works
+
+- Connects to MongoDB using `MONGODB_URI` from the container's environment (same as the running server).
+- Finds the user by email (case-insensitive).
+- Sets `isAdmin = true`, `isApproved = true`, `isDisabled = false`.
+- Saves via Mongoose and disconnects cleanly.
+- Does **not** log passwords, tokens, or any secrets.
+
+### After running
+
+Reload the Life OS frontend and log in with the promoted account. You will see the **Host Control Center** in the sidebar.
+

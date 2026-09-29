@@ -9,7 +9,9 @@
     "start": "node dist/index.js",
     "test": "jest --passWithNoTests",
     "mcp": "node dist/mcp/index.js",
-    "mcp:dev": "tsx src/mcp/index.ts"
+    "mcp:dev": "tsx src/mcp/index.ts",
+    "admin:promote": "node dist/scripts/adminPromote.js",
+    "admin:promote:dev": "tsx src/scripts/adminPromote.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1025.0",
