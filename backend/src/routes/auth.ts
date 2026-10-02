@@ -385,6 +385,14 @@ router.post('/mfa/verify', mfaLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
+    // Re-check account status — user may have been disabled after MFA challenge was issued
+    if (user.isDisabled) {
+      return res.status(403).json({ error: 'This account has been disabled by the administrator.' })
+    }
+    if (!user.isApproved) {
+      return res.status(403).json({ error: 'This account is pending administrator approval.' })
+    }
+
     // Decrypt stored secret
     let secret: string
     try {
@@ -432,6 +440,14 @@ router.post('/mfa/recovery', mfaLimiter, async (req, res) => {
       .select('+mfaEnabled +mfaRecoveryCodes')
     if (!user || !user.mfaEnabled || !user.mfaRecoveryCodes?.length) {
       return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    // Re-check account status — user may have been disabled after MFA challenge was issued
+    if (user.isDisabled) {
+      return res.status(403).json({ error: 'This account has been disabled by the administrator.' })
+    }
+    if (!user.isApproved) {
+      return res.status(403).json({ error: 'This account is pending administrator approval.' })
     }
 
     const codeIndex = await verifyRecoveryCode(recoveryCode, user.mfaRecoveryCodes)

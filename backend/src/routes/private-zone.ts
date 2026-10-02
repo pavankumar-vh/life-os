@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import argon2 from 'argon2'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
+import rateLimit from 'express-rate-limit'
 import { authMiddleware, AuthRequest, isDemoUser } from '../lib/auth'
 import { User } from '../models/User'
 import { VaultFile } from '../models/VaultFile'
@@ -10,6 +11,16 @@ import { audit } from '../lib/audit'
 
 const router = Router()
 router.use(authMiddleware)
+
+// Strict limiter for password-based endpoints — prevents brute-force on Private Zone
+const privateZoneLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: { error: 'Too many attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 
 const JWT_SECRET = process.env.JWT_SECRET as string
 
@@ -90,7 +101,7 @@ router.post('/setup', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/vault/private/unlock
-router.post('/unlock', async (req: AuthRequest, res: Response) => {
+router.post('/unlock', privateZoneLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const { password } = req.body
     if (!password) return res.status(400).json({ error: 'Password required' })
@@ -114,7 +125,7 @@ router.post('/unlock', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/vault/private/recover
-router.post('/recover', async (req: AuthRequest, res: Response) => {
+router.post('/recover', privateZoneLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const { recoveryCode, newPassword } = req.body
     if (!recoveryCode || !newPassword || newPassword.length < 8) {

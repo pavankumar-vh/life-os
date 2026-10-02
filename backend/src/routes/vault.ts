@@ -14,6 +14,11 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
 })
 
+/** Escape a string for safe use in a MongoDB $regex (literal substring search, prevents ReDoS) */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // GET /api/vault — list files, optional ?folder=Documents
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -22,7 +27,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const query: Record<string, unknown> = { userId: req.user!.userId, visibility: 'standard' }
     if (folder) query.folder = folder
     if (starred === 'true') query.starred = true
-    if (search) query.name = { $regex: search, $options: 'i' }
+    // SEC-04: escape user input before $regex — treat as a literal substring, not arbitrary pattern
+    if (search && typeof search === 'string') query.name = { $regex: escapeRegex(search), $options: 'i' }
     const files = await VaultFile.find(query).sort({ starred: -1, createdAt: -1 }).lean()
     
     // Inject short-lived presigned download URLs
@@ -124,7 +130,7 @@ router.post('/upload', upload.single('file'), async (req: AuthRequest, res: Resp
       sizeBytes: req.file.size,
       fileType: detectFileType(req.file.mimetype),
       folder,
-      tags: req.body.tags ? JSON.parse(req.body.tags) : [],
+      tags: (() => { try { return req.body.tags ? JSON.parse(req.body.tags) : [] } catch { return [] } })(),
       starred: false,
     })
 

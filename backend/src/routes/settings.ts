@@ -97,7 +97,9 @@ router.put('/', async (req: AuthRequest, res) => {
 
     const before = (await User.findById(userId).select('settings').lean())?.settings
     const user = await User.findByIdAndUpdate(userId, { $set: updates }, { new: true }).select('settings').lean()
-    audit(userId, 'update', 'settings', userId, { before, after: null })
+    // Strip encrypted aiKeys from audit snapshot — ciphertext objects shouldn't appear in logs
+    const { aiKeys: _omit, ...auditableBefore } = (before as any) || {}
+    audit(userId, 'update', 'settings', userId, { before: auditableBefore, after: null })
     return res.json(user?.settings || DEFAULT_SETTINGS)
   } catch (e) {
     console.error('PUT /api/settings error:', e)
